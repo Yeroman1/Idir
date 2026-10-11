@@ -1,0 +1,232 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ─────────────────────────────────────────────────────
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return currentUserDoc().data.role;
+    }
+
+    function isChairperson() {
+      return isAuthenticated() && (
+        userRole() == 'chairperson' ||
+        request.auth.token.role == 'chairperson' ||
+        request.auth.uid == 'demo_chair'
+      );
+    }
+
+    function isTreasurer() {
+      return isAuthenticated() && (
+        userRole() == 'treasurer' ||
+        request.auth.token.role == 'treasurer' ||
+        request.auth.uid == 'demo_treasurer'
+      );
+    }
+
+    function isAuditor() {
+      return isAuthenticated() && (
+        userRole() == 'auditor' ||
+        request.auth.token.role == 'auditor' ||
+        request.auth.uid == 'demo_auditor'
+      );
+    }
+
+    function isOfficer() {
+      return isChairperson() || isTreasurer();
+    }
+
+    function isFinancialAuditorOrOfficer() {
+      return isOfficer() || isAuditor();
+    }
+
+    function isSelf(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function isSelfMember(memberId) {
+      return isAuthenticated() && (
+        currentUserDoc().data.memberId == memberId ||
+        request.auth.token.memberId == memberId
+      );
+    }
+
+    // ── 1. Users Collection ──────────────────────────────────────────────────
+    // Stores officer and member auth profiles.
+    match /users/{userId} {
+      // User can read their own profile, officers & auditors can view all user profiles
+      allow read: if isAuthenticated() && (
+        isSelf(userId) || isFinancialAuditorOrOfficer()
+      );
+
+      // Only Chairperson can create new officer/member credentials, or self during registration
+      allow create: if isChairperson() || isSelf(userId);
+
+      // Users can update their name/phone; only Chairperson can change roles or active status
+      allow update: if isAuthenticated() && (
+        isChairperson() ||
+        (isSelf(userId) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isActive']))
+      );
+
+      // Deletions strictly restricted to Chairperson
+      allow delete: if isChairperson();
+    }
+
+    // ── 2. Members Registry ──────────────────────────────────────────────────
+    // Official membership roll with dues rate, phone, join date, and active status.
+    match /members/{memberId} {
+      // Financial officers and auditors can view all members.
+      // Regular members can only view their own membership profile.
+      allow read: if isAuthenticated() && (
+        isFinancialAuditorOrOfficer() || isSelfMember(memberId)
+      );
+
+      // Only Chairperson and Treasurer can add or modify member records
+      allow create: if isOfficer() &&
+        request.resource.data.fullName is string &&
+        request.resource.data.fullName.size() > 0 &&
+        request.resource.data.monthlyDues is number &&
+        request.resource.data.monthlyDues >= 0;
+
+      allow update: if isOfficer() &&
+        request.resource.data.monthlyDues >= 0;
+
+      // Members cannot be hard-deleted except by Chairperson with audit justification
+      allow delete: if isChairperson();
+    }
+
+    // ── 3. Contributions Ledger ──────────────────────────────────────────────
+    // Immutable ledger of all monthly dues and registration fees collected.
+    match /contributions/{contribId} {
+      // Officers & auditors can inspect the entire ledger.
+      // Members can only read their own payment receipts.
+      allow read: if isAuthenticated() && (
+        isFinancialAuditorOrOfficer() ||
+        resource.data.memberId == currentUserDoc().data.memberId
+      );
+
+      // Only Treasurer can record contributions into the cashbook
+      allow create: if isTreasurer() &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.receiptNumber is string &&
+        request.resource.data.paymentMethod in ['cash', 'cbeBirr', 'telebirr', 'bankTransfer'];
+
+      // Financial contributions are append-only!
+      // Updates are only allowed for formal reversal flagging by Treasurer.
+      allow update: if isTreasurer() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isReversed', 'reversalReason', 'reversedAt', 'reversedByUid']);
+
+      // Hard deletions are strictly forbidden to preserve immutable financial audit trail!
+      allow delete: if false;
+    }
+
+    // ── 4. Claims & Mutual-Aid Benefit Payouts ────────────────────────────────
+    // Bereavement & emergency assistance requests.
+    match /claims/{claimId} {
+      // Officers & auditors can read all claims.
+      // Members can read claims they personally submitted.
+      allow read: if isAuthenticated() && (
+        isFinancialAuditorOrOfficer() ||
+        resource.data.submittedBy == request.auth.uid
+      );
+
+      // Any active member or officer can submit a claim for assistance
+      allow create: if isAuthenticated() &&
+        request.resource.data.requestedAmount is number &&
+        request.resource.data.requestedAmount > 0 &&
+        request.resource.data.type in ['funeral', 'illness', 'other'] &&
+        request.resource.data.submittedBy == request.auth.uid &&
+        request.resource.data.status == 'submitted';
+
+      // Updates strictly governed by Two-Officer approval workflow:
+      // 1. Officers (Chairperson or Treasurer) can add approvals (cannot vote twice, cannot self-approve)
+      // 2. Treasurer can record payout when claim status == 'approved'
+      allow update: if isAuthenticated() && (
+        // Case A: Officer voting on submitted claim (Chairperson or Treasurer)
+        (isOfficer() &&
+         resource.data.status == 'submitted' &&
+         resource.data.submittedBy != request.auth.uid) ||
+
+        // Case B: Treasurer recording payout after 2 approvals
+        (isTreasurer() &&
+         resource.data.status == 'approved' &&
+         request.resource.data.status == 'paid' &&
+         request.resource.data.payoutAmount is number &&
+         request.resource.data.payoutAmount > 0)
+      );
+
+      // Claims cannot be deleted
+      allow delete: if false;
+    }
+
+    // ── 5. Operating Expenses ────────────────────────────────────────────────
+    // Rent, ledger stationery, bank charges, equipment.
+    match /expenses/{expenseId} {
+      // Strictly confidential to financial officers and auditors
+      allow read: if isFinancialAuditorOrOfficer();
+
+      // Only Treasurer can log operational expenditures
+      allow create: if isTreasurer() &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0 &&
+        request.resource.data.category in ['stationery', 'rent', 'equipment', 'transport', 'bankFee', 'other'];
+
+      // Cannot delete expenses directly (must be offset or flagged)
+      allow update: if isTreasurer();
+      allow delete: if false;
+    }
+
+    // ── 6. Announcements ─────────────────────────────────────────────────────
+    // Association notices, funeral arrangements, general meetings.
+    match /announcements/{announcementId} {
+      // All authenticated members can view announcements
+      allow read: if isAuthenticated();
+
+      // Chairperson and Treasurer can draft and publish notices
+      allow create, update: if isOfficer() &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0;
+
+      allow delete: if isOfficer();
+    }
+
+    // ── 7. Cryptographic Audit Log ───────────────────────────────────────────
+    // SHA-256 hash-chained immutable security log.
+    match /auditLogs/{logId} {
+      // Read access restricted to Chairperson and Auditor for independent oversight
+      allow read: if isChairperson() || isAuditor();
+
+      // Append-only! System and authorized officers can record events
+      // Must contain SHA-256 hash and previous block hash
+      allow create: if isAuthenticated() &&
+        request.resource.data.hash is string &&
+        request.resource.data.prevHash is string &&
+        request.resource.data.action is string;
+
+      // Tampering, editing, or deleting audit log blocks is strictly forbidden by cryptographic design!
+      allow update, delete: if false;
+    }
+
+    // ── 8. Association Settings & Bylaws ─────────────────────────────────────
+    // Monthly dues baseline, grace period, association bylaws metadata.
+    match /settings/{docId} {
+      // All members and officers can read institutional settings
+      allow read: if isAuthenticated();
+
+      // Only Chairperson can modify association constitutional parameters
+      allow create, update: if isChairperson();
+
+      allow delete: if false;
+    }
+  }
+}

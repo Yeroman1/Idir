@@ -1,0 +1,228 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/auth/presentation/screens/account_screen.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/pin_screen.dart';
+import '../../features/audit/presentation/screens/audit_log_screen.dart';
+import '../../features/announcements/presentation/screens/announcements_screen.dart';
+import '../../features/expenses/presentation/screens/expenses_screen.dart';
+import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../../features/reports/presentation/screens/reports_screen.dart';
+import '../../features/members/presentation/screens/member_detail_screen.dart';
+import '../../features/members/presentation/screens/member_form_screen.dart';
+import '../models/app_user.dart';
+import '../providers/pin_provider.dart';
+import '../widgets/access_denied_screen.dart';
+import 'shell_route.dart';
+
+export 'shell_route.dart';
+
+/// Listenable that notifies GoRouter whenever auth or PIN state changes.
+class _RouterRefreshNotifier extends ChangeNotifier {
+  _RouterRefreshNotifier(Ref ref) {
+    ref.listen(authNotifierProvider, (_, __) => notifyListeners());
+    ref.listen(pinNotifierProvider, (_, __) => notifyListeners());
+  }
+}
+
+final _routerRefreshProvider = Provider<_RouterRefreshNotifier>((ref) {
+  return _RouterRefreshNotifier(ref);
+});
+
+/// Global router provider with institutional role guards and PIN lock enforcement.
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final refreshNotifier = ref.watch(_routerRefreshProvider);
+
+  return GoRouter(
+    initialLocation: AppRoutes.login,
+    debugLogDiagnostics: false,
+    refreshListenable: refreshNotifier,
+    redirect: (context, state) {
+      final auth = ref.read(authNotifierProvider);
+      final pin = ref.read(pinNotifierProvider);
+
+      if (auth.isLoading || pin.isLoading) {
+        return null;
+      }
+
+      final loc = state.matchedLocation;
+      final isAuthenticated = auth.isAuthenticated;
+
+      // ── 1. Unauthenticated users must stay on Login ────────────────────
+      if (!isAuthenticated) {
+        return loc == AppRoutes.login ? null : AppRoutes.login;
+      }
+
+      // ── 2. Authenticated user attempting to visit Login ────────────────
+      if (loc == AppRoutes.login) {
+        if (pin.isSet && !pin.isUnlocked) {
+          return AppRoutes.pin;
+        }
+        return AppRoutes.home;
+      }
+
+      // ── 3. PIN Lock enforcement ────────────────────────────────────────
+      if (pin.isSet && !pin.isUnlocked) {
+        return loc == AppRoutes.pin ? null : AppRoutes.pin;
+      }
+
+      // If unlocked, don't stay on lock screen
+      if (loc == AppRoutes.pin && pin.isUnlocked) {
+        return AppRoutes.home;
+      }
+
+      // ── 4. Role-Based Route Guards ─────────────────────────────────────
+      final user = auth.user!;
+      if (loc == AppRoutes.auditLog && !user.role.canViewAuditLog) {
+        return AppRoutes.accessDenied;
+      }
+      if (loc == AppRoutes.settings && !user.role.canChangeSettings) {
+        return AppRoutes.accessDenied;
+      }
+      if ((loc == AppRoutes.reports || loc == AppRoutes.expenses) &&
+          !user.role.canViewAllFinances) {
+        return AppRoutes.accessDenied;
+      }
+      if ((loc.startsWith('${AppRoutes.members}/add') ||
+              loc.startsWith('${AppRoutes.members}/edit')) &&
+          !user.role.canManageMembers) {
+        return AppRoutes.accessDenied;
+      }
+
+      return null;
+    },
+    routes: [
+      // ── Auth & Security ────────────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.login,
+        name: 'login',
+        builder: (_, __) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.pin,
+        name: 'pin',
+        builder: (_, __) => const PinScreen(mode: PinMode.unlock),
+      ),
+      GoRoute(
+        path: AppRoutes.pinSetup,
+        name: 'pinSetup',
+        builder: (_, __) => const PinScreen(mode: PinMode.setup),
+      ),
+      GoRoute(
+        path: AppRoutes.pinChange,
+        name: 'pinChange',
+        builder: (_, __) => const PinScreen(mode: PinMode.change),
+      ),
+      GoRoute(
+        path: AppRoutes.accessDenied,
+        name: 'accessDenied',
+        builder: (_, __) => const AccessDeniedScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.account,
+        name: 'account',
+        builder: (_, __) => const AccountScreen(),
+      ),
+
+      // ── Members Detail & Management Subroutes ──────────────────────────
+      GoRoute(
+        path: '${AppRoutes.members}/detail/:id',
+        name: 'memberDetail',
+        builder: (context, state) => MemberDetailScreen(
+          memberId: state.pathParameters['id']!,
+        ),
+      ),
+      GoRoute(
+        path: '${AppRoutes.members}/add',
+        name: 'addMember',
+        builder: (_, __) => const MemberFormScreen(),
+      ),
+      GoRoute(
+        path: '${AppRoutes.members}/edit/:id',
+        name: 'editMember',
+        builder: (context, state) => MemberFormScreen(
+          editMemberId: state.pathParameters['id'],
+        ),
+      ),
+
+      // ── Feature Subroutes ──────────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.announcements,
+        name: 'announcements',
+        builder: (_, __) => const AnnouncementsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.reports,
+        name: 'reports',
+        builder: (_, __) => const ReportsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.expenses,
+        name: 'expenses',
+        builder: (_, __) => const ExpensesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.auditLog,
+        name: 'auditLog',
+        builder: (_, __) => const AuditLogScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        name: 'settings',
+        builder: (_, __) => const SettingsScreen(),
+      ),
+
+      // ── Shell (Bottom Navigation Tabs) ──────────────────────────────────
+      mainShellRoute,
+    ],
+    errorBuilder: (context, state) => _ErrorScreen(state.error),
+  );
+});
+
+
+// ─── Error screen ─────────────────────────────────────────────────────────────
+class _ErrorScreen extends StatelessWidget {
+  const _ErrorScreen(this.error);
+  final Exception? error;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Page not found')),
+      body: Center(
+        child: Text(
+          error?.toString() ?? 'Unknown error',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+/// Route path constants — single source of truth.
+abstract final class AppRoutes {
+  static const login = '/login';
+  static const pin = '/pin';
+  static const pinSetup = '/pin-setup';
+  static const pinChange = '/pin-change';
+  static const accessDenied = '/access-denied';
+  static const account = '/account';
+
+  // Bottom navigation tabs
+  static const home = '/home';
+  static const members = '/members';
+  static const membersAdd = '/members/add';
+  static const contributions = '/contributions';
+  static const claims = '/claims';
+  static const more = '/more';
+
+  // Feature pages
+  static const announcements = '/announcements';
+  static const reports = '/reports';
+  static const expenses = '/expenses';
+  static const auditLog = '/audit-log';
+  static const settings = '/settings';
+}

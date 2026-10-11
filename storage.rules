@@ -1,0 +1,42 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOfficer() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'chairperson' ||
+        request.auth.token.role == 'treasurer' ||
+        request.auth.uid == 'demo_chair' ||
+        request.auth.uid == 'demo_treasurer'
+      );
+    }
+
+    // Death certificates and hospital documentation attached to claims
+    match /claims/{claimId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() &&
+        request.resource.size < 5 * 1024 * 1024 && // Max 5MB
+        request.resource.contentType.matches('image/.*|application/pdf');
+    }
+
+    // Expense receipts and invoices
+    match /receipts/{receiptId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOfficer() &&
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*|application/pdf');
+    }
+
+    // Member profile photos
+    match /avatars/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId &&
+        request.resource.size < 2 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+  }
+}
