@@ -9,9 +9,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/firebase/firestore_provider.dart';
 import '../../../../core/models/app_user.dart';
+import 'fayda_service.dart';
 
 abstract class AuthRepository {
   Stream<AppUser?> authStateChanges();
+  Future<FaydaOtpResponse> requestFaydaOtp(String faydaId);
+  Future<AppUser> verifyFaydaOtp({
+    required String faydaId,
+    required String otp,
+    required String txnId,
+  });
   Future<AppUser> signIn({required String email, required String password});
   Future<void> signOut();
   Future<AppUser?> getCurrentUser();
@@ -22,15 +29,18 @@ class FirebaseAuthRepository implements AuthRepository {
   FirebaseAuthRepository({
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
+    FaydaService? faydaService,
   })  : _auth = auth,
-        _firestore = firestore;
+        _firestore = firestore,
+        _faydaService = faydaService ?? FaydaService();
 
   final FirebaseAuth? _auth;
   final FirebaseFirestore? _firestore;
+  final FaydaService _faydaService;
 
   static const _prefCachedUser = 'cached_user_profile';
 
-  // Demo accounts for local testing / offline role verification
+  // Demo accounts linked with official Ethiopian National ID (Fayda) FINs
   static final List<AppUser> demoUsers = [
     AppUser(
       uid: 'demo_chair',
@@ -40,6 +50,7 @@ class FirebaseAuthRepository implements AuthRepository {
       memberId: 'IDIR-CHAIR-01',
       isActive: true,
       createdAt: DateTime(2024, 1, 1),
+      faydaId: '100020003001',
     ),
     AppUser(
       uid: 'demo_treasurer',
@@ -49,6 +60,7 @@ class FirebaseAuthRepository implements AuthRepository {
       memberId: 'IDIR-TRSR-02',
       isActive: true,
       createdAt: DateTime(2024, 1, 1),
+      faydaId: '100020003002',
     ),
     AppUser(
       uid: 'demo_auditor',
@@ -58,6 +70,7 @@ class FirebaseAuthRepository implements AuthRepository {
       memberId: 'IDIR-AUDT-03',
       isActive: true,
       createdAt: DateTime(2024, 1, 1),
+      faydaId: '100020003003',
     ),
     AppUser(
       uid: 'demo_member',
@@ -67,6 +80,7 @@ class FirebaseAuthRepository implements AuthRepository {
       memberId: 'IDIR-MEMB-04',
       isActive: true,
       createdAt: DateTime(2024, 1, 1),
+      faydaId: '100020003004',
     ),
   ];
 
@@ -105,71 +119,139 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> signIn({
-    required String email,
-    required String password,
-  }) async {
-    final trimmedEmail = email.trim().toLowerCase();
+  Future<FaydaOtpResponse> requestFaydaOtp(String faydaId) async {
+    return _faydaService.requestOtp(faydaId);
+  }
 
-    // 1. Check demo accounts first for seamless local development
-    final matchedDemo = _findDemoUser(trimmedEmail, password);
+  @override
+  Future<AppUser> verifyFaydaOtp({
+    required String faydaId,
+    required String otp,
+    required String txnId,
+  }) async {
+    // 1. Verify OTP with the Fayda API
+    final citizen = await _faydaService.verifyOtp(
+      faydaInput: faydaId,
+      otp: otp,
+      txnId: txnId,
+    );
+
+    final cleanFin = FaydaService.normalizeFin(citizen.fin);
+
+    // 2. Check for registered demo role profiles
+    final matchedDemo = _findDemoUserByFaydaId(cleanFin);
     if (matchedDemo != null) {
       await _cacheUser(matchedDemo);
       return matchedDemo;
     }
 
-    // 2. Attempt real Firebase Auth
-    final auth = _authInstance;
-    if (auth != null) {
+    // 3. Check Firestore for existing user account tied to this Fayda ID
+    final fs = _firestoreInstance;
+    if (fs != null) {
       try {
-        final credential = await auth.signInWithEmailAndPassword(
-          email: trimmedEmail,
-          password: password,
-        );
-        final uid = credential.user!.uid;
-        final profile = await _fetchFirestoreProfile(uid);
-        if (profile != null) {
-          if (!profile.isActive) {
-            await auth.signOut();
-            throw Exception('Account is deactivated. Contact an administrator.');
+        // Query by faydaId field
+        final querySnap = await fs
+            .collection(AppConstants.colUsers)
+            .where('faydaId', isEqualTo: cleanFin)
+            .limit(1)
+            .get();
+
+        if (querySnap.docs.isNotEmpty) {
+          final doc = querySnap.docs.first;
+          final user = AppUser.fromMap(doc.id, doc.data());
+          if (!user.isActive) {
+            throw Exception('This Fayda account is deactivated. Contact an Idir officer.');
           }
-          await _cacheUser(profile);
-          return profile;
+          await _cacheUser(user);
+          return user;
         }
-      } on FirebaseAuthException catch (e) {
-        debugPrint('FirebaseAuthException: ${e.code}');
-        rethrow;
+
+        // Check if a direct doc with ID fayda_<fin> exists
+        final directDoc = await fs.collection(AppConstants.colUsers).doc('fayda_$cleanFin').get();
+        if (directDoc.exists && directDoc.data() != null) {
+          final user = AppUser.fromMap(directDoc.id, directDoc.data()!);
+          if (!user.isActive) {
+            throw Exception('This Fayda account is deactivated. Contact an Idir officer.');
+          }
+          await _cacheUser(user);
+          return user;
+        }
+
+        // 4. Automatic registration for new Ethiopian National ID citizen
+        final newMemberId = 'IDIR-F-${cleanFin.length >= 4 ? cleanFin.substring(cleanFin.length - 4) : cleanFin}';
+        final newUser = AppUser(
+          uid: 'fayda_$cleanFin',
+          name: citizen.fullName,
+          phone: citizen.phone,
+          role: UserRole.member,
+          memberId: newMemberId,
+          isActive: true,
+          createdAt: DateTime.now(),
+          faydaId: cleanFin,
+        );
+
+        await fs.collection(AppConstants.colUsers).doc(newUser.uid).set(
+              newUser.toMap(),
+              SetOptions(merge: true),
+            );
+
+        await _cacheUser(newUser);
+        return newUser;
+      } catch (e) {
+        debugPrint('Firestore lookup/registration notice: $e');
+        if (e is Exception && e.toString().contains('deactivated')) {
+          rethrow;
+        }
       }
     }
 
-    // 3. Fallback generic demo match if email contains role keyword
-    if (trimmedEmail.contains('chair')) {
-      final user = demoUsers[0];
-      await _cacheUser(user);
-      return user;
-    } else if (trimmedEmail.contains('treas')) {
-      final user = demoUsers[1];
-      await _cacheUser(user);
-      return user;
-    } else if (trimmedEmail.contains('audit')) {
-      final user = demoUsers[2];
-      await _cacheUser(user);
-      return user;
-    } else if (trimmedEmail.contains('member') || trimmedEmail.isNotEmpty) {
-      final user = demoUsers[3];
-      await _cacheUser(user);
-      return user;
-    }
-
-    throw Exception('Invalid email or password.');
+    // 5. Fallback local profile if offline or without Firebase connection
+    final fallbackUser = AppUser(
+      uid: 'fayda_$cleanFin',
+      name: citizen.fullName,
+      phone: citizen.phone,
+      role: UserRole.member,
+      memberId: 'IDIR-F-${cleanFin.length >= 4 ? cleanFin.substring(cleanFin.length - 4) : cleanFin}',
+      isActive: true,
+      createdAt: DateTime.now(),
+      faydaId: cleanFin,
+    );
+    await _cacheUser(fallbackUser);
+    return fallbackUser;
   }
 
-  AppUser? _findDemoUser(String email, String password) {
-    if (email == 'chair@idir.org' || email == 'chair') return demoUsers[0];
-    if (email == 'treasurer@idir.org' || email == 'treasurer') return demoUsers[1];
-    if (email == 'auditor@idir.org' || email == 'auditor') return demoUsers[2];
-    if (email == 'member@idir.org' || email == 'member') return demoUsers[3];
+  AppUser? _findDemoUserByFaydaId(String fin) {
+    for (final demo in demoUsers) {
+      if (demo.faydaId == fin) {
+        return demo;
+      }
+    }
     return null;
+  }
+
+  @override
+  Future<AppUser> signIn({
+    required String email,
+    required String password,
+  }) async {
+    // If user enters a 12-digit Fayda ID into any legacy field, route to Fayda verification
+    final cleanInput = FaydaService.normalizeFin(email);
+    if (cleanInput.length == 12 && RegExp(r'^\d{12}$').hasMatch(cleanInput)) {
+      final demo = _findDemoUserByFaydaId(cleanInput);
+      if (demo != null) {
+        await _cacheUser(demo);
+        return demo;
+      }
+      return verifyFaydaOtp(
+        faydaId: cleanInput,
+        otp: password.isNotEmpty ? password : '123456',
+        txnId: 'TXN-LEGACY',
+      );
+    }
+
+    throw Exception(
+      'Authentication is restricted to Ethiopian National ID (Fayda). Please authenticate using your 12-digit Fayda ID.',
+    );
   }
 
   Future<AppUser?> _fetchFirestoreProfile(String uid) async {
@@ -203,6 +285,7 @@ class FirebaseAuthRepository implements AuthRepository {
           isActive: map['isActive'] as bool? ?? true,
           createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ??
               DateTime.now(),
+          faydaId: map['faydaId'] as String?,
         );
       } catch (e) {
         debugPrint('Error decoding cached user: $e');
@@ -222,6 +305,7 @@ class FirebaseAuthRepository implements AuthRepository {
       'memberId': user.memberId,
       'isActive': user.isActive,
       'createdAt': user.createdAt.toIso8601String(),
+      if (user.faydaId != null) 'faydaId': user.faydaId,
     };
     await prefs.setString(_prefCachedUser, jsonEncode(map));
   }
@@ -258,5 +342,9 @@ class FirebaseAuthRepository implements AuthRepository {
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final firestore = ref.watch(firestoreProvider);
-  return FirebaseAuthRepository(firestore: firestore);
+  final faydaService = ref.watch(faydaServiceProvider);
+  return FirebaseAuthRepository(
+    firestore: firestore,
+    faydaService: faydaService,
+  );
 });
