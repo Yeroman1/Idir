@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/providers/pin_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/theme_mode_toggle.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../data/fayda_service.dart';
 import '../providers/auth_provider.dart';
@@ -248,6 +249,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          const ThemeModeToggle(),
           IconButton(
             tooltip: 'Fayda API Configuration',
             icon: const Icon(Icons.settings_outlined),
@@ -291,14 +293,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Color(0xFF14532D), // Deep Green
-                        Color(0xFF1A6B5A), // Idir Teal
+                        AppColors.textDarkBlue, // Deep Dark Blue
+                        AppColors.primary,      // Royal Blue
                       ],
                     ),
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1A6B5A).withValues(alpha: 0.3),
+                        color: AppColors.primary.withValues(alpha: 0.25),
                         blurRadius: 18,
                         offset: const Offset(0, 8),
                       ),
@@ -318,7 +320,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(3),
                           decoration: const BoxDecoration(
-                            color: Color(0xFFD4821A),
+                            color: AppColors.textLightBlue,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
@@ -346,7 +348,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1.2,
-                            color: const Color(0xFF078930),
+                            color: AppColors.textBlue,
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -362,7 +364,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
+                              color: AppColors.textDarkBlue,
                             ),
                           ),
                         ),
@@ -373,6 +375,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       'Ethiopian National ID Authentication',
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.bold,
+                        color: AppColors.textDarkBlue,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -380,7 +383,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(
                       '${l10n.idirName} • የኢትዮጵያ ማህበራዊ ዋስትና መተግበሪያ',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.subtextLight,
+                        color: AppColors.textLightBlue,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -462,6 +465,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'Fayda Identification Number (FIN)',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
+                    color: AppColors.textDarkBlue,
                   ),
                 ),
               ],
@@ -469,7 +473,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: 6),
             const Text(
               'ያስገቡ የ12 አኃዝ ብሔራዊ መታወቂያ ቁጥርዎን። የማረጋገጫ ኮድ (OTP) ወደ ተመዘገበው ስልክዎ ይላካል።',
-              style: TextStyle(fontSize: 12, color: AppColors.subtextLight),
+              style: TextStyle(fontSize: 12, color: AppColors.textLightBlue),
             ),
             const SizedBox(height: 16),
 
@@ -484,6 +488,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 fontSize: 18,
                 letterSpacing: 2.0,
                 fontWeight: FontWeight.w600,
+                color: AppColors.textDarkBlue,
               ),
               decoration: InputDecoration(
                 hintText: '1000 2000 3001',
@@ -825,6 +830,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
+                  color: AppColors.textDarkBlue,
                 ),
               ),
             ],
@@ -832,7 +838,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 6),
           const Text(
             'Tap any registered Ethiopian National ID to populate and test its assigned role:',
-            style: TextStyle(fontSize: 11, color: AppColors.subtextLight),
+            style: TextStyle(fontSize: 11, color: AppColors.textLightBlue),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -841,22 +847,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             children: [
               ActionChip(
                 avatar: const Icon(Icons.gavel, size: 16, color: AppColors.primary),
-                label: Text('${l10n.roleChairperson} (Abebe)'),
+                label: Text('${l10n.roleChairperson} (Abebe)', style: const TextStyle(color: AppColors.textDarkBlue)),
                 onPressed: () => _selectDemoAccount('1000 2000 3001'),
               ),
               ActionChip(
-                avatar: const Icon(Icons.payments_outlined, size: 16, color: AppColors.secondary),
-                label: Text('${l10n.roleTreasurer} (Chaltu)'),
+                avatar: const Icon(Icons.payments_outlined, size: 16, color: AppColors.textLightBlue),
+                label: Text('${l10n.roleTreasurer} (Chaltu)', style: const TextStyle(color: AppColors.textDarkBlue)),
                 onPressed: () => _selectDemoAccount('1000 2000 3002'),
               ),
               ActionChip(
-                avatar: const Icon(Icons.verified_outlined, size: 16, color: Color(0xFF1565C0)),
-                label: Text('${l10n.roleAuditor} (Dawit)'),
+                avatar: const Icon(Icons.verified_outlined, size: 16, color: AppColors.primary),
+                label: Text('${l10n.roleAuditor} (Dawit)', style: const TextStyle(color: AppColors.textDarkBlue)),
                 onPressed: () => _selectDemoAccount('1000 2000 3003'),
               ),
               ActionChip(
-                avatar: const Icon(Icons.person, size: 16, color: Color(0xFF4E7D6B)),
-                label: Text('${l10n.roleMember} (Fatima)'),
+                avatar: const Icon(Icons.person, size: 16, color: AppColors.textLightBlue),
+                label: Text('${l10n.roleMember} (Fatima)', style: const TextStyle(color: AppColors.textDarkBlue)),
                 onPressed: () => _selectDemoAccount('1000 2000 3004'),
               ),
             ],

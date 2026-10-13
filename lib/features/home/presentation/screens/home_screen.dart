@@ -10,6 +10,7 @@ import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/offline_indicator_bar.dart';
+import '../../../../core/widgets/theme_mode_toggle.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../contributions/domain/models/contribution.dart';
@@ -87,6 +88,9 @@ class HomeScreen extends ConsumerWidget {
               PopupMenuItem(value: Locale('om'), child: Text('Afaan Oromoo')),
             ],
           ),
+
+          // ── Theme Mode Toggle ───────────────────────────────────────────
+          const ThemeModeToggle(),
 
           // ── Security Quick Lock Button ────────────────────────────────────
           if (pinState.isSet)
