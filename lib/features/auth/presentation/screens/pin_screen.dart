@@ -7,6 +7,7 @@ import '../../../../core/providers/pin_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/services/secure_pin_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/theme_mode_toggle.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 
@@ -202,6 +203,7 @@ class _PinScreenState extends ConsumerState<PinScreen>
                   )
                 : null,
         actions: [
+          const ThemeModeToggle(),
           if (widget.mode == PinMode.setup && !_isConfirming)
             TextButton(
               onPressed: () => context.go(AppRoutes.home),

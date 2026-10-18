@@ -30,4 +30,11 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(AppConstants.prefThemeMode, mode.name);
   }
+
+  Future<void> toggle({bool? isCurrentlyDark}) async {
+    final next = (isCurrentlyDark ?? (state == ThemeMode.dark))
+        ? ThemeMode.light
+        : ThemeMode.dark;
+    await setMode(next);
+  }
 }

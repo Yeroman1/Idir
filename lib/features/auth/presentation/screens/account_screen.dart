@@ -10,6 +10,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../home/presentation/providers/dashboard_provider.dart';
 import '../../data/auth_repository.dart';
+import '../../data/fayda_service.dart';
 import '../providers/auth_provider.dart';
 
 class AccountScreen extends ConsumerWidget {
@@ -261,6 +262,38 @@ class AccountScreen extends ConsumerWidget {
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
+                if (user.faydaId != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF078930).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF078930).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.fingerprint_rounded,
+                          size: 14,
+                          color: Color(0xFF078930),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Fayda: ${FaydaService.formatFin(user.faydaId!)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF078930),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(
