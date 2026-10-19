@@ -1,0 +1,645 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum MembershipRole {
+  CHAIRPERSON
+  TREASURER
+  SECRETARY
+  COMMITTEE
+  AUDITOR
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  PENDING
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum IdirStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum Frequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  TELEBIRR
+  CBE_BIRR
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  REVERSED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum ExpenseCategory {
+  EQUIPMENT
+  VENUE
+  EVENT_TENT
+  UTILITIES
+  EMERGENCY
+  FUNERAL_SUPPLIES
+  ADMINISTRATIVE
+  OTHER
+}
+
+enum AssistanceType {
+  FUNERAL
+  ILLNESS
+  ACCIDENT
+  PROPERTY_LOSS
+  OTHER
+}
+
+enum CaseStatus {
+  OPEN
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum IkubStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum IkubParticipantStatus {
+  ACTIVE
+  DROPPED
+  COMPLETED
+}
+
+enum RoundStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum PayoutStatus {
+  PENDING
+  CONFIRMED
+  REVERSED
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  LATE
+}
+
+enum Priority {
+  NORMAL
+  URGENT
+}
+
+enum NotificationType {
+  ANNOUNCEMENT
+  PAYMENT_DUE
+  PAYMENT_CONFIRMED
+  ASSISTANCE_UPDATE
+  IKUB_DRAW
+  MEETING_REMINDER
+}
+
+// ─── USER & AUTHENTICATION ───────────────────────────────────────────────────
+
+model User {
+  id                String       @id @default(uuid())
+  fullName          String
+  phoneNumber       String       @unique
+  email             String?      @unique
+  passwordHash      String
+  preferredLanguage String       @default("am") // 'am', 'en', 'om'
+  faydaId           String?      @unique // Ethiopian National ID
+  status            UserStatus   @default(ACTIVE)
+  isPlatformAdmin   Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  refreshTokens          RefreshToken[]
+  memberships            Membership[]
+  recordedContributions  Contribution[]         @relation("RecordedContributions")
+  confirmedContributions Contribution[]         @relation("ConfirmedContributions")
+  reversedContributions  Contribution[]         @relation("ReversedContributions")
+  recordedExpenses       Expense[]              @relation("RecordedExpenses")
+  approvedExpenses       Expense[]              @relation("ApprovedExpenses")
+  submittedRequests      AssistanceRequest[]    @relation("SubmittedRequests")
+  reviewedRequests       AssistanceRequest[]    @relation("ReviewedRequests")
+  recordedDisbursements  AssistanceDisbursement[] @relation("RecordedDisbursements")
+  recordedIkubContribs   IkubContribution[]     @relation("RecordedIkubContributions")
+  approvedIkubPayouts    IkubPayout[]           @relation("ApprovedIkubPayouts")
+  recordedIkubPayouts    IkubPayout[]           @relation("RecordedIkubPayouts")
+  createdMeetings        Meeting[]              @relation("CreatedMeetings")
+  announcements          Announcement[]         @relation("CreatedAnnouncements")
+  notifications          Notification[]
+  auditLogs              AuditLog[]
+
+  @@index([phoneNumber])
+  @@index([email])
+  @@index([faydaId])
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family     String   // Identifies the refresh token family for rotation detection
+  deviceInfo String?
+  ipAddress  String?
+  isRevoked  Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([family])
+  @@index([tokenHash])
+}
+
+// ─── IDIR & MEMBERSHIP ───────────────────────────────────────────────────────
+
+model Idir {
+  id           String     @id @default(uuid())
+  name         String
+  description  String?
+  region       String
+  zone         String?
+  woreda       String?
+  kebele       String?
+  address      String?
+  contactPhone String?
+  contactEmail String?
+  currency     String     @default("ETB")
+  status       IdirStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  settings               IdirSettings?
+  memberships            Membership[]
+  contributionTypes      ContributionType[]
+  contributions          Contribution[]
+  expenses               Expense[]
+  assistanceCases        AssistanceCase[]
+  assistanceDisbursements AssistanceDisbursement[]
+  ikubGroups             IkubGroup[]
+  meetings               Meeting[]
+  announcements          Announcement[]
+  auditLogs              AuditLog[]
+
+  @@index([name])
+  @@index([region])
+  @@index([status])
+}
+
+model IdirSettings {
+  id                   String    @id @default(uuid())
+  idirId               String    @unique
+  idir                 Idir      @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  regularDuesAmount    Decimal   @default(100.00) @db.Decimal(14, 2)
+  duesFrequency        Frequency @default(MONTHLY)
+  latePaymentGraceDays Int       @default(15)
+  meetingFrequency     Frequency @default(MONTHLY)
+  allowIkub            Boolean   @default(true)
+  maxAssistancePerYear Decimal?  @db.Decimal(14, 2)
+  requireMultiApproval Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+model Membership {
+  id           String           @id @default(uuid())
+  idirId       String
+  idir         Idir             @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberNumber String
+  role         MembershipRole   @default(MEMBER)
+  status       MembershipStatus @default(ACTIVE)
+  joinedAt     DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  contributions      Contribution[]
+  assistanceCases    AssistanceCase[]
+  ikubParticipants   IkubParticipant[]
+  meetingAttendances MeetingAttendance[]
+
+  @@unique([idirId, userId])
+  @@unique([idirId, memberNumber])
+  @@index([idirId])
+  @@index([userId])
+  @@index([role])
+  @@index([status])
+}
+
+// ─── CONTRIBUTIONS & EXPENSES ────────────────────────────────────────────────
+
+model ContributionType {
+  id            String         @id @default(uuid())
+  idirId        String
+  idir          Idir           @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  defaultAmount Decimal?       @db.Decimal(14, 2)
+  isMandatory   Boolean        @default(true)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  contributions Contribution[]
+
+  @@index([idirId])
+}
+
+model Contribution {
+  id                 String           @id @default(uuid())
+  idirId             String
+  idir               Idir             @relation(fields: [idirId], references: [id], onDelete: Restrict)
+  membershipId       String
+  membership         Membership       @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  contributionTypeId String
+  contributionType   ContributionType @relation(fields: [contributionTypeId], references: [id], onDelete: Restrict)
+  amount             Decimal          @db.Decimal(14, 2)
+  currency           String           @default("ETB")
+  paymentDate        DateTime
+  paymentMethod      PaymentMethod    @default(CASH)
+  paymentReference   String?
+  receiptNumber      String           @unique
+  status             PaymentStatus    @default(CONFIRMED)
+  recordedById       String
+  recordedBy         User             @relation("RecordedContributions", fields: [recordedById], references: [id], onDelete: Restrict)
+  confirmedById      String?
+  confirmedBy        User?            @relation("ConfirmedContributions", fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedAt        DateTime?
+  isReversed         Boolean          @default(false)
+  reversalReason     String?
+  reversedAt         DateTime?
+  reversedById       String?
+  reversedBy         User?            @relation("ReversedContributions", fields: [reversedById], references: [id], onDelete: SetNull)
+  clientMutationId   String?          @unique // Offline idempotency key
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([idirId])
+  @@index([membershipId])
+  @@index([status])
+  @@index([paymentDate])
+  @@index([clientMutationId])
+}
+
+model Expense {
+  id              String          @id @default(uuid())
+  idirId          String
+  idir            Idir            @relation(fields: [idirId], references: [id], onDelete: Restrict)
+  category        ExpenseCategory @default(OTHER)
+  amount          Decimal         @db.Decimal(14, 2)
+  currency        String          @default("ETB")
+  expenseDate     DateTime
+  description     String
+  receiptUrl      String?
+  status          ApprovalStatus  @default(PENDING)
+  recordedById    String
+  recordedBy      User            @relation("RecordedExpenses", fields: [recordedById], references: [id], onDelete: Restrict)
+  approvedById    String?
+  approvedBy      User?           @relation("ApprovedExpenses", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt      DateTime?
+  rejectionReason String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([idirId])
+  @@index([status])
+  @@index([expenseDate])
+}
+
+// ─── ASSISTANCE (EMERGENCY & FUNERAL) ────────────────────────────────────────
+
+model AssistanceCase {
+  id               String         @id @default(uuid())
+  idirId           String
+  idir             Idir           @relation(fields: [idirId], references: [id], onDelete: Restrict)
+  membershipId     String
+  membership       Membership     @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  caseType         AssistanceType @default(FUNERAL)
+  title            String
+  description      String
+  deceasedName     String?
+  deceasedRelation String?
+  openedAt         DateTime       @default(now())
+  status           CaseStatus     @default(OPEN)
+  isConfidential   Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  requests AssistanceRequest[]
+
+  @@index([idirId])
+  @@index([membershipId])
+  @@index([status])
+}
+
+model AssistanceRequest {
+  id              String         @id @default(uuid())
+  caseId          String
+  case            AssistanceCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  requestedAmount Decimal        @db.Decimal(14, 2)
+  currency        String         @default("ETB")
+  justification   String
+  submittedById   String
+  submittedBy     User           @relation("SubmittedRequests", fields: [submittedById], references: [id], onDelete: Restrict)
+  status          ApprovalStatus @default(PENDING)
+  reviewedById    String?
+  reviewedBy      User?          @relation("ReviewedRequests", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  disbursements AssistanceDisbursement[]
+
+  @@index([caseId])
+  @@index([status])
+}
+
+model AssistanceDisbursement {
+  id               String            @id @default(uuid())
+  requestId        String
+  request          AssistanceRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  idirId           String
+  idir             Idir              @relation(fields: [idirId], references: [id], onDelete: Restrict)
+  amount           Decimal           @db.Decimal(14, 2)
+  currency         String            @default("ETB")
+  disbursedAt      DateTime          @default(now())
+  recipientName    String
+  recipientPhone   String?
+  paymentMethod    PaymentMethod     @default(CASH)
+  paymentReference String?
+  receiptNumber    String            @unique
+  recordedById     String
+  recordedBy       User              @relation("RecordedDisbursements", fields: [recordedById], references: [id], onDelete: Restrict)
+  createdAt        DateTime          @default(now())
+
+  @@index([requestId])
+  @@index([idirId])
+  @@index([receiptNumber])
+}
+
+// ─── IKUB (ROTATING SAVINGS) ─────────────────────────────────────────────────
+
+model IkubGroup {
+  id                 String     @id @default(uuid())
+  idirId             String
+  idir               Idir       @relation(fields: [idirId], references: [id], onDelete: Restrict)
+  name               String
+  description        String?
+  contributionAmount Decimal    @db.Decimal(14, 2)
+  currency           String     @default("ETB")
+  frequency          Frequency  @default(WEEKLY)
+  startDate          DateTime
+  endDate            DateTime?
+  status             IkubStatus @default(ACTIVE)
+  totalRounds        Int        @default(10)
+  payoutRule         String     @default("LOTTERY") // 'LOTTERY', 'FIXED_ORDER', 'NEED_BASED'
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  participants IkubParticipant[]
+  rounds       IkubRound[]
+
+  @@index([idirId])
+  @@index([status])
+}
+
+model IkubParticipant {
+  id           String                @id @default(uuid())
+  ikubGroupId  String
+  ikubGroup    IkubGroup             @relation(fields: [ikubGroupId], references: [id], onDelete: Cascade)
+  membershipId String
+  membership   Membership            @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  payoutOrder  Int?
+  joinedAt     DateTime              @default(now())
+  status       IkubParticipantStatus @default(ACTIVE)
+  hasWonPayout Boolean               @default(false)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  contributions IkubContribution[]
+  payouts       IkubPayout[]
+
+  @@unique([ikubGroupId, membershipId])
+  @@index([ikubGroupId])
+  @@index([membershipId])
+}
+
+model IkubRound {
+  id                     String      @id @default(uuid())
+  ikubGroupId            String
+  ikubGroup              IkubGroup   @relation(fields: [ikubGroupId], references: [id], onDelete: Cascade)
+  roundNumber            Int
+  scheduledDate          DateTime
+  recipientParticipantId String?
+  status                 RoundStatus @default(SCHEDULED)
+  completedAt            DateTime?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+
+  contributions IkubContribution[]
+  payout        IkubPayout?
+
+  @@unique([ikubGroupId, roundNumber])
+  @@index([ikubGroupId])
+  @@index([status])
+}
+
+model IkubContribution {
+  id               String          @id @default(uuid())
+  roundId          String
+  round            IkubRound       @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  participantId    String
+  participant      IkubParticipant @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  amount           Decimal         @db.Decimal(14, 2)
+  currency         String          @default("ETB")
+  status           PaymentStatus   @default(CONFIRMED)
+  paymentDate      DateTime        @default(now())
+  paymentMethod    PaymentMethod   @default(CASH)
+  paymentReference String?
+  recordedById     String
+  recordedBy       User            @relation("RecordedIkubContributions", fields: [recordedById], references: [id], onDelete: Restrict)
+  clientMutationId String?         @unique
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([roundId, participantId])
+  @@index([roundId])
+  @@index([participantId])
+  @@index([status])
+}
+
+model IkubPayout {
+  id                     String          @id @default(uuid())
+  roundId                String          @unique // Ensures strictly 1 payout per round
+  round                  IkubRound       @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  recipientParticipantId String
+  recipientParticipant   IkubParticipant @relation(fields: [recipientParticipantId], references: [id], onDelete: Restrict)
+  amount                 Decimal         @db.Decimal(14, 2)
+  currency               String          @default("ETB")
+  payoutDate             DateTime        @default(now())
+  status                 PayoutStatus    @default(CONFIRMED)
+  paymentMethod          PaymentMethod   @default(CASH)
+  paymentReference       String?
+  approvedById           String
+  approvedBy             User            @relation("ApprovedIkubPayouts", fields: [approvedById], references: [id], onDelete: Restrict)
+  recordedById           String
+  recordedBy             User            @relation("RecordedIkubPayouts", fields: [recordedById], references: [id], onDelete: Restrict)
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([roundId])
+  @@index([recipientParticipantId])
+}
+
+// ─── MEETINGS, ANNOUNCEMENTS & NOTIFICATIONS ─────────────────────────────────
+
+model Meeting {
+  id          String        @id @default(uuid())
+  idirId      String
+  idir        Idir          @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  title       String
+  agenda      String?
+  location    String?
+  scheduledAt DateTime
+  status      MeetingStatus @default(SCHEDULED)
+  minutes     String?
+  createdById String
+  createdBy   User          @relation("CreatedMeetings", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  attendances MeetingAttendance[]
+
+  @@index([idirId])
+  @@index([scheduledAt])
+}
+
+model MeetingAttendance {
+  id         String           @id @default(uuid())
+  meetingId  String
+  meeting    Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  membershipId String
+  membership Membership       @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  status     AttendanceStatus @default(PRESENT)
+  remarks    String?
+  recordedAt DateTime         @default(now())
+
+  @@unique([meetingId, membershipId])
+  @@index([meetingId])
+  @@index([membershipId])
+}
+
+enum AnnouncementTarget {
+  ALL
+  COMMITTEE
+  MEMBERS
+}
+
+model Announcement {
+  id          String             @id @default(uuid())
+  idirId      String
+  idir        Idir               @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  title       String
+  body        String
+  priority    Priority           @default(NORMAL)
+  target      AnnouncementTarget @default(ALL)
+  isPinned    Boolean            @default(false)
+  publishedAt DateTime           @default(now())
+  createdById String
+  createdBy   User               @relation("CreatedAnnouncements", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([idirId])
+  @@index([publishedAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      NotificationType @default(ANNOUNCEMENT)
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId])
+  @@index([readAt])
+}
+
+// ─── AUDIT TRAIL ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String?
+  actor        User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  idirId       String?
+  idir         Idir?    @relation(fields: [idirId], references: [id], onDelete: SetNull)
+  action       String   // e.g. "RECORD_CONTRIBUTION", "APPROVE_EXPENSE", "DISBURSE_ASSISTANCE", "RECORD_PAYOUT"
+  entityType   String   // e.g. "Contribution", "Expense", "AssistanceDisbursement", "IkubPayout"
+  entityId     String
+  safeMetadata Json?    // Sanitized payload (passwords, tokens, sensitive case data stripped)
+  ipAddress    String?
+  userAgent    String?
+  timestamp    DateTime @default(now())
+
+  @@index([idirId])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+}

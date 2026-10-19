@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: idir_connect_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: idir_connect_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d idir_connect_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: idir_connect_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      API_PREFIX: /api/v1
+      DATABASE_URL: "postgresql://postgres:postgrespassword@postgres:5432/idir_connect_db?schema=public"
+      JWT_ACCESS_SECRET: "idir-connect-super-secure-jwt-access-secret-32-chars-long"
+      JWT_REFRESH_SECRET: "idir-connect-super-secure-jwt-refresh-secret-32-chars-long"
+      JWT_ACCESS_EXPIRES_IN: "15m"
+      JWT_REFRESH_EXPIRES_IN: "7d"
+      CORS_ORIGIN: "*"
+      LOG_LEVEL: info
+    ports:
+      - "5000:5000"
+
+volumes:
+  postgres_data:
