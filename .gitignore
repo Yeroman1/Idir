@@ -47,4 +47,9 @@ app.*.map.json
 **/android/local.properties
 .gradle/
 android/.gradle/
-
+# Backend Node/Prisma related
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/.env.local
+backend/coverage/
