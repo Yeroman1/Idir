@@ -69,6 +69,53 @@ class SyncNotifier extends StateNotifier<SyncState> {
           pendingQueue: const [],
         ));
 
+  final List<Future<void> Function()> _syncCallbacks = [];
+
+  void registerSyncCallback(Future<void> Function() callback) {
+    if (!_syncCallbacks.contains(callback)) {
+      _syncCallbacks.add(callback);
+    }
+  }
+
+  void unregisterSyncCallback(Future<void> Function() callback) {
+    _syncCallbacks.remove(callback);
+  }
+
+  void reportNetworkError(String? message) {
+    if (!state.isOffline) {
+      state = state.copyWith(
+        status: SyncStatus.offline,
+        errorMessage: () => message,
+      );
+    }
+  }
+
+  void reportNetworkSuccess() {
+    if (state.status == SyncStatus.offline && !state.isOfflineSimulated) {
+      state = state.copyWith(
+        status: SyncStatus.synced,
+        lastSyncedAt: DateTime.now(),
+        errorMessage: () => null,
+      );
+    }
+  }
+
+  void setOffline(bool isOffline, {String? reason}) {
+    if (isOffline) {
+      state = state.copyWith(
+        status: SyncStatus.offline,
+        errorMessage: () => reason,
+      );
+    } else {
+      state = state.copyWith(
+        status: SyncStatus.synced,
+        isOfflineSimulated: false,
+        lastSyncedAt: DateTime.now(),
+        errorMessage: () => null,
+      );
+    }
+  }
+
   void toggleOffline() {
     final nextOffline = !state.isOfflineSimulated;
     if (nextOffline) {
@@ -104,16 +151,27 @@ class SyncNotifier extends StateNotifier<SyncState> {
       errorMessage: () => null,
     );
 
-    // Simulate async sync network call
-    await Future.delayed(const Duration(milliseconds: 1400));
+    try {
+      // Execute all registered feature sync callbacks (refetches live data from backend)
+      for (final callback in _syncCallbacks) {
+        await callback();
+      }
+      // Small debounce for smooth UI transition
+      await Future.delayed(const Duration(milliseconds: 600));
 
-    state = state.copyWith(
-      status: SyncStatus.synced,
-      isOfflineSimulated: false,
-      lastSyncedAt: DateTime.now(),
-      pendingQueue: const [],
-      errorMessage: () => null,
-    );
+      state = state.copyWith(
+        status: SyncStatus.synced,
+        isOfflineSimulated: false,
+        lastSyncedAt: DateTime.now(),
+        pendingQueue: const [],
+        errorMessage: () => null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        status: SyncStatus.offline,
+        errorMessage: () => e.toString(),
+      );
+    }
   }
 
   void enqueueItem({required String title, required String type}) {

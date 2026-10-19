@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/firebase/firestore_provider.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/storage/offline_cache_service.dart';
 import '../domain/models/member.dart';
+import 'rest_members_repository.dart';
 
 abstract class MembersRepository {
   Stream<List<Member>> watchMembers();
@@ -305,6 +307,11 @@ class FirestoreMembersRepository implements MembersRepository {
 }
 
 final membersRepositoryProvider = Provider<MembersRepository>((ref) {
-  final firestore = ref.watch(firestoreProvider);
-  return FirestoreMembersRepository(firestore: firestore);
+  final apiClient = ref.watch(apiClientProvider);
+  final cache = ref.watch(offlineCacheServiceProvider);
+  return RestMembersRepository(
+    apiClient: apiClient,
+    cacheService: cache,
+    ref: ref,
+  );
 });

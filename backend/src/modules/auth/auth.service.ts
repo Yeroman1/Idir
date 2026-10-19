@@ -90,12 +90,32 @@ export class AuthService {
   }
 
   async login(input: LoginInput, ipAddress?: string) {
-    const user = await prisma.user.findUnique({
-      where: { phoneNumber: input.phoneNumber },
+    const raw = input.phoneNumber.trim().replace(/\s+/g, '');
+    let normalizedPhone = raw;
+    if (raw.startsWith('09') && raw.length === 10) {
+      normalizedPhone = '+251' + raw.slice(1);
+    } else if (raw.startsWith('9') && raw.length === 9) {
+      normalizedPhone = '+251' + raw;
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { phoneNumber: raw },
     });
 
     if (!user) {
-      throw new UnauthorizedError('Invalid phone number or password');
+      user = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { phoneNumber: normalizedPhone },
+            { faydaId: raw },
+            { email: raw.toLowerCase() },
+          ],
+        },
+      });
+    }
+
+    if (!user) {
+      throw new UnauthorizedError('Invalid phone number, Fayda ID, or password');
     }
 
     if (user.status !== 'ACTIVE') {
