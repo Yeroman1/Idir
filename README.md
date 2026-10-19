@@ -1,79 +1,71 @@
-# Idir App — Phase 1 Setup Complete 🎉
+# Idir Connect — Full-Stack Platform
 
-## What was built (Phase 1)
+A digital platform modernizing Ethiopian community mutual-aid associations (**Idirs**) and rotating savings groups (**Ikub**).
 
-### Project structure
+---
+
+## 📁 Repository Structure
+
 ```
-idir_app/
-├── lib/
-│   ├── main.dart                          # App entry + Firebase init + Riverpod
-│   ├── core/
-│   │   ├── constants/app_constants.dart   # All magic strings
-│   │   ├── firebase/
-│   │   │   ├── firebase_options.dart      # ⚠️ Replace with flutterfire configure output
-│   │   │   └── firestore_provider.dart    # Offline persistence enabled
-│   │   ├── models/app_user.dart           # AppUser + UserRole + permission helpers
-│   │   ├── providers/locale_provider.dart # Language switching
-│   │   ├── router/
-│   │   │   ├── app_router.dart            # GoRouter + auth redirect guard
-│   │   │   └── shell_route.dart           # Bottom nav shell
-│   │   └── theme/app_theme.dart           # Material 3 + Ethiopian palette + dark mode
-│   ├── l10n/
-│   │   ├── app_en.arb                     # English
-│   │   ├── app_am.arb                     # Amharic
-│   │   └── app_om.arb                     # Afan Oromo
-│   └── features/
-│       ├── auth/presentation/screens/login_screen.dart
-│       ├── home/presentation/screens/home_screen.dart
-│       ├── members/presentation/screens/members_screen.dart
-│       ├── contributions/presentation/screens/contributions_screen.dart
-│       ├── claims/presentation/screens/claims_screen.dart
-│       └── more/presentation/screens/more_screen.dart
-├── android/
-│   ├── build.gradle                       # Firebase google-services plugin
-│   ├── app/
-│   │   ├── build.gradle                   # minSdk 21, Firebase BOM
-│   │   ├── google-services.json           # ⚠️ Replace with your Firebase config
-│   │   └── src/main/AndroidManifest.xml   # Internet + biometric permissions
-├── assets/fonts/                          # ⚠️ Add NotoSansEthiopic .ttf files
-├── pubspec.yaml
-├── l10n.yaml
-└── analysis_options.yaml
+Idir/
+├── frontend/               # Mobile Application (Flutter, Riverpod, Material 3)
+│   ├── lib/                # Flutter source code (auth, idir, claims, contributions)
+│   ├── android/            # Android native project files
+│   ├── web/                # Flutter Web runner
+│   ├── assets/             # Fonts (Noto Sans Ethiopic) & icons
+│   ├── pubspec.yaml        # Flutter dependencies & metadata
+│   └── test/               # Flutter unit & widget tests
+│
+├── backend/                # REST API & Database (Express, TypeScript, PostgreSQL, Prisma)
+│   ├── src/                # Modular monolith (auth, idirs, members, ikub, reports)
+│   ├── prisma/             # Relational schema (21 entities) & seed script
+│   ├── tests/              # Vitest & Supertest automated test suites
+│   ├── docker-compose.yml  # Local PostgreSQL 16 container setup
+│   └── package.json        # Node.js backend dependencies & scripts
+│
+├── .gitignore              # Shared monorepo gitignore
+└── README.md               # Monorepo documentation
 ```
 
-## Next steps before running
+---
 
-### 1. Firebase setup (required)
+## 🚀 Getting Started
+
+### 1. Backend REST API & Database
 ```bash
-# Install FlutterFire CLI
-dart pub global activate flutterfire_cli
+cd backend
 
-# Configure (creates firebase_options.dart automatically)
-flutterfire configure --project=YOUR_PROJECT_ID
+# Start PostgreSQL database (Docker)
+docker-compose up -d postgres
+
+# Install dependencies & run migrations
+npm install
+npm run prisma:migrate
+npm run prisma:seed
+
+# Start development server
+npm run dev
+# -> API running at http://localhost:5000/api/v1
+# -> Swagger Docs at http://localhost:5000/api/docs
 ```
 
-### 2. Add Noto Sans Ethiopic fonts
-Download from https://fonts.google.com/noto/specimen/Noto+Sans+Ethiopic
-Place in `assets/fonts/`:
-- `NotoSansEthiopic-Regular.ttf`
-- `NotoSansEthiopic-Bold.ttf`
-
-### 3. Install dependencies
+### 2. Frontend Mobile App (Flutter)
 ```bash
-cd idir_app
+cd frontend
+
+# Install Flutter dependencies
 flutter pub get
-flutter gen-l10n   # generates lib/generated/l10n/
-```
 
-### 4. Run
-```bash
+# Generate localization files
+flutter gen-l10n
+
+# Run mobile app
 flutter run
 ```
 
-## Design decisions
-- **Teal-green (#1A6B5A)** primary — conveys trust, community, nature (Ethiopian highlands)
-- **Warm amber (#D4821A)** secondary — warmth, Ethiopian culture
-- **NotoSansEthiopic** font — supports Amharic fidel and Latin characters
-- **Offline-first** — Firestore persistence enabled, sync indicator planned Phase 10
-- **Append-only records** — enforced at Firestore Rules level (Phase 11)
-- **Permission matrix** encoded in `UserRole` extension methods, enforced in UI + Rules
+---
+
+## 👥 Module Ownership & Architecture
+* Backend Architecture & DB Schema: [backend/README.md](file:///c:/Users/HP/Desktop/Idir/backend/README.md)
+* Three-Developer Team Ownership: [backend/MODULE_OWNERSHIP.md](file:///c:/Users/HP/Desktop/Idir/backend/MODULE_OWNERSHIP.md)
+* Deferred Features & Roadmap: [backend/DEFERRED_FEATURES.md](file:///c:/Users/HP/Desktop/Idir/backend/DEFERRED_FEATURES.md)
