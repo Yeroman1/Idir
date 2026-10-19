@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/firebase/firestore_provider.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/storage/offline_cache_service.dart';
 import '../domain/models/announcement.dart';
+import 'rest_announcements_repository.dart';
 
 abstract class AnnouncementsRepository {
   Stream<List<Announcement>> watchAnnouncements();
@@ -209,8 +211,13 @@ class FirestoreAnnouncementsRepository implements AnnouncementsRepository {
 
 final announcementsRepositoryProvider =
     Provider<AnnouncementsRepository>((ref) {
-  final firestore = ref.watch(firestoreProvider);
-  return FirestoreAnnouncementsRepository(firestore: firestore);
+  final apiClient = ref.watch(apiClientProvider);
+  final cache = ref.watch(offlineCacheServiceProvider);
+  return RestAnnouncementsRepository(
+    apiClient: apiClient,
+    cacheService: cache,
+    ref: ref,
+  );
 });
 
 final announcementsStreamProvider = StreamProvider<List<Announcement>>((ref) {

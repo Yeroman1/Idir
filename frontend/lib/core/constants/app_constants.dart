@@ -23,6 +23,12 @@ abstract final class AppConstants {
   static const secureKeyPinSalt = 'user_pin_salt';
   static const secureKeyPinAttempts = 'pin_failed_attempts';
   static const secureKeyAuthToken = 'auth_token';
+  static const secureKeyRefreshToken = 'refresh_token';
+
+  // REST API Configuration
+  static const String defaultApiBaseUrl = 'http://localhost:5000/api/v1';
+  static const String androidEmulatorApiBaseUrl = 'http://10.0.2.2:5000/api/v1';
+  static const String defaultIdirId = '00000000-0000-0000-0000-000000000001';
 
   // Business defaults & security rules
   static const defaultClaimApprovalsRequired = 2;

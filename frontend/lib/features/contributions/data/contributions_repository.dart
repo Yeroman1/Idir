@@ -5,10 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/firebase/firestore_provider.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/storage/offline_cache_service.dart';
 import '../../members/data/members_repository.dart';
 import '../domain/models/contribution.dart';
 import '../domain/services/balance_calculator_service.dart';
+import 'rest_contributions_repository.dart';
 
 abstract class ContributionsRepository {
   Stream<List<Contribution>> watchContributions();
@@ -331,11 +333,14 @@ final balanceCalculatorServiceProvider = Provider<BalanceCalculatorService>((ref
 
 final contributionsRepositoryProvider =
     Provider<ContributionsRepository>((ref) {
-  final firestore = ref.watch(firestoreProvider);
+  final apiClient = ref.watch(apiClientProvider);
+  final cache = ref.watch(offlineCacheServiceProvider);
   final membersRepo = ref.watch(membersRepositoryProvider);
   final calc = ref.watch(balanceCalculatorServiceProvider);
-  return FirestoreContributionsRepository(
-    firestore: firestore,
+  return RestContributionsRepository(
+    apiClient: apiClient,
+    cacheService: cache,
+    ref: ref,
     membersRepository: membersRepo,
     balanceCalculator: calc,
   );

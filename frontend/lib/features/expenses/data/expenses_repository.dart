@@ -6,8 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/firebase/firestore_provider.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/storage/offline_cache_service.dart';
 import '../domain/models/expense.dart';
+import 'rest_expenses_repository.dart';
 
 abstract class ExpensesRepository {
   Stream<List<Expense>> watchExpenses();
@@ -221,8 +223,13 @@ class FirestoreExpensesRepository implements ExpensesRepository {
 }
 
 final expensesRepositoryProvider = Provider<ExpensesRepository>((ref) {
-  final firestore = ref.watch(firestoreProvider);
-  return FirestoreExpensesRepository(firestore: firestore);
+  final apiClient = ref.watch(apiClientProvider);
+  final cache = ref.watch(offlineCacheServiceProvider);
+  return RestExpensesRepository(
+    apiClient: apiClient,
+    cacheService: cache,
+    ref: ref,
+  );
 });
 
 final expensesStreamProvider = StreamProvider<List<Expense>>((ref) {

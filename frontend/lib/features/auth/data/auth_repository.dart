@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
-import '../../../../core/firebase/firestore_provider.dart';
 import '../../../../core/models/app_user.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/storage/offline_cache_service.dart';
 import 'fayda_service.dart';
+import 'rest_auth_repository.dart';
 
 abstract class AuthRepository {
   Stream<AppUser?> authStateChanges();
@@ -341,10 +343,12 @@ class FirebaseAuthRepository implements AuthRepository {
 }
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final firestore = ref.watch(firestoreProvider);
+  final apiClient = ref.watch(apiClientProvider);
+  final cache = ref.watch(offlineCacheServiceProvider);
   final faydaService = ref.watch(faydaServiceProvider);
-  return FirebaseAuthRepository(
-    firestore: firestore,
+  return RestAuthRepository(
+    apiClient: apiClient,
+    cacheService: cache,
     faydaService: faydaService,
   );
 });

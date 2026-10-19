@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/firebase/firestore_provider.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/storage/offline_cache_service.dart';
 import '../../expenses/data/expenses_repository.dart';
 import '../../expenses/domain/models/expense.dart';
 import '../../members/data/members_repository.dart';
 import '../../members/domain/models/member.dart';
 import '../domain/models/claim.dart';
+import 'rest_claims_repository.dart';
 
 abstract class ClaimsRepository {
   Stream<List<Claim>> watchClaims();
@@ -351,13 +353,12 @@ class FirestoreClaimsRepository implements ClaimsRepository {
 }
 
 final claimsRepositoryProvider = Provider<ClaimsRepository>((ref) {
-  final firestore = ref.watch(firestoreProvider);
-  final expensesRepo = ref.watch(expensesRepositoryProvider);
-  final membersRepo = ref.watch(membersRepositoryProvider);
-  return FirestoreClaimsRepository(
-    firestore: firestore,
-    expensesRepository: expensesRepo,
-    membersRepository: membersRepo,
+  final apiClient = ref.watch(apiClientProvider);
+  final cache = ref.watch(offlineCacheServiceProvider);
+  return RestClaimsRepository(
+    apiClient: apiClient,
+    cacheService: cache,
+    ref: ref,
   );
 });
 
