@@ -110,8 +110,8 @@ class ExpensesScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () {
-              ref.invalidate(expensesStreamProvider);
+            onPressed: () async {
+              await ref.read(expensesRepositoryProvider).getExpenses();
             },
           ),
         ],

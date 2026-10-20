@@ -17,9 +17,14 @@ export async function authenticate(
 
   const token = authHeader.split(' ')[1];
 
+  let payload;
   try {
-    const payload = verifyAccessToken(token);
+    payload = verifyAccessToken(token);
+  } catch (error) {
+    return next(new UnauthorizedError('Invalid or expired token', error));
+  }
 
+  try {
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
       select: {
@@ -48,6 +53,6 @@ export async function authenticate(
 
     next();
   } catch (error) {
-    return next(new UnauthorizedError('Invalid or expired token', error));
+    next(error);
   }
 }

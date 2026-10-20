@@ -33,7 +33,7 @@ void main() {
         id: 'new_c_test',
         receiptNumber: 'REC-${now.year}-999',
         memberId: 'MEM-003',
-        memberName: 'Dawit Yohannes',
+        memberName: 'Dawit Abdi',
         amount: 100.0,
         date: now,
         recordedByUid: 'demo_treasurer',

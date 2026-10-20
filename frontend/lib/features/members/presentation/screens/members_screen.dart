@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/models/app_user.dart';
+import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
@@ -31,8 +32,8 @@ class MembersScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () {
-              ref.invalidate(membersStreamProvider);
+            onPressed: () async {
+              await ref.read(syncProvider.notifier).triggerSync();
             },
           ),
           Center(
@@ -175,7 +176,7 @@ class MembersScreen extends ConsumerWidget {
 
                 return RefreshIndicator(
                   onRefresh: () async {
-                    ref.invalidate(membersStreamProvider);
+                    await ref.read(syncProvider.notifier).triggerSync();
                   },
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 8),

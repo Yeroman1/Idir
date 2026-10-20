@@ -62,16 +62,18 @@ class HomeScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () {
-              ref.invalidate(dashboardStatsProvider);
-              ref.invalidate(memberPersonalDashboardProvider);
+            onPressed: () async {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Refreshing dashboard data...'),
+                  content: Text('Syncing live data from Supabase...'),
                   duration: Duration(milliseconds: 900),
                   behavior: SnackBarBehavior.floating,
                 ),
               );
+              await ref.read(syncProvider.notifier).triggerSync();
+              await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
+              ref.invalidate(dashboardStatsProvider);
+              ref.invalidate(memberPersonalDashboardProvider);
             },
           ),
 
@@ -106,7 +108,8 @@ class HomeScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Trigger refresh of underlying streams
+          await ref.read(syncProvider.notifier).triggerSync();
+          await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
           ref.invalidate(dashboardStatsProvider);
           ref.invalidate(memberPersonalDashboardProvider);
         },

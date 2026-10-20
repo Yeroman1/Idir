@@ -61,7 +61,7 @@ class RestAuthRepository implements AuthRepository {
         requiresAuth: false,
       );
 
-      final appUser = _parseUserResponse(res);
+      final appUser = await _parseUserResponse(res);
       await _cacheUser(appUser);
       return appUser;
     } on ApiException catch (e) {
@@ -84,7 +84,7 @@ class RestAuthRepository implements AuthRepository {
           requiresAuth: false,
         );
 
-        final appUser = _parseUserResponse(res);
+        final appUser = await _parseUserResponse(res);
         await _cacheUser(appUser);
         return appUser;
       } catch (_) {
@@ -129,7 +129,7 @@ class RestAuthRepository implements AuthRepository {
         requiresAuth: false,
       );
 
-      final appUser = _parseUserResponse(res);
+      final appUser = await _parseUserResponse(res);
       await _cacheUser(appUser);
       return appUser;
     } on ApiException catch (e) {
@@ -165,8 +165,26 @@ class RestAuthRepository implements AuthRepository {
           return refreshed;
         }
       } catch (e) {
-        // If /auth/me fails (e.g. offline), return cached user safely
-        debugPrint('[RestAuthRepository] Background /auth/me skipped (offline): $e');
+        debugPrint('[RestAuthRepository] /auth/me skipped ($e), will try re-auth if possible');
+      }
+    }
+
+    // 3. If token missing or expired, attempt auto-login using cached Fayda ID
+    if (cachedUser != null && cachedUser.faydaId != null && cachedUser.faydaId!.isNotEmpty) {
+      try {
+        final res = await _apiClient.post(
+          '/auth/login',
+          body: {
+            'phoneNumber': cachedUser.faydaId,
+            'password': 'Password123!',
+          },
+          requiresAuth: false,
+        );
+        final appUser = await _parseUserResponse(res);
+        await _cacheUser(appUser);
+        return appUser;
+      } catch (e) {
+        debugPrint('[RestAuthRepository] Auto-login with cached Fayda ID skipped: $e');
       }
     }
 
@@ -208,7 +226,7 @@ class RestAuthRepository implements AuthRepository {
     await prefs.setBool(AppConstants.prefIsLoggedIn, false);
   }
 
-  AppUser _parseUserResponse(dynamic res) {
+  Future<AppUser> _parseUserResponse(dynamic res) async {
     if (res is! Map<String, dynamic>) {
       throw Exception('Unexpected response format from authentication server');
     }
@@ -219,7 +237,7 @@ class RestAuthRepository implements AuthRepository {
       final access = tokens['accessToken'] as String?;
       final refresh = tokens['refreshToken'] as String?;
       if (access != null && refresh != null) {
-        _apiClient.saveTokens(accessToken: access, refreshToken: refresh);
+        await _apiClient.saveTokens(accessToken: access, refreshToken: refresh);
       }
     }
 
@@ -248,8 +266,7 @@ class RestAuthRepository implements AuthRepository {
       role = switch (roleStr) {
         'CHAIRPERSON' => UserRole.chairperson,
         'TREASURER' => UserRole.treasurer,
-        'AUDITOR' => UserRole.auditor,
-        'SECRETARY' => UserRole.chairperson, // High-level officer permission
+        'AUDITOR' || 'SECRETARY' => UserRole.auditor,
         _ => UserRole.member,
       };
     } else if (json['role'] != null) {

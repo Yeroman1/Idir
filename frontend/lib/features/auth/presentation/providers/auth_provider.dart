@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/app_user.dart';
 import '../../../../core/providers/pin_provider.dart';
+import '../../../../core/providers/sync_status_provider.dart';
 import '../../data/auth_repository.dart';
 import '../../data/fayda_service.dart';
 
@@ -89,6 +90,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
       isLoading: false,
       isInitialized: true,
     );
+    _ref.read(syncProvider.notifier).registerSyncCallback(refreshCurrentUser);
+  }
+
+  /// Refreshes current user profile directly from live backend / Supabase
+  Future<void> refreshCurrentUser() async {
+    try {
+      final fresh = await _repository.getCurrentUser();
+      if (fresh != null && fresh != state.user) {
+        state = state.copyWith(user: () => fresh);
+      }
+    } catch (_) {}
   }
 
   /// Step 1: Send OTP to the citizen's phone registered with their Ethiopian National ID (Fayda)
@@ -224,6 +236,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> switchDemoUser(AppUser demoUser) async {
+    final fin = demoUser.faydaId;
+    if (fin != null && fin.isNotEmpty) {
+      try {
+        final liveUser = await _repository.verifyFaydaOtp(
+          faydaId: fin,
+          otp: '123456',
+          txnId: 'TXN-SWITCH',
+        );
+        state = state.copyWith(user: () => liveUser);
+        await _ref.read(syncProvider.notifier).triggerSync();
+        return;
+      } catch (_) {}
+    }
     await _repository.updateProfile(demoUser);
     state = state.copyWith(user: () => demoUser);
   }

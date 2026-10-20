@@ -60,8 +60,8 @@ class ClaimsScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
-            onPressed: () {
-              ref.invalidate(claimsStreamProvider);
+            onPressed: () async {
+              await ref.read(claimsRepositoryProvider).getClaims();
             },
           ),
         ],
