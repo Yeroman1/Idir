@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -42,7 +43,7 @@ final mainShellRoute = ShellRoute(
   ],
 );
 
-class _ScaffoldWithBottomNav extends StatelessWidget {
+class _ScaffoldWithBottomNav extends ConsumerWidget {
   const _ScaffoldWithBottomNav({required this.child});
   final Widget child;
 
@@ -63,18 +64,17 @@ class _ScaffoldWithBottomNav extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final idx = _currentIndex(context);
 
     return Scaffold(
-      body: Column(
+      body: child,
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           const OfflineIndicatorBar(),
-          Expanded(child: child),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
+          NavigationBar(
         selectedIndex: idx,
         onDestinationSelected: (i) => context.go(_tabs[i]),
         destinations: [
@@ -105,6 +105,8 @@ class _ScaffoldWithBottomNav extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ],
+  ),
+);
   }
 }

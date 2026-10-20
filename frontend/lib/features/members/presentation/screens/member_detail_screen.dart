@@ -11,6 +11,7 @@ import '../../../reports/domain/models/report_models.dart';
 import '../../../reports/presentation/providers/reports_provider.dart';
 import '../../domain/models/member.dart';
 import '../providers/members_provider.dart';
+import '../../../../core/widgets/offline_indicator_bar.dart';
 
 class MemberDetailScreen extends ConsumerWidget {
   const MemberDetailScreen({
@@ -168,6 +169,7 @@ class MemberDetailScreen extends ConsumerWidget {
           ],
         ],
       ),
+      bottomNavigationBar: const OfflineIndicatorBar(includeBottomSafeArea: true),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
