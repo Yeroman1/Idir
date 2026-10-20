@@ -10,6 +10,7 @@ import '../../data/expenses_repository.dart';
 import '../../domain/models/expense.dart';
 import '../providers/expenses_provider.dart';
 import 'record_expense_dialog.dart';
+import '../../../../core/widgets/offline_indicator_bar.dart';
 
 class ExpensesScreen extends ConsumerWidget {
   const ExpensesScreen({super.key});
@@ -127,6 +128,7 @@ class ExpensesScreen extends ConsumerWidget {
               label: const Text('Record Expense'),
             )
           : null,
+      bottomNavigationBar: const OfflineIndicatorBar(includeBottomSafeArea: true),
       body: Column(
         children: [
           // ── Summary Card ────────────────────────────────────────────────

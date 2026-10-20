@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../providers/audit_provider.dart';
+import '../../../../core/widgets/offline_indicator_bar.dart';
 
 class AuditLogScreen extends ConsumerStatefulWidget {
   const AuditLogScreen({super.key});
@@ -46,6 +47,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
       appBar: AppBar(
         title: Text(l10n.auditLog),
       ),
+      bottomNavigationBar: const OfflineIndicatorBar(includeBottomSafeArea: true),
       body: Column(
         children: [
           // ── 1. Cryptographic Chain Status Header Card ───────────────────

@@ -11,6 +11,7 @@ import '../../../members/presentation/providers/members_provider.dart';
 import '../../domain/models/report_models.dart';
 import '../providers/reports_provider.dart';
 import 'pdf_viewer_screen.dart';
+import '../../../../core/widgets/offline_indicator_bar.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
@@ -138,6 +139,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           ),
         ],
       ),
+      bottomNavigationBar: const OfflineIndicatorBar(includeBottomSafeArea: true),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

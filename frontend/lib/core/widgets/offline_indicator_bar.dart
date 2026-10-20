@@ -7,7 +7,9 @@ import '../theme/app_theme.dart';
 
 /// Global banner shown whenever the application is offline or actively synchronizing.
 class OfflineIndicatorBar extends ConsumerWidget {
-  const OfflineIndicatorBar({super.key});
+  const OfflineIndicatorBar({super.key, this.includeBottomSafeArea = false});
+
+  final bool includeBottomSafeArea;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,14 +28,14 @@ class OfflineIndicatorBar extends ConsumerWidget {
 
     return Material(
       color: bgColor,
-      child: InkWell(
-        onTap: () => showOfflineSyncModal(context),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          child: SafeArea(
-            bottom: false,
-            top: false,
+      child: SafeArea(
+        top: false,
+        bottom: includeBottomSafeArea,
+        child: InkWell(
+          onTap: () => showOfflineSyncModal(context),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
                 if (isSyncing)
@@ -74,7 +76,7 @@ class OfflineIndicatorBar extends ConsumerWidget {
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 3),
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.22),
                         borderRadius: BorderRadius.circular(12),
