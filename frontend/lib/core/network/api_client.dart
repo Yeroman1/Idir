@@ -48,6 +48,8 @@ class ApiClient {
   String? _cachedRefreshToken;
   bool _isRefreshing = false;
 
+  String? _workingAndroidBaseUrl;
+
   /// Dynamically computes the backend base URL depending on platform
   String get baseUrl {
     final custom = _configuredBaseUrl;
@@ -63,7 +65,7 @@ class ApiClient {
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {
-      return AppConstants.androidEmulatorApiBaseUrl;
+      return _workingAndroidBaseUrl ?? AppConstants.androidDeviceApiBaseUrl;
     }
 
     return AppConstants.defaultApiBaseUrl;
@@ -238,9 +240,32 @@ class ApiClient {
 
     try {
       final uri = uriBuilder();
-      final response = await requestFn(uri, headers).timeout(
-        const Duration(seconds: 10),
-      );
+      http.Response response;
+      try {
+        response = await requestFn(uri, headers).timeout(
+          const Duration(seconds: 30),
+        );
+        if (defaultTargetPlatform == TargetPlatform.android &&
+            _workingAndroidBaseUrl == null) {
+          _workingAndroidBaseUrl = uri.host == '127.0.0.1'
+              ? AppConstants.androidDeviceApiBaseUrl
+              : AppConstants.androidEmulatorApiBaseUrl;
+        }
+      } on SocketException catch (_) {
+        if (defaultTargetPlatform == TargetPlatform.android &&
+            _workingAndroidBaseUrl == null &&
+            _configuredBaseUrl == null &&
+            uri.host == '127.0.0.1') {
+          // If reverse proxy on 127.0.0.1 is unreachable, attempt emulator 10.0.2.2
+          final altUri = uri.replace(host: '10.0.2.2');
+          response = await requestFn(altUri, headers).timeout(
+            const Duration(seconds: 30),
+          );
+          _workingAndroidBaseUrl = AppConstants.androidEmulatorApiBaseUrl;
+        } else {
+          rethrow;
+        }
+      }
 
       // Report connection success
       _ref.read(syncProvider.notifier).reportNetworkSuccess();

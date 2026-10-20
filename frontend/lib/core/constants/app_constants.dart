@@ -27,6 +27,7 @@ abstract final class AppConstants {
 
   // REST API Configuration
   static const String defaultApiBaseUrl = 'http://localhost:5000/api/v1';
+  static const String androidDeviceApiBaseUrl = 'http://127.0.0.1:5000/api/v1';
   static const String androidEmulatorApiBaseUrl = 'http://10.0.2.2:5000/api/v1';
   static const String defaultIdirId = '00000000-0000-0000-0000-000000000001';
 

@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/member.dart';
 import '../../data/members_repository.dart';
 
-final membersStreamProvider = StreamProvider<List<Member>>((ref) {
+final membersStreamProvider = StreamProvider<List<Member>>((ref) async* {
   final repo = ref.watch(membersRepositoryProvider);
-  return repo.watchMembers();
+  repo.getMembers();
+  yield* repo.watchMembers();
 });
 
 final memberSearchQueryProvider = StateProvider<String>((ref) => '');

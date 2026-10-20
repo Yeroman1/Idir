@@ -46,8 +46,8 @@ class FirebaseAuthRepository implements AuthRepository {
   static final List<AppUser> demoUsers = [
     AppUser(
       uid: 'demo_chair',
-      name: 'Abebe Tadesse (Chairperson)',
-      phone: '+251 91 123 4567',
+      name: 'Abebe Tadesse Kebede',
+      phone: '+251911111111',
       role: UserRole.chairperson,
       memberId: 'IDIR-CHAIR-01',
       isActive: true,
@@ -56,8 +56,8 @@ class FirebaseAuthRepository implements AuthRepository {
     ),
     AppUser(
       uid: 'demo_treasurer',
-      name: 'Chaltu Bekele (Treasurer)',
-      phone: '+251 91 234 5678',
+      name: 'Chaltu Bekele Gemeda',
+      phone: '+251911222222',
       role: UserRole.treasurer,
       memberId: 'IDIR-TRSR-02',
       isActive: true,
@@ -66,8 +66,8 @@ class FirebaseAuthRepository implements AuthRepository {
     ),
     AppUser(
       uid: 'demo_auditor',
-      name: 'Dawit Yohannes (Auditor)',
-      phone: '+251 91 345 6789',
+      name: 'Dawit Adugna Hailu',
+      phone: '+251911333333',
       role: UserRole.auditor,
       memberId: 'IDIR-AUDT-03',
       isActive: true,
@@ -76,8 +76,8 @@ class FirebaseAuthRepository implements AuthRepository {
     ),
     AppUser(
       uid: 'demo_member',
-      name: 'Fatima Mohammed (Member)',
-      phone: '+251 91 456 7890',
+      name: 'Fatima Mohammed Ali',
+      phone: '+251911444444',
       role: UserRole.member,
       memberId: 'IDIR-MEMB-04',
       isActive: true,
@@ -278,9 +278,13 @@ class FirebaseAuthRepository implements AuthRepository {
       try {
         final map = jsonDecode(jsonStr) as Map<String, dynamic>;
         final uid = map['uid'] as String? ?? 'unknown';
+        String name = map['name'] as String? ?? '';
+        if (name.contains('Dawit Yohannes')) {
+          name = name.replaceAll('Dawit Yohannes', 'Dawit Abdi');
+        }
         return AppUser(
           uid: uid,
-          name: map['name'] as String? ?? '',
+          name: name,
           phone: map['phone'] as String? ?? '',
           role: UserRoleX.fromString(map['role'] as String? ?? 'member'),
           memberId: map['memberId'] as String? ?? '',

@@ -91,7 +91,7 @@ class FirestoreMembersRepository implements MembersRepository {
       Member(
         id: 'mem_3',
         memberId: 'MEM-003',
-        fullName: 'Dawit Yohannes',
+        fullName: 'Dawit Abdi',
         phone: '+251 91 345 6789',
         registeredAt: DateTime(2023, 5, 20),
         monthlyDues: 50.0,

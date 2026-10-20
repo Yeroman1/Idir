@@ -100,6 +100,19 @@ export class AuthService {
 
     let user = await prisma.user.findUnique({
       where: { phoneNumber: raw },
+      include: {
+        memberships: {
+          include: {
+            idir: {
+              select: {
+                id: true,
+                name: true,
+                currency: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -110,6 +123,19 @@ export class AuthService {
             { faydaId: raw },
             { email: raw.toLowerCase() },
           ],
+        },
+        include: {
+          memberships: {
+            include: {
+              idir: {
+                select: {
+                  id: true,
+                  name: true,
+                  currency: true,
+                },
+              },
+            },
+          },
         },
       });
     }
@@ -159,6 +185,7 @@ export class AuthService {
         status: user.status,
         isPlatformAdmin: user.isPlatformAdmin,
         createdAt: user.createdAt,
+        memberships: user.memberships,
       },
       tokens: { accessToken, refreshToken },
     };

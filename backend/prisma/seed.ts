@@ -54,11 +54,14 @@ async function main() {
 
   const secretaryUser = await prisma.user.upsert({
     where: { phoneNumber: '+251911333333' },
-    update: {},
+    update: {
+      fullName: 'Dawit Abdi Hailu',
+      email: 'dawit.abdi@example.com',
+    },
     create: {
-      fullName: 'Dawit Yohannes Hailu',
+      fullName: 'Dawit Abdi Hailu',
       phoneNumber: '+251911333333',
-      email: 'dawit.yohannes@example.com',
+      email: 'dawit.abdi@example.com',
       passwordHash,
       preferredLanguage: 'am',
       faydaId: '100020003003',
@@ -173,12 +176,14 @@ async function main() {
 
   const mSecretary = await prisma.membership.upsert({
     where: { idirId_userId: { idirId: idir.id, userId: secretaryUser.id } },
-    update: {},
+    update: {
+      role: 'AUDITOR',
+    },
     create: {
       idirId: idir.id,
       userId: secretaryUser.id,
       memberNumber: 'BM-003',
-      role: 'SECRETARY',
+      role: 'AUDITOR',
       status: 'ACTIVE',
     },
   });

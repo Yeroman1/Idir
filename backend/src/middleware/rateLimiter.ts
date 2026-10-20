@@ -6,6 +6,7 @@ export const generalLimiter = rateLimit({
   max: env.RATE_LIMIT_MAX_REQUESTS,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => env.NODE_ENV === 'development',
   message: {
     success: false,
     error: {
@@ -20,6 +21,7 @@ export const authLimiter = rateLimit({
   max: 20, // 20 requests per window
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => env.NODE_ENV === 'development',
   message: {
     success: false,
     error: {
