@@ -17,6 +17,8 @@ enum UserStatus {
 }
 
 enum MembershipRole {
+  CREATOR
+  OFFICER
   CHAIRPERSON
   TREASURER
   SECRETARY
@@ -26,16 +28,29 @@ enum MembershipRole {
 }
 
 enum MembershipStatus {
+  INVITED
   ACTIVE
+  DECLINED
+  REMOVED
   PENDING
   SUSPENDED
   DEACTIVATED
 }
 
 enum IdirStatus {
+  DRAFT
   ACTIVE
   INACTIVE
   ARCHIVED
+  SUSPENDED
+  CLOSED
+}
+
+enum ContributionFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
 }
 
 enum Frequency {
@@ -149,6 +164,14 @@ enum NotificationType {
   MEETING_REMINDER
 }
 
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+  REVOKED
+}
+
 // ─── USER & AUTHENTICATION ───────────────────────────────────────────────────
 
 model User {
@@ -181,6 +204,9 @@ model User {
   announcements          Announcement[]         @relation("CreatedAnnouncements")
   notifications          Notification[]
   auditLogs              AuditLog[]
+  createdIdirs           Idir[]                 @relation("CreatedIdirs")
+  createdInvitations     Invitation[]           @relation("CreatedInvitations")
+  revokedInvitations     Invitation[]           @relation("RevokedInvitations")
 
   @@index([phoneNumber])
   @@index([email])
@@ -207,20 +233,28 @@ model RefreshToken {
 // ─── IDIR & MEMBERSHIP ───────────────────────────────────────────────────────
 
 model Idir {
-  id           String     @id @default(uuid())
-  name         String
-  description  String?
-  region       String
-  zone         String?
-  woreda       String?
-  kebele       String?
-  address      String?
-  contactPhone String?
-  contactEmail String?
-  currency     String     @default("ETB")
-  status       IdirStatus @default(ACTIVE)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id                     String                 @id @default(uuid())
+  name                   String
+  description            String?
+  community              String?
+  purpose                String?
+  rules                  String?                @db.Text
+  location               String?
+  region                 String?
+  zone                   String?
+  woreda                 String?
+  kebele                 String?
+  address                String?
+  contactPhone           String?
+  contactEmail           String?
+  currency               String                 @default("ETB")
+  contributionAmount     Decimal?               @db.Decimal(14, 2)
+  contributionFrequency  ContributionFrequency?
+  status                 IdirStatus             @default(ACTIVE)
+  createdById            String?
+  createdBy              User?                  @relation("CreatedIdirs", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
 
   settings               IdirSettings?
   memberships            Membership[]
@@ -233,10 +267,12 @@ model Idir {
   meetings               Meeting[]
   announcements          Announcement[]
   auditLogs              AuditLog[]
+  invitations            Invitation[]
 
   @@index([name])
   @@index([region])
   @@index([status])
+  @@index([createdById])
 }
 
 model IdirSettings {
@@ -643,4 +679,29 @@ model AuditLog {
   @@index([actorId])
   @@index([entityType, entityId])
   @@index([timestamp])
+}
+
+// ─── INVITATIONS ─────────────────────────────────────────────────────────────
+
+model Invitation {
+  id          String           @id @default(uuid())
+  idirId      String
+  idir        Idir             @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  phoneNumber String
+  tokenHash   String           @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  singleUse   Boolean          @default(true)
+  usedAt      DateTime?
+  createdById String
+  createdBy   User             @relation("CreatedInvitations", fields: [createdById], references: [id], onDelete: Cascade)
+  revokedById String?
+  revokedBy   User?            @relation("RevokedInvitations", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([idirId, phoneNumber])
+  @@index([tokenHash])
+  @@index([idirId, status])
 }

@@ -30,3 +30,19 @@ export const authLimiter = rateLimit({
     },
   },
 });
+
+export const publicInvitationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 60, // 60 requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => env.NODE_ENV === 'development',
+  message: {
+    success: false,
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many invitation lookups, please try again in 15 minutes',
+    },
+  },
+});
+

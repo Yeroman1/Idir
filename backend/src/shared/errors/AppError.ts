@@ -51,3 +51,10 @@ export class ValidationError extends AppError {
     super(message, 422, 'VALIDATION_ERROR', details);
   }
 }
+
+export class RateLimitError extends AppError {
+  constructor(message = 'Too many requests, please try again later', details?: unknown) {
+    super(message, 429, 'RATE_LIMIT_EXCEEDED', details);
+  }
+}
+

@@ -11,10 +11,12 @@ import {
   recordIkubPayoutSchema,
   queryIkubGroupsSchema,
 } from './ikub.validation.js';
+import { requireActiveIdir } from '../../middleware/assertIdirActive.js';
 
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
+router.use(requireActiveIdir());
 
 // Groups
 router.post(

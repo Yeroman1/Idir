@@ -13,6 +13,8 @@ import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/reports/presentation/screens/reports_screen.dart';
 import '../../features/members/presentation/screens/member_detail_screen.dart';
 import '../../features/members/presentation/screens/member_form_screen.dart';
+import '../../features/idirs/presentation/screens/create_idir_screen.dart';
+import '../../features/invitations/presentation/screens/public_invitation_screen.dart';
 import '../models/app_user.dart';
 import '../providers/pin_provider.dart';
 import '../widgets/access_denied_screen.dart';
@@ -53,7 +55,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── 1. Unauthenticated users must stay on Login ────────────────────
       if (!isAuthenticated) {
-        return loc == AppRoutes.login ? null : AppRoutes.login;
+        if (loc == AppRoutes.login || loc.startsWith(AppRoutes.invitation)) {
+          return null;
+        }
+        return AppRoutes.login;
       }
 
       // ── 2. Authenticated user attempting to visit Login ────────────────
@@ -126,6 +131,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'account',
         builder: (_, __) => const AccountScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.invitation,
+        name: 'invitation',
+        builder: (context, state) {
+          final token = state.uri.queryParameters['token'] ?? '';
+          return PublicInvitationScreen(token: token);
+        },
+      ),
 
       // ── Members Detail & Management Subroutes ──────────────────────────
       GoRoute(
@@ -174,6 +187,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'settings',
         builder: (_, __) => const SettingsScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.createIdir,
+        name: 'createIdir',
+        builder: (_, __) => const CreateIdirScreen(),
+      ),
 
       // ── Shell (Bottom Navigation Tabs) ──────────────────────────────────
       mainShellRoute,
@@ -220,6 +238,8 @@ abstract final class AppRoutes {
   static const more = '/more';
 
   // Feature pages
+  static const createIdir = '/create-idir';
+  static const invitation = '/invitation';
   static const announcements = '/announcements';
   static const reports = '/reports';
   static const expenses = '/expenses';
