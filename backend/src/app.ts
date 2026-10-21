@@ -23,6 +23,10 @@ import {
 } from './modules/notifications/notifications.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
+import {
+  invitationRoutes,
+  publicInvitationRoutes,
+} from './modules/invitations/invitations.routes.js';
 
 export const app = express();
 
@@ -56,6 +60,7 @@ const api = express.Router();
 api.use('/auth', authRoutes);
 api.use('/users', usersRoutes);
 api.use('/notifications', notificationRoutes);
+api.use('/invitations', publicInvitationRoutes);
 
 // Idir and Scoped Nested Resources
 api.use('/idirs', idirRoutes);
@@ -68,6 +73,7 @@ api.use('/idirs/:idirId/meetings', meetingRoutes);
 api.use('/idirs/:idirId/announcements', announcementRoutes);
 api.use('/idirs/:idirId/reports', reportRoutes);
 api.use('/idirs/:idirId/audit', auditRoutes);
+api.use('/idirs/:idirId/invitations', invitationRoutes);
 
 app.use(env.API_PREFIX, api);
 

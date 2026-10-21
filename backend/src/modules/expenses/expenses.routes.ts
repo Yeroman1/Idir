@@ -8,10 +8,12 @@ import {
   reviewExpenseSchema,
   queryExpensesSchema,
 } from './expenses.validation.js';
+import { requireActiveIdir } from '../../middleware/assertIdirActive.js';
 
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
+router.use(requireActiveIdir());
 
 router.post(
   '/',

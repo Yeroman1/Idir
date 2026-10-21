@@ -6,6 +6,7 @@ export interface AuthUser {
   phoneNumber: string;
   fullName: string;
   email?: string | null;
+  faydaId?: string | null;
   isPlatformAdmin: boolean;
   preferredLanguage: string;
 }

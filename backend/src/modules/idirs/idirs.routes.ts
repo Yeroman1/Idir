@@ -9,12 +9,15 @@ import {
   updateSettingsSchema,
   queryIdirsSchema,
 } from './idirs.validation.js';
+import { createDraftIdirSchema } from './create-draft.validation.js';
+import { createDraftIdirController } from './create-draft.controller.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.post('/', validate({ body: createIdirSchema }), idirsController.createIdir);
+router.post('/', validate({ body: createDraftIdirSchema }), createDraftIdirController.handle);
+router.post('/draft', validate({ body: createDraftIdirSchema }), createDraftIdirController.handle);
 router.get('/', validate({ query: queryIdirsSchema }), idirsController.listIdirs);
 router.get('/:idirId', idirsController.getIdirById);
 router.patch(

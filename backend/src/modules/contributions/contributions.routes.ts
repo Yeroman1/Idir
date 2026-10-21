@@ -9,10 +9,12 @@ import {
   reverseContributionSchema,
   queryContributionsSchema,
 } from './contributions.validation.js';
+import { requireActiveIdir } from '../../middleware/assertIdirActive.js';
 
 const router = Router({ mergeParams: true });
 
 router.use(authenticate);
+router.use(requireActiveIdir());
 
 // Contribution types
 router.post(

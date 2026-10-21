@@ -85,6 +85,8 @@ class AppUser extends Equatable {
   final DateTime createdAt;
   final String? faydaId;
 
+  bool get isFaydaVerified => faydaId != null && faydaId!.trim().isNotEmpty;
+
   Map<String, dynamic> toMap() => {
         'name': name,
         'phone': phone,

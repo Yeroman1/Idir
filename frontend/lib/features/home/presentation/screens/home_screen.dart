@@ -17,6 +17,9 @@ import '../../../contributions/domain/models/contribution.dart';
 import '../../../contributions/presentation/screens/record_contribution_dialog.dart';
 import '../../domain/models/dashboard_stats.dart';
 import '../providers/dashboard_provider.dart';
+import '../../../idirs/domain/models/idir_model.dart';
+import '../../../idirs/presentation/providers/idir_creation_provider.dart';
+import '../../../invitations/presentation/widgets/invite_members_dialog.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -35,6 +38,9 @@ class HomeScreen extends ConsumerWidget {
     final pinned = isRegularMember
         ? memberStats.pinnedAnnouncement
         : officerStats.pinnedAnnouncement;
+
+    final draftIdirAsync = ref.watch(userDraftIdirProvider);
+    final draftIdir = draftIdirAsync.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -72,6 +78,7 @@ class HomeScreen extends ConsumerWidget {
               );
               await ref.read(syncProvider.notifier).triggerSync();
               await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
+              ref.read(userDraftIdirProvider.notifier).loadDraft();
               ref.invalidate(dashboardStatsProvider);
               ref.invalidate(memberPersonalDashboardProvider);
             },
@@ -110,6 +117,7 @@ class HomeScreen extends ConsumerWidget {
         onRefresh: () async {
           await ref.read(syncProvider.notifier).triggerSync();
           await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
+          ref.read(userDraftIdirProvider.notifier).loadDraft();
           ref.invalidate(dashboardStatsProvider);
           ref.invalidate(memberPersonalDashboardProvider);
         },
@@ -119,6 +127,15 @@ class HomeScreen extends ConsumerWidget {
             // ── 1. User Profile & Role Card ───────────────────────────────
             if (user != null) _UserProfileHeader(user: user, l10n: l10n),
             const SizedBox(height: 14),
+
+            // ── 1.1 Idir Status Card (with DRAFT badge) ───────────────────
+            if (draftIdir != null) ...[
+              _DraftIdirDashboardCard(idir: draftIdir),
+              const SizedBox(height: 14),
+            ] else ...[
+              _CreateIdirBanner(onTap: () => context.push(AppRoutes.createIdir)),
+              const SizedBox(height: 14),
+            ],
 
             // ── 2. Pinned Announcement Banner ──────────────────────────────
             if (pinned != null) ...[
@@ -155,6 +172,7 @@ class HomeScreen extends ConsumerWidget {
             _QuickActionsGrid(
               userRole: user?.role ?? UserRole.member,
               l10n: l10n,
+              isDraft: draftIdir != null && draftIdir.isDraft,
               onRecordPayment: () {
                 showDialog(
                   context: context,
@@ -201,6 +219,13 @@ class HomeScreen extends ConsumerWidget {
             const SizedBox(height: 32),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push(AppRoutes.createIdir),
+        icon: const Icon(Icons.add),
+        label: const Text('Create Idir'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
       ),
     );
   }
@@ -387,6 +412,270 @@ class _UserProfileHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Draft Idir Dashboard Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DraftIdirDashboardCard extends StatelessWidget {
+  const _DraftIdirDashboardCard({required this.idir});
+
+  final IdirModel idir;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.account_balance_outlined,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      idir.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${idir.community} • ${idir.location}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Prominent DRAFT Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.warning),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: AppColors.warning,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    const Text(
+                      'DRAFT',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.warning,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (idir.purpose.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              idir.purpose,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                height: 1.4,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 12),
+          Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.5)),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Contribution Regular Dues:',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+              Text(
+                'ETB ${idir.contributionAmount.toStringAsFixed(0)} / ${idir.contributionFrequency.toLowerCase()}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.lock_clock, size: 16, color: AppColors.warning),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Financial & claim actions are locked. Available once this Idir is active.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => InviteMembersDialog(
+                    idirId: idir.id,
+                    idirName: idir.name,
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+              icon: const Icon(Icons.person_add_alt_1, size: 18),
+              label: const Text('Invite Members by Phone'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Create Idir Banner (shown when no draft is present)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CreateIdirBanner extends StatelessWidget {
+  const _CreateIdirBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.add_home_work_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Establish a New Idir',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Fayda-verified members can register and manage an Idir community',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.primary),
+          ],
+        ),
       ),
     );
   }
@@ -1171,11 +1460,13 @@ class _QuickActionsGrid extends StatelessWidget {
     required this.userRole,
     required this.l10n,
     required this.onRecordPayment,
+    this.isDraft = false,
   });
 
   final UserRole userRole;
   final AppLocalizations l10n;
   final VoidCallback onRecordPayment;
+  final bool isDraft;
 
   @override
   Widget build(BuildContext context) {
@@ -1189,6 +1480,7 @@ class _QuickActionsGrid extends StatelessWidget {
             label: l10n.actionRecordPayment,
             color: AppColors.secondary,
             onTap: onRecordPayment,
+            isLocked: isDraft,
           ),
           _ActionTile(
             icon: Icons.person_add_alt_1,
@@ -1201,6 +1493,7 @@ class _QuickActionsGrid extends StatelessWidget {
             label: l10n.reviewClaims,
             color: const Color(0xFF1565C0),
             onTap: () => context.go(AppRoutes.claims),
+            isLocked: isDraft,
           ),
           _ActionTile(
             icon: Icons.bar_chart_outlined,
@@ -1222,6 +1515,7 @@ class _QuickActionsGrid extends StatelessWidget {
             label: l10n.reviewClaims,
             color: AppColors.secondary,
             onTap: () => context.go(AppRoutes.claims),
+            isLocked: isDraft,
           ),
           _ActionTile(
             icon: Icons.campaign_outlined,
@@ -1261,6 +1555,7 @@ class _QuickActionsGrid extends StatelessWidget {
             label: l10n.contributionsTitle,
             color: AppColors.secondary,
             onTap: () => context.go(AppRoutes.contributions),
+            isLocked: isDraft,
           ),
         ]);
       case UserRole.member:
@@ -1270,12 +1565,14 @@ class _QuickActionsGrid extends StatelessWidget {
             label: l10n.actionSubmitClaim,
             color: AppColors.primary,
             onTap: () => context.go(AppRoutes.claims),
+            isLocked: isDraft,
           ),
           _ActionTile(
             icon: Icons.receipt_long,
             label: l10n.myContributions,
             color: AppColors.secondary,
             onTap: () => context.go(AppRoutes.contributions),
+            isLocked: isDraft,
           ),
           _ActionTile(
             icon: Icons.campaign_outlined,
@@ -1311,36 +1608,91 @@ class _ActionTile extends StatelessWidget {
     required this.label,
     required this.color,
     required this.onTap,
+    this.isLocked = false,
   });
+
+  static const String _lockedMessage = 'Available once this Idir is active';
 
   final IconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
+  final bool isLocked;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final effectiveColor = isLocked ? theme.colorScheme.onSurface.withValues(alpha: 0.38) : color;
 
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        if (isLocked) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.lock_outline, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(child: Text(_lockedMessage)),
+                ],
+              ),
+              backgroundColor: AppColors.warning,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          onTap();
+        }
+      },
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
+          color: isLocked
+              ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25)
+              : color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
+          border: Border.all(
+            color: isLocked
+                ? theme.dividerColor.withValues(alpha: 0.25)
+                : color.withValues(alpha: 0.2),
+          ),
         ),
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 20),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isLocked
+                        ? theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)
+                        : color.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: effectiveColor, size: 20),
+                ),
+                if (isLocked)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: AppColors.warning,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock,
+                        size: 10,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 6),
             Text(
@@ -1348,6 +1700,9 @@ class _ActionTile extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w600,
                 fontSize: 11,
+                color: isLocked
+                    ? theme.colorScheme.onSurface.withValues(alpha: 0.45)
+                    : null,
               ),
               textAlign: TextAlign.center,
               maxLines: 2,
