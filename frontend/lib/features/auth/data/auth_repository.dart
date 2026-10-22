@@ -16,6 +16,21 @@ import 'rest_auth_repository.dart';
 abstract class AuthRepository {
   Stream<AppUser?> authStateChanges();
   Future<FaydaOtpResponse> requestFaydaOtp(String faydaId);
+  Future<FaydaCitizenProfile> verifyFaydaCitizenOtp({
+    required String faydaId,
+    required String otp,
+    required String txnId,
+  });
+  Future<AppUser> registerWithPassword({
+    required String fullName,
+    required String phoneNumber,
+    required String faydaId,
+    required String password,
+  });
+  Future<AppUser> signInWithPassword({
+    required String identifier,
+    required String password,
+  });
   Future<AppUser> verifyFaydaOtp({
     required String faydaId,
     required String otp,
@@ -229,6 +244,50 @@ class FirebaseAuthRepository implements AuthRepository {
       }
     }
     return null;
+  }
+
+  @override
+  Future<FaydaCitizenProfile> verifyFaydaCitizenOtp({
+    required String faydaId,
+    required String otp,
+    required String txnId,
+  }) async {
+    return _faydaService.verifyOtp(
+      faydaInput: faydaId,
+      otp: otp,
+      txnId: txnId,
+    );
+  }
+
+  @override
+  Future<AppUser> registerWithPassword({
+    required String fullName,
+    required String phoneNumber,
+    required String faydaId,
+    required String password,
+  }) async {
+    final cleanFin = FaydaService.normalizeFin(faydaId);
+    final user = AppUser(
+      uid: 'fayda_$cleanFin',
+      name: fullName,
+      phone: phoneNumber,
+      role: UserRole.member,
+      memberId: 'IDIR-F-${cleanFin.length >= 4 ? cleanFin.substring(cleanFin.length - 4) : cleanFin}',
+      isActive: true,
+      createdAt: DateTime.now(),
+      faydaId: cleanFin,
+      isFaydaVerified: true,
+    );
+    await _cacheUser(user);
+    return user;
+  }
+
+  @override
+  Future<AppUser> signInWithPassword({
+    required String identifier,
+    required String password,
+  }) async {
+    return signIn(email: identifier, password: password);
   }
 
   @override

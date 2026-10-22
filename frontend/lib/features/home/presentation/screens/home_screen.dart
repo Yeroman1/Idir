@@ -41,6 +41,7 @@ class HomeScreen extends ConsumerWidget {
 
     final draftIdirAsync = ref.watch(userDraftIdirProvider);
     final draftIdir = draftIdirAsync.value;
+    final hasActiveIdir = (user?.hasIdir == true) || draftIdir != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -49,7 +50,9 @@ class HomeScreen extends ConsumerWidget {
           children: [
             Text(l10n.dashboardTitle),
             Text(
-              l10n.associationName,
+              hasActiveIdir
+                  ? (draftIdir?.name ?? user?.idirName ?? l10n.associationName)
+                  : 'Idir Community Network',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
                 letterSpacing: 0.2,
@@ -125,17 +128,23 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
             // ── 1. User Profile & Role Card ───────────────────────────────
-            if (user != null) _UserProfileHeader(user: user, l10n: l10n),
+            if (user != null)
+              _UserProfileHeader(
+                user: user,
+                l10n: l10n,
+                hasActiveIdir: hasActiveIdir,
+              ),
             const SizedBox(height: 14),
 
-            // ── 1.1 Idir Status Card (with DRAFT badge) ───────────────────
-            if (draftIdir != null) ...[
-              _DraftIdirDashboardCard(idir: draftIdir),
-              const SizedBox(height: 14),
+            if (!hasActiveIdir) ...[
+              _NoIdirOnboardingView(user: user),
+              const SizedBox(height: 24),
             ] else ...[
-              _CreateIdirBanner(onTap: () => context.push(AppRoutes.createIdir)),
-              const SizedBox(height: 14),
-            ],
+              // ── 1.1 Idir Status Card (with DRAFT badge) ───────────────────
+              if (draftIdir != null) ...[
+                _DraftIdirDashboardCard(idir: draftIdir),
+                const SizedBox(height: 14),
+              ],
 
             // ── 2. Pinned Announcement Banner ──────────────────────────────
             if (pinned != null) ...[
@@ -217,6 +226,7 @@ class HomeScreen extends ConsumerWidget {
                 l10n: l10n,
               ),
             const SizedBox(height: 32),
+            ],
           ],
         ),
       ),
@@ -300,12 +310,20 @@ class _SyncStatusChip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _UserProfileHeader extends StatelessWidget {
-  const _UserProfileHeader({required this.user, required this.l10n});
+  const _UserProfileHeader({
+    required this.user,
+    required this.l10n,
+    this.hasActiveIdir = true,
+  });
 
   final AppUser user;
   final AppLocalizations l10n;
+  final bool hasActiveIdir;
 
   String _roleLabel(UserRole role) {
+    if (!hasActiveIdir) {
+      return 'Pending Idir';
+    }
     switch (role) {
       case UserRole.chairperson:
         return l10n.roleChairperson;
@@ -400,7 +418,9 @@ class _UserProfileHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      user.memberId,
+                      hasActiveIdir
+                          ? user.memberId
+                          : 'No Active Community',
                       style: theme.textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w500,
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -612,71 +632,334 @@ class _DraftIdirDashboardCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Create Idir Banner (shown when no draft is present)
+// ─────────────────────────────────────────────────────────────────────────────
+// No Active Idir Onboarding View
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _CreateIdirBanner extends StatelessWidget {
-  const _CreateIdirBanner({required this.onTap});
+class _NoIdirOnboardingView extends StatefulWidget {
+  const _NoIdirOnboardingView({this.user});
 
-  final VoidCallback onTap;
+  final AppUser? user;
+
+  @override
+  State<_NoIdirOnboardingView> createState() => _NoIdirOnboardingViewState();
+}
+
+class _NoIdirOnboardingViewState extends State<_NoIdirOnboardingView> {
+  final _inviteTokenController = TextEditingController();
+
+  @override
+  void dispose() {
+    _inviteTokenController.dispose();
+    super.dispose();
+  }
+
+  void _submitInviteCode() {
+    final token = _inviteTokenController.text.trim();
+    if (token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter an invitation token or code'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    context.push('${AppRoutes.invitation}?token=$token');
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isFaydaVerified = widget.user?.isFaydaVerified ?? false;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.25),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.add_home_work_outlined,
-                color: AppColors.primary,
-                size: 20,
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Fayda Identity Verification Banner
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primary.withValues(alpha: 0.12),
+                AppColors.secondary.withValues(alpha: 0.08),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    'Establish a New Idir',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.verified_user_rounded,
+                      color: AppColors.success,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Fayda-verified members can register and manage an Idir community',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                      fontSize: 11,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isFaydaVerified
+                              ? 'Fayda e-KYC Verified Citizen'
+                              : 'Account Registered',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        if (widget.user?.faydaId != null &&
+                            widget.user!.faydaId!.isNotEmpty)
+                          Text(
+                            'FAN: ${widget.user!.faydaId}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-            const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.primary),
-          ],
+              const SizedBox(height: 10),
+              Text(
+                'You have not joined or established an Idir yet. To get started, you can establish your community Idir as its Leader or join an existing Idir using an invite code.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  height: 1.4,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+        const SizedBox(height: 18),
+
+        // Option A: Establish New Idir (Leader)
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.6)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.admin_panel_settings_outlined,
+                      color: AppColors.primary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Establish a New Idir',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'You will be the Leader (Chairperson)',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Found a community association for your kebele, neighborhood, or organization. As the creator, your role will automatically be Chairperson, allowing you to configure dues, invite members, and manage claims.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  height: 1.45,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => context.push(AppRoutes.createIdir),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add, size: 20),
+                  label: const Text(
+                    'Create Idir as Leader',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+
+        // Option B: Join Existing Idir via Invitation
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.dividerColor.withValues(alpha: 0.6)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.group_add_outlined,
+                      color: AppColors.secondary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Join via Invitation',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Default Role: Community Member',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'If an Idir officer invited you via SMS or shared an invite code, enter your invitation token below to join their community.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  height: 1.45,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _inviteTokenController,
+                      decoration: InputDecoration(
+                        hintText: 'Enter invite code or token',
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onSubmitted: (_) => _submitInviteCode(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    onPressed: _submitInviteCode,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.secondary,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: const Text('Join'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

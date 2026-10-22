@@ -307,6 +307,7 @@ class _MemberFormScreenState extends ConsumerState<MemberFormScreen> {
               // Status Dropdown
               DropdownButtonFormField<MemberStatus>(
                 initialValue: _status,
+                isExpanded: true,
                 decoration: InputDecoration(
                   labelText: l10n.statusLabel,
                   prefixIcon: const Icon(Icons.info_outline),
@@ -314,13 +315,13 @@ class _MemberFormScreenState extends ConsumerState<MemberFormScreen> {
                 items: [
                   DropdownMenuItem(
                       value: MemberStatus.active,
-                      child: Text(l10n.statusActive)),
+                      child: Text(l10n.statusActive, overflow: TextOverflow.ellipsis)),
                   DropdownMenuItem(
                       value: MemberStatus.suspended,
-                      child: Text(l10n.statusSuspended)),
+                      child: Text(l10n.statusSuspended, overflow: TextOverflow.ellipsis)),
                   DropdownMenuItem(
                       value: MemberStatus.deceased,
-                      child: Text(l10n.statusDeceased)),
+                      child: Text(l10n.statusDeceased, overflow: TextOverflow.ellipsis)),
                 ],
                 onChanged: (val) {
                   if (val != null) setState(() => _status = val);
@@ -361,12 +362,13 @@ class _MemberFormScreenState extends ConsumerState<MemberFormScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       initialValue: _ecRelationship,
+                      isExpanded: true,
                       decoration: InputDecoration(
                         labelText: l10n.relationshipLabel,
                       ),
                       items: _relationships
                           .map(
-                              (r) => DropdownMenuItem(value: r, child: Text(r)))
+                              (r) => DropdownMenuItem(value: r, child: Text(r, overflow: TextOverflow.ellipsis)))
                           .toList(),
                       onChanged: (val) {
                         if (val != null) setState(() => _ecRelationship = val);

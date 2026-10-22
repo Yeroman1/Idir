@@ -215,7 +215,44 @@ abstract final class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
-        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        side: WidgetStateBorderSide.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const BorderSide(color: AppColors.primary, width: 1);
+          }
+          return BorderSide(
+            color: isDark ? AppColors.dividerDark : const Color(0xFFCBD5E1),
+            width: 1,
+          );
+        }),
+        color: WidgetStateProperty.resolveWith<Color?>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return AppColors.primary;
+          }
+          return isDark
+              ? AppColors.cardDark
+              : const Color(0xFFF1F5F9);
+        }),
+        labelStyle: WidgetStateTextStyle.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            );
+          }
+          return TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isDark ? const Color(0xFFE0E7FF) : AppColors.textDarkBlue,
+          );
+        }),
+        backgroundColor: isDark ? AppColors.cardDark : const Color(0xFFF1F5F9),
+        selectedColor: AppColors.primary,
+        checkmarkColor: Colors.white,
+        iconTheme: IconThemeData(
+          size: 16,
+          color: isDark ? AppColors.onSurfaceDark : AppColors.textDarkBlue,
+        ),
       ),
 
       // ── Divider ───────────────────────────────────────────────────────

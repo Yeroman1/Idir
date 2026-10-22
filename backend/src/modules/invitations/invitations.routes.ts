@@ -17,6 +17,9 @@ idirRouter.post(
   invitationsController.batchInvite
 );
 
+// Check user registration by phone: GET /api/v1/idirs/:idirId/invitations/check-user?phone=...
+idirRouter.get('/check-user', invitationsController.checkUser);
+
 // List invitations for this Idir: GET /api/v1/idirs/:idirId/invitations
 idirRouter.get('/', invitationsController.listIdirInvitations);
 

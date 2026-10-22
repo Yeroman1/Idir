@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/providers/pin_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -47,21 +48,48 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _finFormKey = GlobalKey<FormState>();
-  final _otpFormKey = GlobalKey<FormState>();
+class _LoginScreenState extends ConsumerState<LoginScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
 
-  final _finCtrl = TextEditingController(text: '1000 2000 3001');
-  final _otpCtrl = TextEditingController();
+  // ── Login Controllers ──────────────────────────────────────────────────────
+  final _loginFormKey = GlobalKey<FormState>();
+  final _loginIdentifierCtrl = TextEditingController(text: '1000 2000 3001');
+  final _loginPasswordCtrl = TextEditingController(text: 'Password123!');
+  bool _obscureLoginPassword = true;
+
+  // ── Registration Controllers ───────────────────────────────────────────────
+  final _regFinFormKey = GlobalKey<FormState>();
+  final _regOtpFormKey = GlobalKey<FormState>();
+  final _regPasswordFormKey = GlobalKey<FormState>();
+
+  final _regFinCtrl = TextEditingController(text: '1000 2000 3004');
+  final _regOtpCtrl = TextEditingController();
+  final _regPasswordCtrl = TextEditingController();
+  final _regConfirmPasswordCtrl = TextEditingController();
+
+  bool _obscureRegPassword = true;
+  bool _obscureRegConfirmPassword = true;
 
   Timer? _countdownTimer;
   int _secondsRemaining = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
   void dispose() {
     _countdownTimer?.cancel();
-    _finCtrl.dispose();
-    _otpCtrl.dispose();
+    _tabController.dispose();
+    _loginIdentifierCtrl.dispose();
+    _loginPasswordCtrl.dispose();
+    _regFinCtrl.dispose();
+    _regOtpCtrl.dispose();
+    _regPasswordCtrl.dispose();
+    _regConfirmPasswordCtrl.dispose();
     super.dispose();
   }
 
@@ -78,36 +106,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-  void _selectDemoAccount(String rawFin) {
-    setState(() {
-      _finCtrl.text = FaydaService.formatFin(rawFin);
-    });
-    ref.read(authNotifierProvider.notifier).clearError();
-  }
-
-  Future<void> _handleRequestOtp() async {
-    if (!_finFormKey.currentState!.validate()) return;
+  // ── Login Action ───────────────────────────────────────────────────────────
+  Future<void> _handlePasswordSignIn() async {
+    if (!_loginFormKey.currentState!.validate()) return;
 
     final authNotifier = ref.read(authNotifierProvider.notifier);
-    final success = await authNotifier.requestFaydaOtp(_finCtrl.text.trim());
+    final identifier = _loginIdentifierCtrl.text.trim();
+    final password = _loginPasswordCtrl.text;
 
-    if (success && mounted) {
-      _startCooldown(60);
-      final authState = ref.read(authNotifierProvider);
-      if (authState.mockOtpHint != null) {
-        // Pre-fill or make easy in test mode
-        _otpCtrl.text = authState.mockOtpHint!;
-      } else {
-        _otpCtrl.clear();
-      }
-    }
-  }
-
-  Future<void> _handleVerifyOtp() async {
-    if (!_otpFormKey.currentState!.validate()) return;
-
-    final authNotifier = ref.read(authNotifierProvider.notifier);
-    final success = await authNotifier.verifyFaydaOtp(_otpCtrl.text.trim());
+    final success = await authNotifier.signInWithPassword(
+      identifier: identifier,
+      password: password,
+    );
 
     if (success && mounted) {
       final pinState = ref.read(pinNotifierProvider);
@@ -119,11 +129,68 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  void _handleChangeId() {
+  // ── Registration Actions ───────────────────────────────────────────────────
+  Future<void> _handleRequestRegistrationOtp() async {
+    if (!_regFinFormKey.currentState!.validate()) return;
+
+    final authNotifier = ref.read(authNotifierProvider.notifier);
+    final success = await authNotifier.requestFaydaOtp(_regFinCtrl.text.trim());
+
+    if (success && mounted) {
+      _startCooldown(60);
+      final authState = ref.read(authNotifierProvider);
+      if (authState.mockOtpHint != null) {
+        _regOtpCtrl.text = authState.mockOtpHint!;
+      } else {
+        _regOtpCtrl.clear();
+      }
+    }
+  }
+
+  Future<void> _handleVerifyRegistrationOtp() async {
+    if (!_regOtpFormKey.currentState!.validate()) return;
+
+    final authNotifier = ref.read(authNotifierProvider.notifier);
+    final success =
+        await authNotifier.verifyFaydaCitizenOtp(_regOtpCtrl.text.trim());
+
+    if (success && mounted) {
+      _regPasswordCtrl.clear();
+      _regConfirmPasswordCtrl.clear();
+    }
+  }
+
+  Future<void> _handleRegisterWithPassword() async {
+    if (!_regPasswordFormKey.currentState!.validate()) return;
+
+    final authNotifier = ref.read(authNotifierProvider.notifier);
+    final success =
+        await authNotifier.registerWithPassword(_regPasswordCtrl.text);
+
+    if (success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Registration completed successfully! Welcome to Idir Connect.'),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      final pinState = ref.read(pinNotifierProvider);
+      if (!pinState.isSet) {
+        context.go(AppRoutes.pinSetup);
+      } else {
+        context.go(AppRoutes.home);
+      }
+    }
+  }
+
+  void _handleResetRegistration() {
     _countdownTimer?.cancel();
     setState(() {
       _secondsRemaining = 0;
-      _otpCtrl.clear();
+      _regOtpCtrl.clear();
+      _regPasswordCtrl.clear();
+      _regConfirmPasswordCtrl.clear();
     });
     ref.read(authNotifierProvider.notifier).resetOtpFlow();
   }
@@ -166,7 +233,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       title: const Text('Sandbox / Test Mode',
                           style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                       subtitle: const Text(
-                        'Instant offline verification with test Fayda OTP (123456)',
+                        'Instant verification with test Fayda OTP (123456)',
                         style: TextStyle(fontSize: 12),
                       ),
                       value: isSandbox,
@@ -184,20 +251,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     TextField(
                       controller: urlCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Fayda API Base URL',
-                        hintText: 'https://api.fayda.et/v1/auth',
-                        prefixIcon: Icon(Icons.link_rounded),
+                        labelText: 'API Base URL',
+                        border: OutlineInputBorder(),
+                        isDense: true,
                       ),
+                      style: const TextStyle(fontSize: 13),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: keyCtrl,
-                      obscureText: true,
                       decoration: const InputDecoration(
-                        labelText: 'API Authorization Key (Optional)',
-                        hintText: 'Bearer token or client secret',
-                        prefixIcon: Icon(Icons.vpn_key_rounded),
+                        labelText: 'API Key (Optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
                       ),
+                      style: const TextStyle(fontSize: 13),
                     ),
                   ],
                 ),
@@ -209,22 +277,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 FilledButton(
                   onPressed: () async {
-                    final nav = Navigator.of(dialogCtx);
                     final messenger = ScaffoldMessenger.of(context);
+                    final nav = Navigator.of(dialogCtx);
                     await faydaService.saveConfig(
                       baseUrl: urlCtrl.text.trim(),
-                      apiKey: keyCtrl.text.trim(),
+                      apiKey: keyCtrl.text.trim().isEmpty ? null : keyCtrl.text.trim(),
                       isSandbox: isSandbox,
                     );
                     if (mounted) {
                       nav.pop();
                       messenger.showSnackBar(
                         const SnackBar(
-                          content: Text('Fayda API configuration updated.'),
+                          content: Text('Fayda API settings updated'),
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
-                      setState(() {});
                     }
                   },
                   child: const Text('Save'),
@@ -244,630 +311,935 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authNotifierProvider);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          const ThemeModeToggle(),
           IconButton(
-            tooltip: 'Fayda API Configuration',
             icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Fayda API Settings',
             onPressed: _openApiConfigDialog,
           ),
+          PopupMenuButton<Locale>(
+            icon: const Icon(Icons.language),
+            tooltip: 'Language',
+            onSelected: (loc) {
+              ref.read(localeProvider.notifier).setLocale(loc);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: Locale('en'), child: Text('English')),
+              PopupMenuItem(value: Locale('am'), child: Text('አማርኛ (Amharic)')),
+              PopupMenuItem(value: Locale('om'), child: Text('Afaan Oromoo')),
+            ],
+          ),
+          const ThemeModeToggle(),
           const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Ethiopian National Flag Stripe Accent ─────────────────────
-              Center(
-                child: Container(
-                  width: 90,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(4),
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF078930), // Ethiopian Green
-                        Color(0xFFFCDD09), // Ethiopian Yellow
-                        Color(0xFFDA121A), // Ethiopian Red
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // ── App Brand Header ─────────────────────────────────────
+                  _buildHeader(theme, l10n),
+                  const SizedBox(height: 24),
+
+                  // ── Error Banner ─────────────────────────────────────────
+                  if (authState.errorMessage != null) ...[
+                    _buildErrorBanner(authState.errorMessage!),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // ── Mode Selection Tabs ──────────────────────────────────
+                  Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: TabBar(
+                      controller: _tabController,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      labelColor: AppColors.primary,
+                      unselectedLabelColor:
+                          theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                      tabs: const [
+                        Tab(text: 'Sign In'),
+                        Tab(text: 'Register (Fayda)'),
+                      ],
+                      onTap: (_) {
+                        ref.read(authNotifierProvider.notifier).clearError();
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Tab Views ────────────────────────────────────────────
+                  SizedBox(
+                    height: 520,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildSignInView(context, theme, authState),
+                        _buildRegisterView(context, theme, authState),
                       ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 18),
 
-              // ── Fayda Official Emblem / Header ───────────────────────────
-              Center(
-                child: Container(
-                  width: 84,
-                  height: 84,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.textDarkBlue, // Deep Dark Blue
-                        AppColors.primary,      // Royal Blue
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.25),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      const Icon(
-                        Icons.fingerprint_rounded,
-                        color: Colors.white,
-                        size: 48,
-                      ),
-                      Positioned(
-                        right: 8,
-                        bottom: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: const BoxDecoration(
-                            color: AppColors.textLightBlue,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.verified,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // ── Fayda & Idir Branding ────────────────────────────────────
-              Center(
-                child: Column(
-                  children: [
-                    Row(
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          'ፋይዳ • FAYDA',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                            color: AppColors.textBlue,
-                          ),
-                        ),
+                        const Icon(Icons.shield_outlined,
+                            size: 14, color: AppColors.subtextLight),
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                          ),
-                          child: const Text(
-                            'NIDP API',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textDarkBlue,
-                            ),
+                        Text(
+                          'Protected by Ethiopian National ID (Fayda) Identity Framework',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.subtextLight,
+                            fontSize: 11,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Ethiopian National ID Authentication',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textDarkBlue,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${l10n.idirName} • የኢትዮጵያ ማህበራዊ ዋስትና መተግበሪያ',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textLightBlue,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              // ── Active Step: Step 1 (Fayda ID) or Step 2 (OTP) ─────────────
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: authState.isOtpSent
-                    ? _buildOtpStepView(context, authState)
-                    : _buildFinStepView(context, authState),
-              ),
-
-              const SizedBox(height: 28),
-
-              // ── Quick Role Selection for Demo & Evaluation ─────────────────
-              if (!authState.isOtpSent) _buildDemoRolesSection(context),
-
-              const SizedBox(height: 24),
-              Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.lock_outline, size: 14, color: AppColors.subtextLight),
-                    const SizedBox(width: 6),
-                    Text(
-                      'End-to-End Encrypted via Fayda e-KYC Protocol',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.subtextLight,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Step 1: Input Fayda Identification Number (12 digits)
-  Widget _buildFinStepView(BuildContext context, AuthState authState) {
-    final theme = Theme.of(context);
-
-    return Container(
-      key: const ValueKey('step_fin'),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.dividerTheme.color ?? Colors.grey.shade300,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Form(
-        key: _finFormKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.badge_rounded, color: AppColors.primary, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Fayda Identification Number (FIN)',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textDarkBlue,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'ያስገቡ የ12 አኃዝ ብሔራዊ መታወቂያ ቁጥርዎን። የማረጋገጫ ኮድ (OTP) ወደ ተመዘገበው ስልክዎ ይላካል።',
-              style: TextStyle(fontSize: 12, color: AppColors.textLightBlue),
-            ),
-            const SizedBox(height: 16),
-
-            // FIN Input Field
-            TextFormField(
-              controller: _finCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [_FaydaInputFormatter()],
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) => _handleRequestOtp(),
-              style: const TextStyle(
-                fontSize: 18,
-                letterSpacing: 2.0,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textDarkBlue,
-              ),
-              decoration: InputDecoration(
-                hintText: '1000 2000 3001',
-                prefixIcon: const Icon(Icons.fingerprint_rounded),
-                suffixIcon: _finCtrl.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 18),
-                        onPressed: () => setState(() => _finCtrl.clear()),
-                      )
-                    : null,
-                helperText: '12-digit Ethiopian National ID',
-              ),
-              validator: (v) {
-                final clean = FaydaService.normalizeFin(v ?? '');
-                if (clean.isEmpty) {
-                  return 'Please enter your Fayda ID.';
-                }
-                if (clean.length != 12) {
-                  return 'Fayda ID must be exactly 12 digits (${clean.length}/12).';
-                }
-                return null;
-              },
-            ),
-
-            // Error banner
-            if (authState.errorMessage != null) ...[
-              const SizedBox(height: 14),
-              _buildErrorBanner(authState.errorMessage!),
-            ],
-
-            const SizedBox(height: 20),
-
-            // Request OTP Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: authState.isLoading ? null : _handleRequestOtp,
-                icon: authState.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.sms_outlined, size: 20),
-                label: Text(
-                  authState.isLoading
-                      ? 'Contacting Fayda API…'
-                      : 'Request Fayda OTP • ኮድ ላክ',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Step 2: Enter SMS OTP sent by Fayda
-  Widget _buildOtpStepView(BuildContext context, AuthState authState) {
-    final theme = Theme.of(context);
-    final finDisplay = FaydaService.formatFin(authState.faydaId ?? _finCtrl.text);
-
-    return Container(
-      key: const ValueKey('step_otp'),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Form(
-        key: _otpFormKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.mark_email_read_outlined,
-                          color: AppColors.primary, size: 20),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Verify Fayda OTP',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                TextButton.icon(
-                  onPressed: _handleChangeId,
-                  icon: const Icon(Icons.edit_outlined, size: 14),
-                  label: const Text('Change ID', style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // Masked phone & ID confirmation box
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Fayda FIN: ',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        finDisplay,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.phone_android, size: 14, color: AppColors.subtextLight),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Code dispatched to ${authState.maskedPhone ?? "+251 9• ••• ••••"}',
-                        style: const TextStyle(fontSize: 12, color: AppColors.subtextLight),
-                      ),
-                    ],
                   ),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            if (authState.mockOtpHint != null) ...[
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () {
-                  _otpCtrl.text = authState.mockOtpHint!;
-                },
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD4821A).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: const Color(0xFFD4821A).withValues(alpha: 0.4),
+  Widget _buildHeader(ThemeData theme, AppLocalizations l10n) {
+    return Column(
+      children: [
+        Container(
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppColors.primary, AppColors.secondary],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.account_balance,
+            size: 38,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Idir Connect',
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+            letterSpacing: 0.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'የኢትዮጵያ ማህበራዊ ዋስትና እና እድር መተግበሪያ',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorBanner(String message) {
+    final isNetworkError = message.toLowerCase().contains('network') ||
+        message.toLowerCase().contains('online') ||
+        message.toLowerCase().contains('connection');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isNetworkError ? Icons.wifi_off_rounded : Icons.error_outline,
+            color: AppColors.error,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppColors.error,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TAB 1: Password-Based Sign In
+  // ───────────────────────────────────────────────────────────────────────────
+  Widget _buildSignInView(
+      BuildContext context, ThemeData theme, AuthState authState) {
+    return SingleChildScrollView(
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: theme.dividerTheme.color ?? Colors.grey.shade300,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Form(
+          key: _loginFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
                     ),
+                    child: const Icon(
+                      Icons.lock_person_outlined,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Citizen Sign In',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Enter your Fayda FAN or Phone and password',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Identifier Field
+              Text(
+                'Fayda ID (FAN) or Phone Number',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _loginIdentifierCtrl,
+                decoration: InputDecoration(
+                  hintText: 'e.g. 1000 2000 3001 or +251911...',
+                  prefixIcon: const Icon(Icons.badge_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Please enter your Fayda ID or phone number';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Password Field
+              Text(
+                'Password',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _loginPasswordCtrl,
+                obscureText: _obscureLoginPassword,
+                decoration: InputDecoration(
+                  hintText: 'Enter your password',
+                  prefixIcon: const Icon(Icons.key_outlined),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureLoginPassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureLoginPassword = !_obscureLoginPassword;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.isEmpty) {
+                    return 'Please enter your password';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bolt, size: 16, color: AppColors.secondary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Day-to-day logins are fast, secure, and validated locally inside your database without external SMS costs.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Sign In Button
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed:
+                      authState.isLoading ? null : _handlePasswordSignIn,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: authState.isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    _tabController.animateTo(1);
+                    ref.read(authNotifierProvider.notifier).clearError();
+                  },
+                  child: const Text(
+                    'New citizen? Register with Fayda ID',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // TAB 2: Fayda Verified Registration + Password Creation
+  // ───────────────────────────────────────────────────────────────────────────
+  Widget _buildRegisterView(
+      BuildContext context, ThemeData theme, AuthState authState) {
+    if (authState.isFaydaOtpVerified) {
+      return _buildCreatePasswordStep(context, theme, authState);
+    }
+    if (authState.isOtpSent) {
+      return _buildRegistrationOtpStep(context, theme, authState);
+    }
+    return _buildEnterFaydaIdStep(context, theme, authState);
+  }
+
+  /// Step 1: Input Fayda FIN
+  Widget _buildEnterFaydaIdStep(
+      BuildContext context, ThemeData theme, AuthState authState) {
+    return SingleChildScrollView(
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: theme.dividerTheme.color ?? Colors.grey.shade300,
+          ),
+        ),
+        child: Form(
+          key: _regFinFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.fingerprint_rounded,
+                      color: AppColors.secondary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Step 1: Fayda Verification',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'One-time identity verification via National ID',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              Text(
+                'Fayda Identification Number (FAN) *',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _regFinCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  _FaydaInputFormatter(),
+                ],
+                decoration: InputDecoration(
+                  hintText: '1000 2000 3004',
+                  prefixIcon: const Icon(Icons.badge_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Please enter your 12-digit Fayda ID';
+                  }
+                  final clean = FaydaService.normalizeFin(val);
+                  if (clean.length != 12) {
+                    return 'Fayda ID must be exactly 12 digits';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'Fayda will send a one-time verification SMS OTP to your registered phone to confirm your citizen identity.',
+                  style: TextStyle(fontSize: 12, height: 1.4),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: authState.isLoading
+                      ? null
+                      : _handleRequestRegistrationOtp,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: authState.isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Verify Citizen Identity',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Step 2: One-time Fayda OTP verification
+  Widget _buildRegistrationOtpStep(
+      BuildContext context, ThemeData theme, AuthState authState) {
+    return SingleChildScrollView(
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: theme.dividerTheme.color ?? Colors.grey.shade300,
+          ),
+        ),
+        child: Form(
+          key: _regOtpFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.sms_outlined,
+                      color: AppColors.secondary,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Step 2: Enter Fayda OTP',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Sent to ${authState.maskedPhone ?? "registered phone"}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface
+                                .withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    tooltip: 'Change ID',
+                    onPressed: _handleResetRegistration,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              if (authState.mockOtpHint != null) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.developer_mode,
-                          size: 16, color: Color(0xFFD4821A)),
+                      const Icon(Icons.check_circle_outline,
+                          size: 16, color: AppColors.success),
                       const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Sandbox Test Code: ${authState.mockOtpHint} (Tap to autofill)',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF9E5C0D),
-                          ),
+                      Text(
+                        'Sandbox Test OTP: ${authState.mockOtpHint}',
+                        style: const TextStyle(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-
-            const SizedBox(height: 16),
-
-            // OTP Input
-            TextFormField(
-              controller: _otpCtrl,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(6),
+                const SizedBox(height: 14),
               ],
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) => _handleVerifyOtp(),
-              style: const TextStyle(
-                fontSize: 26,
-                letterSpacing: 10.0,
-                fontWeight: FontWeight.bold,
-              ),
-              decoration: const InputDecoration(
-                hintText: '••••••',
-                prefixIcon: Icon(Icons.security_rounded),
-                helperText: 'Enter 6-digit SMS OTP',
-              ),
-              validator: (v) {
-                if (v == null || v.trim().length < 4) {
-                  return 'Please enter the 6-digit OTP code.';
-                }
-                return null;
-              },
-            ),
 
-            // Error banner
-            if (authState.errorMessage != null) ...[
-              const SizedBox(height: 14),
-              _buildErrorBanner(authState.errorMessage!),
-            ],
-
-            const SizedBox(height: 20),
-
-            // Verify Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: authState.isLoading ? null : _handleVerifyOtp,
-                icon: authState.isLoading
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.verified_user_rounded, size: 20),
-                label: Text(
-                  authState.isLoading
-                      ? 'Verifying with Fayda API…'
-                      : 'Verify & Authenticate • አረጋግጥ',
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Resend link
-            Center(
-              child: _secondsRemaining > 0
-                  ? Text(
-                      'Resend code in ${_secondsRemaining}s',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.subtextLight,
-                      ),
-                    )
-                  : TextButton.icon(
-                      onPressed: authState.isLoading ? null : _handleRequestOtp,
-                      icon: const Icon(Icons.refresh, size: 16),
-                      label: const Text('Resend Fayda OTP'),
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorBanner(String message) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: AppColors.error, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(color: AppColors.error, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Pre-configured demo Fayda IDs for seamless testing of leadership and member roles
-  Widget _buildDemoRolesSection(BuildContext context) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: theme.dividerTheme.color ?? Colors.grey.shade300,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.badge_outlined, size: 18, color: AppColors.primary),
-              SizedBox(width: 8),
               Text(
-                'Fayda Test Citizens / Demo Accounts',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textDarkBlue,
+                '6-Digit OTP Code *',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _regOtpCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
+                  letterSpacing: 8,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  hintText: '••••••',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().length != 6) {
+                    return 'Enter the complete 6-digit code';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: authState.isLoading
+                      ? null
+                      : _handleVerifyRegistrationOtp,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: authState.isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Confirm OTP & Continue',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          const Text(
-            'Tap any registered Ethiopian National ID to populate and test its assigned role:',
-            style: TextStyle(fontSize: 11, color: AppColors.textLightBlue),
+        ),
+      ),
+    );
+  }
+
+  /// Step 3: Local Password Creation
+  Widget _buildCreatePasswordStep(
+      BuildContext context, ThemeData theme, AuthState authState) {
+    final citizen = authState.verifiedCitizen;
+
+    return SingleChildScrollView(
+      child: Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: AppColors.success.withValues(alpha: 0.4),
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+        ),
+        child: Form(
+          key: _regPasswordFormKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ActionChip(
-                avatar: const Icon(Icons.gavel, size: 16, color: AppColors.primary),
-                label: Text('${l10n.roleChairperson} (Abebe)', style: const TextStyle(color: AppColors.textDarkBlue)),
-                onPressed: () => _selectDemoAccount('1000 2000 3001'),
+              // Verified Citizen Banner
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.verified, color: AppColors.success, size: 24),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            citizen?.fullName ?? 'Verified Citizen',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: AppColors.success,
+                            ),
+                          ),
+                          Text(
+                            'FAN: ${authState.faydaId ?? ""}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              ActionChip(
-                avatar: const Icon(Icons.payments_outlined, size: 16, color: AppColors.textLightBlue),
-                label: Text('${l10n.roleTreasurer} (Chaltu)', style: const TextStyle(color: AppColors.textDarkBlue)),
-                onPressed: () => _selectDemoAccount('1000 2000 3002'),
+              const SizedBox(height: 16),
+
+              Text(
+                'Step 3: Create Secure Password',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              ActionChip(
-                avatar: const Icon(Icons.verified_outlined, size: 16, color: AppColors.primary),
-                label: Text('${l10n.roleAuditor} (Dawit)', style: const TextStyle(color: AppColors.textDarkBlue)),
-                onPressed: () => _selectDemoAccount('1000 2000 3003'),
+              const SizedBox(height: 4),
+              Text(
+                'Create a password for this cultural app. Your verified details and hashed password will be stored in your database for fast, daily logins.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                  height: 1.4,
+                ),
               ),
-              ActionChip(
-                avatar: const Icon(Icons.person, size: 16, color: AppColors.textLightBlue),
-                label: Text('${l10n.roleMember} (Fatima)', style: const TextStyle(color: AppColors.textDarkBlue)),
-                onPressed: () => _selectDemoAccount('1000 2000 3004'),
+              const SizedBox(height: 16),
+
+              // Password Field
+              Text(
+                'New Password (minimum 6 characters) *',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _regPasswordCtrl,
+                obscureText: _obscureRegPassword,
+                decoration: InputDecoration(
+                  hintText: 'Enter new password',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureRegPassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureRegPassword = !_obscureRegPassword;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                validator: (val) {
+                  if (val == null || val.length < 6) {
+                    return 'Password must be at least 6 characters';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // Confirm Password Field
+              Text(
+                'Confirm Password *',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _regConfirmPasswordCtrl,
+                obscureText: _obscureRegConfirmPassword,
+                decoration: InputDecoration(
+                  hintText: 'Re-enter your password',
+                  prefixIcon: const Icon(Icons.lock_reset_outlined),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureRegConfirmPassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscureRegConfirmPassword =
+                            !_obscureRegConfirmPassword;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                validator: (val) {
+                  if (val != _regPasswordCtrl.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton(
+                  onPressed: authState.isLoading
+                      ? null
+                      : _handleRegisterWithPassword,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: authState.isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Register & Complete Setup',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              Center(
+                child: TextButton(
+                  onPressed: _handleResetRegistration,
+                  child: const Text('Cancel & Start Over'),
+                ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

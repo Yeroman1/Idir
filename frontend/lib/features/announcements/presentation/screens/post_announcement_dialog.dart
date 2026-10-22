@@ -89,11 +89,12 @@ class _PostAnnouncementDialogState
     final theme = Theme.of(context);
 
     return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(22),
+          padding: const EdgeInsets.all(18),
           child: Form(
             key: _formKey,
             child: Column(
@@ -101,30 +102,29 @@ class _PostAnnouncementDialogState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE65100).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.campaign,
-                            color: Color(0xFFE65100),
-                            size: 22,
-                          ),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE65100).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.campaign,
+                        color: Color(0xFFE65100),
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Post Announcement',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Post Announcement',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close),
@@ -156,25 +156,39 @@ class _PostAnnouncementDialogState
                 const SizedBox(height: 6),
                 DropdownButtonFormField<AnnouncementCategory>(
                   initialValue: _category,
+                  isExpanded: true,
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.category_outlined),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                   items: const [
                     DropdownMenuItem(
                       value: AnnouncementCategory.meeting,
-                      child: Text('General Assembly / Meeting'),
+                      child: Text(
+                        'General Assembly / Meeting',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     DropdownMenuItem(
                       value: AnnouncementCategory.funeral,
-                      child: Text('Bereavement / Funeral Aid'),
+                      child: Text(
+                        'Bereavement / Funeral Aid',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     DropdownMenuItem(
                       value: AnnouncementCategory.reminder,
-                      child: Text('Payment / Dues Reminder'),
+                      child: Text(
+                        'Payment / Dues Reminder',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     DropdownMenuItem(
                       value: AnnouncementCategory.general,
-                      child: Text('General Community Notice'),
+                      child: Text(
+                        'General Community Notice',
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                   onChanged: (val) {

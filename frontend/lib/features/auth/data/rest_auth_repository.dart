@@ -36,6 +36,107 @@ class RestAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<FaydaCitizenProfile> verifyFaydaCitizenOtp({
+    required String faydaId,
+    required String otp,
+    required String txnId,
+  }) async {
+    return _faydaService.verifyOtp(
+      faydaInput: faydaId,
+      otp: otp,
+      txnId: txnId,
+    );
+  }
+
+  @override
+  Future<AppUser> registerWithPassword({
+    required String fullName,
+    required String phoneNumber,
+    required String faydaId,
+    required String password,
+  }) async {
+    final cleanFin = FaydaService.normalizeFin(faydaId);
+    try {
+      final res = await _apiClient.post(
+        '/auth/register',
+        body: {
+          'fullName': fullName,
+          'phoneNumber': phoneNumber,
+          'faydaId': cleanFin,
+          'password': password,
+        },
+        requiresAuth: false,
+      );
+
+      final appUser = await _parseUserResponse(res);
+      await _cacheUser(appUser);
+      return appUser;
+    } on ApiException catch (e) {
+      if (e.isOffline) {
+        throw Exception(
+          'Network error: You must be online to create your password and complete registration. Please check your internet connection.',
+        );
+      }
+      rethrow;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('socket') ||
+          msg.contains('network') ||
+          msg.contains('connection refused') ||
+          msg.contains('timed out') ||
+          msg.contains('failed host lookup') ||
+          msg.contains('unable to connect')) {
+        throw Exception(
+          'Network error: You must be online to create your password and complete registration. Please check your internet connection.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<AppUser> signInWithPassword({
+    required String identifier,
+    required String password,
+  }) async {
+    final cleanInput = identifier.trim();
+    try {
+      final res = await _apiClient.post(
+        '/auth/login',
+        body: {
+          'phoneNumber': cleanInput,
+          'password': password,
+        },
+        requiresAuth: false,
+      );
+
+      final appUser = await _parseUserResponse(res);
+      await _cacheUser(appUser);
+      return appUser;
+    } on ApiException catch (e) {
+      if (e.isOffline) {
+        throw Exception(
+          'Network error: You must be online to sign in with your password. Please check your internet connection.',
+        );
+      }
+      rethrow;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('socket') ||
+          msg.contains('network') ||
+          msg.contains('connection refused') ||
+          msg.contains('timed out') ||
+          msg.contains('failed host lookup') ||
+          msg.contains('unable to connect')) {
+        throw Exception(
+          'Network error: You must be online to sign in with your password. Please check your internet connection.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
   Future<AppUser> verifyFaydaOtp({
     required String faydaId,
     required String otp,
@@ -88,14 +189,6 @@ class RestAuthRepository implements AuthRepository {
         await _cacheUser(appUser);
         return appUser;
       } catch (_) {
-        // 3. Fallback: Check demo users or construct registered citizen profile
-        for (final demo in FirebaseAuthRepository.demoUsers) {
-          if (demo.faydaId == cleanFin) {
-            await _cacheUser(demo);
-            return demo;
-          }
-        }
-
         final localUser = AppUser(
           uid: 'fayda_$cleanFin',
           name: citizen.fullName,
@@ -105,6 +198,7 @@ class RestAuthRepository implements AuthRepository {
           isActive: true,
           createdAt: DateTime.now(),
           faydaId: cleanFin,
+          isFaydaVerified: true,
         );
         await _cacheUser(localUser);
         return localUser;
@@ -117,32 +211,7 @@ class RestAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    final cleanInput = email.trim();
-
-    try {
-      final res = await _apiClient.post(
-        '/auth/login',
-        body: {
-          'phoneNumber': cleanInput,
-          'password': password,
-        },
-        requiresAuth: false,
-      );
-
-      final appUser = await _parseUserResponse(res);
-      await _cacheUser(appUser);
-      return appUser;
-    } on ApiException catch (e) {
-      // If network is offline, attempt to authenticate using latest cached profile
-      if (e.isOffline) {
-        final cached = await getCurrentUser();
-        if (cached != null) {
-          debugPrint('[RestAuthRepository] Operating offline with cached user ${cached.name}');
-          return cached;
-        }
-      }
-      rethrow;
-    }
+    return signInWithPassword(identifier: email, password: password);
   }
 
   @override
@@ -253,18 +322,22 @@ class RestAuthRepository implements AuthRepository {
     final isActive = json['status'] == 'ACTIVE' || json['isActive'] == true;
     final createdAt = DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now();
 
-    // Determine role and member ID from memberships array if present
+    // Determine role, member ID, and Idir affiliation from memberships array
     UserRole role = UserRole.member;
     String memberId = 'IDIR-${uid.isNotEmpty ? uid.substring(0, uid.length.clamp(0, 6)) : "001"}';
+    String? idirId;
+    String? idirName;
 
     final memberships = json['memberships'] as List<dynamic>?;
     if (memberships != null && memberships.isNotEmpty) {
       final primary = memberships.first as Map<String, dynamic>;
       final roleStr = (primary['role'] as String? ?? '').toUpperCase();
       memberId = primary['memberNumber'] as String? ?? memberId;
+      idirId = primary['idirId'] as String? ?? (primary['idir'] as Map<String, dynamic>?)?['id'] as String?;
+      idirName = (primary['idir'] as Map<String, dynamic>?)?['name'] as String?;
 
       role = switch (roleStr) {
-        'CHAIRPERSON' => UserRole.chairperson,
+        'CREATOR' || 'CHAIRPERSON' => UserRole.chairperson,
         'TREASURER' => UserRole.treasurer,
         'AUDITOR' || 'SECRETARY' => UserRole.auditor,
         _ => UserRole.member,
@@ -282,6 +355,9 @@ class RestAuthRepository implements AuthRepository {
       isActive: isActive,
       createdAt: createdAt,
       faydaId: faydaId,
+      idirId: idirId,
+      idirName: idirName,
+      isFaydaVerified: faydaId != null && faydaId.trim().isNotEmpty,
     );
   }
 
@@ -295,6 +371,10 @@ class RestAuthRepository implements AuthRepository {
       isActive: map['isActive'] as bool? ?? true,
       createdAt: DateTime.tryParse(map['createdAt'] as String? ?? '') ?? DateTime.now(),
       faydaId: map['faydaId'] as String?,
+      idirId: map['idirId'] as String?,
+      idirName: map['idirName'] as String?,
+      isFaydaVerified: map['isFaydaVerified'] as bool? ??
+          (map['faydaId'] != null && (map['faydaId'] as String).trim().isNotEmpty),
     );
   }
 
@@ -311,6 +391,9 @@ class RestAuthRepository implements AuthRepository {
       'isActive': user.isActive,
       'createdAt': user.createdAt.toIso8601String(),
       if (user.faydaId != null) 'faydaId': user.faydaId,
+      if (user.idirId != null) 'idirId': user.idirId,
+      if (user.idirName != null) 'idirName': user.idirName,
+      'isFaydaVerified': user.isFaydaVerified,
     };
 
     await _cache.save(_cacheKey, map);
