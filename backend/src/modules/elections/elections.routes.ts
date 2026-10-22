@@ -22,6 +22,14 @@ import {
   castVoteSchema,
   castBatchVotesSchema,
 } from './voting.validation.js';
+import { resultsController } from './results.controller.js';
+import {
+  tallyVotesSchema,
+  fileDisputeSchema,
+  resolveDisputeSchema,
+  certifyElectionSchema,
+  triggerRunoffSchema,
+} from './results.validation.js';
 
 const router = Router({ mergeParams: true });
 
@@ -147,6 +155,57 @@ router.post(
   '/:electionId/vote/batch',
   validate({ body: castBatchVotesSchema }),
   votingController.castBatchVotes
+);
+
+/* ==========================================================================
+   COUNT, RESULTS & DISPUTES (Task 4)
+   ========================================================================== */
+
+// Tally votes (manual closure / trigger by committee/officers, or auto after voting window)
+router.post(
+  '/:electionId/tally',
+  validate({ body: tallyVotesSchema }),
+  resultsController.tallyVotes
+);
+
+// Get election results, quorum status, and dispute window
+router.get(
+  '/:electionId/results',
+  resultsController.getResults
+);
+
+// File an election dispute during active dispute window
+router.post(
+  '/:electionId/disputes',
+  validate({ body: fileDisputeSchema }),
+  resultsController.fileDispute
+);
+
+// List all filed disputes
+router.get(
+  '/:electionId/disputes',
+  resultsController.listDisputes
+);
+
+// Resolve or dismiss an election dispute (Committee or Chairperson)
+router.post(
+  '/:electionId/disputes/:disputeId/resolve',
+  validate({ body: resolveDisputeSchema }),
+  resultsController.resolveDispute
+);
+
+// Certify election results and transfer leadership roles
+router.post(
+  '/:electionId/certify',
+  validate({ body: certifyElectionSchema }),
+  resultsController.certifyElection
+);
+
+// Trigger run-off election for a role in case of a tie
+router.post(
+  '/:electionId/runoff',
+  validate({ body: triggerRunoffSchema }),
+  resultsController.triggerRunoff
 );
 
 export const electionRoutes = router;

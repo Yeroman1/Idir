@@ -8,6 +8,7 @@ import '../../../../core/router/app_router.dart';
 import '../providers/elections_provider.dart';
 import 'candidates_and_nominations_screen.dart';
 import 'voting_booth_screen.dart';
+import 'election_results_screen.dart';
 
 class ElectionsDashboardScreen extends ConsumerWidget {
   const ElectionsDashboardScreen({super.key, this.idirId = 'active-idir-id'});
@@ -210,36 +211,77 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => VotingBoothScreen(
-                                      idirId: idirId,
-                                      election: election,
+                            child: election.status.toUpperCase() == 'VOTING'
+                                ? ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => VotingBoothScreen(
+                                            idirId: idirId,
+                                            election: election,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green.shade700,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    icon: const Icon(Icons.how_to_vote, size: 16),
+                                    label: const Text('Vote Now', style: TextStyle(fontSize: 13)),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => ElectionResultsScreen(
+                                            idirId: idirId,
+                                            election: election,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: election.status.toUpperCase() == 'COMPLETED'
+                                          ? Colors.purple.shade700
+                                          : (election.status.toUpperCase() == 'DISPUTED'
+                                              ? Colors.orange.shade800
+                                              : Colors.blue.shade700),
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    icon: const Icon(Icons.assessment_outlined, size: 16),
+                                    label: Text(
+                                      election.status.toUpperCase() == 'COMPLETED'
+                                          ? 'Results'
+                                          : (election.status.toUpperCase() == 'DISPUTED'
+                                              ? 'Disputes'
+                                              : 'Results'),
+                                      style: const TextStyle(fontSize: 13),
                                     ),
                                   ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: election.status.toUpperCase() == 'VOTING'
-                                    ? Colors.green.shade700
-                                    : null,
-                                foregroundColor: election.status.toUpperCase() == 'VOTING'
-                                    ? Colors.white
-                                    : null,
-                              ),
-                              icon: const Icon(Icons.how_to_vote, size: 16),
-                              label: Text(
-                                election.status.toUpperCase() == 'VOTING'
-                                    ? 'Vote Now'
-                                    : 'Voting Booth',
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                            ),
                           ),
                         ],
                       ),
+                      if (election.status.toUpperCase() == 'VOTING') ...[
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ElectionResultsScreen(
+                                    idirId: idirId,
+                                    election: election,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.insights, size: 14),
+                            label: const Text('View Results & Quorum Tracker', style: TextStyle(fontSize: 12)),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

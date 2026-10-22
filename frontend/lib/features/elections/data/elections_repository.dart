@@ -6,6 +6,7 @@ import '../../../../core/network/api_client.dart';
 import '../domain/models/election_model.dart';
 import '../domain/models/nomination_model.dart';
 import '../domain/models/vote_receipt_model.dart';
+import '../domain/models/election_results_model.dart';
 
 abstract class ElectionsRepository {
   Future<ElectionModel> createElection({
@@ -108,6 +109,48 @@ abstract class ElectionsRepository {
   Future<Map<String, dynamic>> getBallot({
     required String idirId,
     required String electionId,
+  });
+
+  Future<ElectionResultsModel> tallyVotes({
+    required String idirId,
+    required String electionId,
+    bool force = false,
+  });
+
+  Future<ElectionResultsModel> getResults({
+    required String idirId,
+    required String electionId,
+  });
+
+  Future<ElectionDisputeModel> fileDispute({
+    required String idirId,
+    required String electionId,
+    required String reason,
+  });
+
+  Future<List<ElectionDisputeModel>> listDisputes({
+    required String idirId,
+    required String electionId,
+  });
+
+  Future<ElectionDisputeModel> resolveDispute({
+    required String idirId,
+    required String electionId,
+    required String disputeId,
+    required String action,
+    required String resolution,
+  });
+
+  Future<Map<String, dynamic>> certifyElection({
+    required String idirId,
+    required String electionId,
+  });
+
+  Future<Map<String, dynamic>> triggerRunoff({
+    required String idirId,
+    required String electionId,
+    required String role,
+    DateTime? runoffEndDate,
   });
 }
 
@@ -529,6 +572,135 @@ class RestElectionsRepository implements ElectionsRepository {
   }) async {
     final res = await _api.get(
       '/idirs/$idirId/elections/$electionId/ballot',
+    );
+
+    return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+  }
+
+  // ── Results, Disputes & Certification (Task 4) ─────────────────────────────
+  @override
+  Future<ElectionResultsModel> tallyVotes({
+    required String idirId,
+    required String electionId,
+    bool force = false,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/tally',
+      body: {'force': force},
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    return ElectionResultsModel.fromMap(data);
+  }
+
+  @override
+  Future<ElectionResultsModel> getResults({
+    required String idirId,
+    required String electionId,
+  }) async {
+    final res = await _api.get(
+      '/idirs/$idirId/elections/$electionId/results',
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    return ElectionResultsModel.fromMap(data);
+  }
+
+  @override
+  Future<ElectionDisputeModel> fileDispute({
+    required String idirId,
+    required String electionId,
+    required String reason,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/disputes',
+      body: {'reason': reason},
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    return ElectionDisputeModel.fromMap(data);
+  }
+
+  @override
+  Future<List<ElectionDisputeModel>> listDisputes({
+    required String idirId,
+    required String electionId,
+  }) async {
+    final res = await _api.get(
+      '/idirs/$idirId/elections/$electionId/disputes',
+    );
+
+    final raw = res is Map<String, dynamic> && res['data'] is List
+        ? res['data'] as List
+        : (res is List ? res : []);
+
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => ElectionDisputeModel.fromMap(m))
+        .toList();
+  }
+
+  @override
+  Future<ElectionDisputeModel> resolveDispute({
+    required String idirId,
+    required String electionId,
+    required String disputeId,
+    required String action,
+    required String resolution,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/disputes/$disputeId/resolve',
+      body: {
+        'action': action,
+        'resolution': resolution,
+      },
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    return ElectionDisputeModel.fromMap(data);
+  }
+
+  @override
+  Future<Map<String, dynamic>> certifyElection({
+    required String idirId,
+    required String electionId,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/certify',
+    );
+
+    return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Map<String, dynamic>> triggerRunoff({
+    required String idirId,
+    required String electionId,
+    required String role,
+    DateTime? runoffEndDate,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/runoff',
+      body: {
+        'role': role,
+        if (runoffEndDate != null) 'runoffEndDate': runoffEndDate.toIso8601String(),
+      },
     );
 
     return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>

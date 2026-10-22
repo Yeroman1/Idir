@@ -5,6 +5,7 @@ import '../../data/elections_repository.dart';
 import '../../domain/models/election_model.dart';
 import '../../domain/models/nomination_model.dart';
 import '../../domain/models/vote_receipt_model.dart';
+import '../../domain/models/election_results_model.dart';
 
 class ElectionCreationState {
   const ElectionCreationState({
@@ -505,3 +506,237 @@ final votingActionProvider =
   final repo = ref.watch(electionsRepositoryProvider);
   return VotingActionNotifier(repo);
 });
+
+// ─── TASK 4: COUNT, RESULTS, DISPUTES & CERTIFICATION ────────────────────────
+
+class ResultsQueryArgs extends Equatable {
+  const ResultsQueryArgs({
+    required this.idirId,
+    required this.electionId,
+  });
+
+  final String idirId;
+  final String electionId;
+
+  @override
+  List<Object?> get props => [idirId, electionId];
+}
+
+final electionResultsProvider =
+    FutureProvider.family<ElectionResultsModel, ResultsQueryArgs>((ref, args) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.getResults(
+    idirId: args.idirId,
+    electionId: args.electionId,
+  );
+});
+
+final electionDisputesProvider =
+    FutureProvider.family<List<ElectionDisputeModel>, ResultsQueryArgs>((ref, args) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.listDisputes(
+    idirId: args.idirId,
+    electionId: args.electionId,
+  );
+});
+
+class ResultsActionState {
+  const ResultsActionState({
+    this.isLoading = false,
+    this.errorMessage,
+    this.successMessage,
+    this.lastResults,
+    this.lastDispute,
+  });
+
+  final bool isLoading;
+  final String? errorMessage;
+  final String? successMessage;
+  final ElectionResultsModel? lastResults;
+  final ElectionDisputeModel? lastDispute;
+
+  ResultsActionState copyWith({
+    bool? isLoading,
+    String? errorMessage,
+    String? successMessage,
+    ElectionResultsModel? lastResults,
+    ElectionDisputeModel? lastDispute,
+  }) {
+    return ResultsActionState(
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
+      successMessage: successMessage,
+      lastResults: lastResults ?? this.lastResults,
+      lastDispute: lastDispute ?? this.lastDispute,
+    );
+  }
+}
+
+class ResultsActionNotifier extends StateNotifier<ResultsActionState> {
+  ResultsActionNotifier(this._repository) : super(const ResultsActionState());
+
+  final ElectionsRepository _repository;
+
+  Future<bool> tallyVotes({
+    required String idirId,
+    required String electionId,
+    bool force = false,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final results = await _repository.tallyVotes(
+        idirId: idirId,
+        electionId: electionId,
+        force: force,
+      );
+
+      final message = results.quorumReached
+          ? (results.hasTies
+              ? 'Votes tallied. Ties detected for one or more contested roles; run-off required.'
+              : 'Votes tallied and preliminary results published. Dispute window is active.')
+          : 'Votes tallied: Quorum was not met (${results.turnoutPercentage}% vs ${results.quorumPercentage}% required).';
+
+      state = state.copyWith(
+        isLoading: false,
+        lastResults: results,
+        successMessage: message,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> fileDispute({
+    required String idirId,
+    required String electionId,
+    required String reason,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final dispute = await _repository.fileDispute(
+        idirId: idirId,
+        electionId: electionId,
+        reason: reason,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        lastDispute: dispute,
+        successMessage: 'Dispute filed successfully and submitted to committee.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> resolveDispute({
+    required String idirId,
+    required String electionId,
+    required String disputeId,
+    required String action,
+    required String resolution,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final dispute = await _repository.resolveDispute(
+        idirId: idirId,
+        electionId: electionId,
+        disputeId: disputeId,
+        action: action,
+        resolution: resolution,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        lastDispute: dispute,
+        successMessage: 'Dispute has been ${action.toLowerCase()}d.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> certifyElection({
+    required String idirId,
+    required String electionId,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      await _repository.certifyElection(
+        idirId: idirId,
+        electionId: electionId,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        successMessage: 'Election officially certified! Leadership roles have been transferred.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> triggerRunoff({
+    required String idirId,
+    required String electionId,
+    required String role,
+    DateTime? runoffEndDate,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      await _repository.triggerRunoff(
+        idirId: idirId,
+        electionId: electionId,
+        role: role,
+        runoffEndDate: runoffEndDate,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        successMessage: 'Run-off election initiated for $role.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  void clearError() {
+    state = state.copyWith(errorMessage: null);
+  }
+
+  void reset() {
+    state = const ResultsActionState();
+  }
+}
+
+final resultsActionProvider =
+    StateNotifierProvider<ResultsActionNotifier, ResultsActionState>((ref) {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return ResultsActionNotifier(repo);
+});
+

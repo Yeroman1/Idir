@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:idir_app/features/elections/domain/models/election_model.dart';
 import 'package:idir_app/features/elections/domain/models/nomination_model.dart';
 import 'package:idir_app/features/elections/domain/models/vote_receipt_model.dart';
+import 'package:idir_app/features/elections/domain/models/election_results_model.dart';
 import 'package:idir_app/features/elections/data/elections_repository.dart';
 import 'package:idir_app/features/elections/presentation/providers/elections_provider.dart';
 
@@ -210,6 +211,62 @@ class MockVotingElectionsRepository implements ElectionsRepository {
     required String idirId,
     required String electionId,
     required String nominationId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ElectionResultsModel> tallyVotes({
+    required String idirId,
+    required String electionId,
+    bool force = false,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ElectionResultsModel> getResults({
+    required String idirId,
+    required String electionId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ElectionDisputeModel> fileDispute({
+    required String idirId,
+    required String electionId,
+    required String reason,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<ElectionDisputeModel>> listDisputes({
+    required String idirId,
+    required String electionId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ElectionDisputeModel> resolveDispute({
+    required String idirId,
+    required String electionId,
+    required String disputeId,
+    required String action,
+    required String resolution,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> certifyElection({
+    required String idirId,
+    required String electionId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> triggerRunoff({
+    required String idirId,
+    required String electionId,
+    required String role,
+    DateTime? runoffEndDate,
   }) =>
       throw UnimplementedError();
 }
