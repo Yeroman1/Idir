@@ -15,6 +15,8 @@ import '../../features/members/presentation/screens/member_detail_screen.dart';
 import '../../features/members/presentation/screens/member_form_screen.dart';
 import '../../features/idirs/presentation/screens/create_idir_screen.dart';
 import '../../features/invitations/presentation/screens/public_invitation_screen.dart';
+import '../../features/elections/presentation/screens/create_election_screen.dart';
+import '../../features/elections/presentation/screens/elections_dashboard_screen.dart';
 import '../models/app_user.dart';
 import '../providers/pin_provider.dart';
 import '../widgets/access_denied_screen.dart';
@@ -94,6 +96,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if ((loc.startsWith('${AppRoutes.members}/add') ||
               loc.startsWith('${AppRoutes.members}/edit')) &&
           !user.role.canManageMembers) {
+        return AppRoutes.accessDenied;
+      }
+      if (loc == AppRoutes.createElection && !user.role.canManageElections) {
         return AppRoutes.accessDenied;
       }
 
@@ -192,6 +197,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'createIdir',
         builder: (_, __) => const CreateIdirScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.elections,
+        name: 'elections',
+        builder: (_, __) => const ElectionsDashboardScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.createElection,
+        name: 'createElection',
+        builder: (_, __) => const CreateElectionScreen(),
+      ),
 
       // ── Shell (Bottom Navigation Tabs) ──────────────────────────────────
       mainShellRoute,
@@ -245,4 +260,6 @@ abstract final class AppRoutes {
   static const expenses = '/expenses';
   static const auditLog = '/audit-log';
   static const settings = '/settings';
+  static const elections = '/elections';
+  static const createElection = '/elections/create';
 }

@@ -42,6 +42,11 @@ class MoreScreen extends ConsumerWidget {
             () => context.push(AppRoutes.announcements),
           ),
           _MoreItem(
+            Icons.how_to_vote_outlined,
+            'Leadership Elections',
+            () => context.push(AppRoutes.elections),
+          ),
+          _MoreItem(
             Icons.bar_chart_outlined,
             role.canViewAllFinances ? l10n.reports : 'My Dues Statement',
             () => context.push(AppRoutes.reports),

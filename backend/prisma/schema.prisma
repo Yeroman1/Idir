@@ -207,6 +207,7 @@ model User {
   createdIdirs           Idir[]                 @relation("CreatedIdirs")
   createdInvitations     Invitation[]           @relation("CreatedInvitations")
   revokedInvitations     Invitation[]           @relation("RevokedInvitations")
+  createdElections       Election[]             @relation("CreatedElections")
 
   @@index([phoneNumber])
   @@index([email])
@@ -268,6 +269,8 @@ model Idir {
   announcements          Announcement[]
   auditLogs              AuditLog[]
   invitations            Invitation[]
+  elections              Election[]
+  roleTerms              RoleTerm[]
 
   @@index([name])
   @@index([region])
@@ -302,10 +305,17 @@ model Membership {
   joinedAt     DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  contributions      Contribution[]
-  assistanceCases    AssistanceCase[]
-  ikubParticipants   IkubParticipant[]
-  meetingAttendances MeetingAttendance[]
+  contributions                Contribution[]
+  assistanceCases              AssistanceCase[]
+  ikubParticipants             IkubParticipant[]
+  meetingAttendances           MeetingAttendance[]
+  electionCommitteeMemberships ElectionCommitteeMember[]
+  candidateNominations         ElectionNomination[]      @relation("NominatedCandidate")
+  filedNominations             ElectionNomination[]      @relation("NominatedByMember")
+  voteReceipts                 VoteReceipt[]
+  openBallots                  Ballot[]                  @relation("OpenBallots")
+  disputesFiled                ElectionDispute[]
+  roleTerms                    RoleTerm[]
 
   @@unique([idirId, userId])
   @@unique([idirId, memberNumber])
@@ -705,3 +715,196 @@ model Invitation {
   @@index([tokenHash])
   @@index([idirId, status])
 }
+
+// ─── LEADER ELECTIONS ────────────────────────────────────────────────────────
+
+enum ElectionStatus {
+  DRAFT
+  NOMINATING
+  VOTING
+  TALLYING
+  DISPUTED
+  COMPLETED
+  CANCELLED
+}
+
+enum VotingMethod {
+  SIMPLE_MAJORITY
+  RUNOFF
+}
+
+enum BallotType {
+  SECRET
+  OPEN
+}
+
+enum NominationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+}
+
+enum DisputeStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+model Election {
+  id                      String           @id @default(uuid())
+  idirId                  String
+  idir                    Idir             @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  title                   String
+  description             String?
+  roles                   MembershipRole[]
+  startDate               DateTime
+  endDate                 DateTime
+  nominationStartDate     DateTime?
+  nominationEndDate       DateTime?
+  termLengthMonths        Int              @default(12)
+  votingMethod            VotingMethod     @default(SIMPLE_MAJORITY)
+  ballotType              BallotType       @default(SECRET)
+  quorumPercentage        Decimal          @default(50.00) @db.Decimal(5, 2)
+  minMembershipTenureDays Int              @default(0)
+  requiresGoodStanding    Boolean          @default(true)
+  status                  ElectionStatus   @default(DRAFT)
+  disputeWindowHours      Int              @default(48)
+  handoverDate            DateTime?
+  createdById             String
+  createdBy               User             @relation("CreatedElections", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  committeeMembers        ElectionCommitteeMember[]
+  nominations             ElectionNomination[]
+  voteReceipts            VoteReceipt[]
+  ballots                 Ballot[]
+  results                 ElectionResult[]
+  disputes                ElectionDispute[]
+
+  @@index([idirId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model ElectionCommitteeMember {
+  id           String     @id @default(uuid())
+  electionId   String
+  election     Election   @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         String     @default("COMMITTEE_MEMBER")
+  assignedAt   DateTime   @default(now())
+
+  @@unique([electionId, membershipId])
+  @@index([electionId])
+  @@index([membershipId])
+}
+
+model ElectionNomination {
+  id                      String           @id @default(uuid())
+  electionId              String
+  election                Election         @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  role                    MembershipRole
+  nomineeMembershipId     String
+  nomineeMembership       Membership       @relation("NominatedCandidate", fields: [nomineeMembershipId], references: [id], onDelete: Cascade)
+  nominatedByMembershipId String?
+  nominatedByMembership   Membership?      @relation("NominatedByMember", fields: [nominatedByMembershipId], references: [id], onDelete: SetNull)
+  statement               String?          @db.Text
+  status                  NominationStatus @default(PENDING)
+  acceptedAt              DateTime?
+  declinedAt              DateTime?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  ballots                 Ballot[]
+  resultsWon              ElectionResult[]
+
+  @@unique([electionId, role, nomineeMembershipId])
+  @@index([electionId, status])
+  @@index([nomineeMembershipId])
+}
+
+model VoteReceipt {
+  id               String         @id @default(uuid())
+  electionId       String
+  election         Election       @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  membershipId     String
+  membership       Membership     @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role             MembershipRole
+  votedAt          DateTime       @default(now())
+  receiptTokenHash String?
+
+  @@unique([electionId, role, membershipId])
+  @@index([electionId])
+  @@index([membershipId])
+}
+
+model Ballot {
+  id                    String              @id @default(uuid())
+  electionId            String
+  election              Election            @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  role                  MembershipRole
+  candidateNominationId String?
+  candidateNomination   ElectionNomination? @relation(fields: [candidateNominationId], references: [id], onDelete: Cascade)
+  voterMembershipId     String?
+  voterMembership       Membership?         @relation("OpenBallots", fields: [voterMembershipId], references: [id], onDelete: SetNull)
+  castAt                DateTime            @default(now())
+
+  @@index([electionId])
+  @@index([candidateNominationId])
+}
+
+model ElectionResult {
+  id                  String              @id @default(uuid())
+  electionId          String
+  election            Election            @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  role                MembershipRole
+  winnerNominationId  String?
+  winnerNomination    ElectionNomination? @relation(fields: [winnerNominationId], references: [id], onDelete: SetNull)
+  totalVotesCast      Int                 @default(0)
+  votesReceived       Int                 @default(0)
+  quorumReached       Boolean             @default(false)
+  isFinal             Boolean             @default(false)
+  disputeWindowEndsAt DateTime?
+  createdAt           DateTime            @default(now())
+
+  @@unique([electionId, role])
+  @@index([electionId])
+}
+
+model ElectionDispute {
+  id                  String        @id @default(uuid())
+  electionId          String
+  election            Election      @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  filedByMembershipId String
+  filedByMembership   Membership    @relation(fields: [filedByMembershipId], references: [id], onDelete: Cascade)
+  reason              String        @db.Text
+  status              DisputeStatus @default(PENDING)
+  resolution          String?       @db.Text
+  resolvedAt          DateTime?
+  resolvedById        String?
+  createdAt           DateTime      @default(now())
+
+  @@index([electionId])
+  @@index([filedByMembershipId])
+}
+
+model RoleTerm {
+  id           String         @id @default(uuid())
+  idirId       String
+  idir         Idir           @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  membershipId String
+  membership   Membership     @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         MembershipRole
+  startDate    DateTime
+  endDate      DateTime
+  electionId   String?
+  status       String         @default("ACTIVE")
+  createdAt    DateTime       @default(now())
+
+  @@index([idirId])
+  @@index([membershipId])
+}
+

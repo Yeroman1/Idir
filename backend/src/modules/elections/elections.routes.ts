@@ -1,0 +1,66 @@
+import { Router } from 'express';
+import { electionsController } from './elections.controller.js';
+import { authenticate } from '../../middleware/authenticate.js';
+import { requireIdirRole } from '../../middleware/authorize.js';
+import { requireActiveIdir } from '../../middleware/assertIdirActive.js';
+import { validate } from '../../middleware/validate.js';
+import {
+  createElectionSchema,
+  updateElectionSchema,
+  queryElectionsSchema,
+  cancelElectionSchema,
+} from './elections.validation.js';
+
+const router = Router({ mergeParams: true });
+
+// All election routes require authentication and an active Idir
+router.use(authenticate);
+router.use(requireActiveIdir());
+
+// Allowed leadership officers for election management
+const ELECTION_MANAGERS = [
+  'CREATOR',
+  'CHAIRPERSON',
+  'OFFICER',
+  'SECRETARY',
+  'COMMITTEE',
+] as const;
+
+// Create election: only allowed officers
+router.post(
+  '/',
+  requireIdirRole([...ELECTION_MANAGERS]),
+  validate({ body: createElectionSchema }),
+  electionsController.createElection
+);
+
+// List elections for this Idir: all active members can view
+router.get(
+  '/',
+  validate({ query: queryElectionsSchema }),
+  electionsController.listElections
+);
+
+// Get election details: all active members can view
+router.get(
+  '/:electionId',
+  electionsController.getElection
+);
+
+// Update election settings (only allowed officers, while in DRAFT)
+router.patch(
+  '/:electionId',
+  requireIdirRole([...ELECTION_MANAGERS]),
+  validate({ body: updateElectionSchema }),
+  electionsController.updateElection
+);
+
+// Cancel election: only allowed officers
+router.post(
+  '/:electionId/cancel',
+  requireIdirRole([...ELECTION_MANAGERS]),
+  validate({ body: cancelElectionSchema }),
+  electionsController.cancelElection
+);
+
+export const electionRoutes = router;

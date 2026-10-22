@@ -48,6 +48,8 @@ extension UserRoleX on UserRole {
   bool get canViewOwnBalance => true;
 
   bool get canChangeSettings => this == UserRole.chairperson;
+
+  bool get canManageElections => this == UserRole.chairperson;
 }
 
 /// Domain model for an authenticated user.
