@@ -8,12 +8,12 @@ import { smsService } from '../src/modules/invitations/sms.service.js';
 
 vi.mock('../src/config/database.js', () => ({
   prisma: {
-    user: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn(), findFirst: vi.fn() },
     idir: { findUnique: vi.fn(), create: vi.fn() },
     membership: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), count: vi.fn(), update: vi.fn() },
     invitation: { count: vi.fn(), upsert: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     $transaction: vi.fn((callback) => callback(prisma)),
-  },
+  } as any,
 }));
 
 describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
@@ -49,7 +49,7 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
     });
 
     // Default mock user profile for authentication middleware
-    vi.mocked(prisma.user.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => {
       const id = where.id;
       return {
         id,
@@ -61,7 +61,7 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
         isPlatformAdmin: false,
         preferredLanguage: 'am',
       } as any;
-    });
+    }) as any);
 
     // Default mock for Idir
     vi.mocked(prisma.idir.findUnique).mockResolvedValue({
@@ -74,13 +74,24 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
     // Default mock for invitation count (0 sent recently)
     vi.mocked(prisma.invitation.count).mockResolvedValue(0);
 
+    // Default mock for user lookup
+    vi.mocked(prisma.user.findFirst).mockImplementation((async ({ where }: any) => {
+      const orList = where?.OR || [];
+      const match = orList.find((item: any) => item?.phoneNumber)?.phoneNumber || '+251911223344';
+      return {
+        id: `mock-user-${match.replace(/\D/g, '')}`,
+        fullName: 'Test User',
+        phoneNumber: match,
+      } as any;
+    }) as any);
+
     // Default mock for upsert
-    vi.mocked(prisma.invitation.upsert).mockImplementation(async ({ create }: any) => {
+    vi.mocked(prisma.invitation.upsert).mockImplementation((async ({ create }: any) => {
       return {
         id: `invite-${Math.random().toString(36).substring(7)}`,
         ...create,
       } as any;
-    });
+    }) as any);
   });
 
   describe('1. Phone Normalizer & Crypto Token Generator', () => {
@@ -130,7 +141,7 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
 
     it('allows an active officer (Secretary/Chairperson) to send invitations', async () => {
       // Mock officer membership for actor while allowing invitee to not match active membership
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.userId === officerUserId) {
           return {
             id: 'membership-officer',
@@ -141,7 +152,7 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
           } as any;
         }
         return null;
-      });
+      }) as any);
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/invitations/batch`)
@@ -194,12 +205,15 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
 
     it('skips numbers belonging to users who are already active members of the Idir', async () => {
       // Mock that +251911223344 is an existing active member
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
-        if (where?.user?.phoneNumber === '+251911223344') {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
+        if (
+          where?.user?.phoneNumber === '+251911223344' ||
+          where?.userId?.includes('251911223344')
+        ) {
           return { id: 'existing-active-member-id' } as any;
         }
         return null;
-      });
+      }) as any);
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/invitations/batch`)
@@ -220,10 +234,10 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
   describe('4. Token Security & Storage', () => {
     it('never stores the rawToken in the database, only stores tokenHash', async () => {
       let savedTokenHash: string | undefined;
-      vi.mocked(prisma.invitation.upsert).mockImplementation(async ({ create }: any) => {
+      vi.mocked(prisma.invitation.upsert).mockImplementation((async ({ create }: any) => {
         savedTokenHash = create.tokenHash;
         return { id: 'invite-1', ...create } as any;
-      });
+      }) as any);
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/invitations/batch`)

@@ -1,9 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:idir_app/features/invitations/data/invitations_repository.dart';
 import 'package:idir_app/features/invitations/domain/models/invitation_result.dart';
 import 'package:idir_app/features/invitations/presentation/providers/invitations_provider.dart';
+import 'package:idir_app/features/invitations/presentation/widgets/invite_members_dialog.dart';
 
 class MockInvitationsRepository implements InvitationsRepository {
   bool shouldThrow = false;
@@ -43,6 +45,25 @@ class MockInvitationsRepository implements InvitationsRepository {
       invitations: sent,
       skipped: skipped,
     );
+  }
+
+  @override
+  Future<Map<String, dynamic>> checkUserRegistration({
+    required String idirId,
+    required String phone,
+  }) async {
+    if (shouldThrow) {
+      throw Exception(errorMessage);
+    }
+    if (phone.contains('notfound') || phone.contains('unregistered')) {
+      return {'exists': false, 'message': 'No registered user found'};
+    }
+    return {
+      'exists': true,
+      'user': {'id': 'mock-u-1', 'fullName': 'Mock User', 'phoneNumber': phone},
+      'isAlreadyMember': phone.contains('existing'),
+      'message': 'User found',
+    };
   }
 
   @override
@@ -239,6 +260,60 @@ void main() {
       final declineRes = await mockRepo.respondToInvitation(token: 'valid-token', action: 'DECLINE');
       expect(declineRes['success'], isTrue);
       expect(declineRes['action'], 'DECLINE');
+    });
+
+    test('EthiopianPhoneInputFormatter accepts only digits and caps at 9 characters', () {
+      final formatter = EthiopianPhoneInputFormatter();
+
+      // Normal 9 digits
+      var res = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(text: '911223344', selection: TextSelection(baseOffset: 9, extentOffset: 9)),
+      );
+      expect(res.text, '911223344');
+
+      // More than 9 digits (attempt 10 digits)
+      res = formatter.formatEditUpdate(
+        const TextEditingValue(text: '911223344'),
+        const TextEditingValue(text: '9112233445', selection: TextSelection(baseOffset: 10, extentOffset: 10)),
+      );
+      expect(res.text, '911223344');
+      expect(res.text.length, 9);
+
+      // Non-digit characters stripped
+      res = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(text: '91-12a.b3 44', selection: TextSelection(baseOffset: 12, extentOffset: 12)),
+      );
+      expect(res.text, '9112344');
+
+      // Pasted with +251
+      res = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(text: '+251911223344', selection: TextSelection(baseOffset: 13, extentOffset: 13)),
+      );
+      expect(res.text, '911223344');
+
+      // Pasted with 251 prefix
+      res = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(text: '251911223344', selection: TextSelection(baseOffset: 12, extentOffset: 12)),
+      );
+      expect(res.text, '911223344');
+
+      // Pasted with domestic leading 0 (e.g. 0911223344)
+      res = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(text: '0911223344', selection: TextSelection(baseOffset: 10, extentOffset: 10)),
+      );
+      expect(res.text, '911223344');
+
+      // Typing leading 0 is ignored/stripped
+      res = formatter.formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(text: '0', selection: TextSelection(baseOffset: 1, extentOffset: 1)),
+      );
+      expect(res.text, '');
     });
   });
 }

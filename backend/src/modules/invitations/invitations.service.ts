@@ -140,12 +140,38 @@ export class InvitationsService {
       }
       seenNumbersInBatch.add(normalized);
 
-      // 3. Skip if user with this phone number is already an active member of this Idir
+      // 3. Check if user is registered in the database
+      const rawDigits = normalized.replace(/\D/g, '');
+      const localPhone = '0' + rawDigits.slice(3);
+      const compactPhone = rawDigits.slice(3);
+
+      const registeredUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { phoneNumber: normalized },
+            { phoneNumber: localPhone },
+            { phoneNumber: compactPhone },
+            { phoneNumber: rawDigits },
+            { phoneNumber: rawPhone.trim() },
+          ],
+        },
+        select: { id: true, fullName: true, phoneNumber: true },
+      });
+
+      if (!registeredUser) {
+        skipped.push({
+          phoneNumber: normalized,
+          reason: 'No user found with this phone number. User must register first.',
+        });
+        continue;
+      }
+
+      // 4. Skip if user is already an active member of this Idir
       const activeMember = await prisma.membership.findFirst({
         where: {
           idirId,
+          userId: registeredUser.id,
           status: 'ACTIVE',
-          user: { phoneNumber: normalized },
         },
         select: { id: true },
       });
@@ -153,7 +179,7 @@ export class InvitationsService {
       if (activeMember) {
         skipped.push({
           phoneNumber: normalized,
-          reason: 'User is already an active member of this Idir',
+          reason: `${registeredUser.fullName} is already an active member of this Idir`,
         });
         continue;
       }
@@ -207,6 +233,81 @@ export class InvitationsService {
       sentCount: created.length,
       invitations: created,
       skipped,
+    };
+  }
+
+  /**
+   * Pre-check if a user is registered before sending an invitation.
+   */
+  async checkUserRegistration(
+    idirId: string,
+    actorId: string,
+    rawPhone: string
+  ): Promise<{
+    exists: boolean;
+    user?: { id: string; fullName: string; phoneNumber: string };
+    isAlreadyMember?: boolean;
+    message: string;
+  }> {
+    await this.assertCanManageInvitations(idirId, actorId);
+
+    let normalized: string;
+    try {
+      normalized = normalizeEthPhone(rawPhone);
+    } catch (e: any) {
+      return {
+        exists: false,
+        message: e?.message || 'Invalid Ethiopian mobile phone number format',
+      };
+    }
+
+    const rawDigits = normalized.replace(/\D/g, '');
+    const localPhone = '0' + rawDigits.slice(3);
+    const compactPhone = rawDigits.slice(3);
+
+    const registeredUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { phoneNumber: normalized },
+          { phoneNumber: localPhone },
+          { phoneNumber: compactPhone },
+          { phoneNumber: rawDigits },
+          { phoneNumber: rawPhone.trim() },
+        ],
+      },
+      select: { id: true, fullName: true, phoneNumber: true },
+    });
+
+    if (!registeredUser) {
+      return {
+        exists: false,
+        message: `No user found registered with phone number "${rawPhone}". The user must register first.`,
+      };
+    }
+
+    const activeMember = await prisma.membership.findFirst({
+      where: {
+        idirId,
+        userId: registeredUser.id,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    if (activeMember) {
+      return {
+        exists: true,
+        user: registeredUser,
+        isAlreadyMember: true,
+        message: `${registeredUser.fullName} is already an active member of this Idir.`,
+      };
+    }
+
+    return {
+      exists: true,
+      user: registeredUser,
+      isAlreadyMember: false,
+      message: `User found: ${registeredUser.fullName} (${registeredUser.phoneNumber}).`,
     };
   }
 

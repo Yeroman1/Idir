@@ -9,6 +9,11 @@ abstract class InvitationsRepository {
     int expiresInDays = 7,
   });
 
+  Future<Map<String, dynamic>> checkUserRegistration({
+    required String idirId,
+    required String phone,
+  });
+
   Future<PublicInvitationDetails> verifyToken(String token);
 
   Future<Map<String, dynamic>> respondToInvitation({
@@ -43,6 +48,23 @@ class RestInvitationsRepository implements InvitationsRepository {
     }
 
     throw Exception('Unexpected response format when sending invitations');
+  }
+
+  @override
+  Future<Map<String, dynamic>> checkUserRegistration({
+    required String idirId,
+    required String phone,
+  }) async {
+    final encodedPhone = Uri.encodeComponent(phone.trim());
+    final res = await _api.get('/idirs/$idirId/invitations/check-user?phone=$encodedPhone');
+
+    if (res is Map<String, dynamic>) {
+      return res['data'] is Map<String, dynamic>
+          ? res['data'] as Map<String, dynamic>
+          : res;
+    }
+
+    return {'exists': false, 'message': 'Unable to check user'};
   }
 
   @override

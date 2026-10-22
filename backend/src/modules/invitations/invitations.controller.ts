@@ -34,6 +34,34 @@ export class InvitationsController {
   }
 
   /**
+   * Check if a phone number corresponds to a registered user before inviting.
+   * GET /api/v1/idirs/:idirId/invitations/check-user?phone=...
+   */
+  async checkUser(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const idirId = req.params.idirId;
+      const phone = (req.query.phone as string) || '';
+
+      const result = await invitationsService.checkUserRegistration(
+        idirId,
+        req.user!.id,
+        phone
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Public view-only lookup for an invitation link.
    */
   async verifyPublic(req: Request, res: Response, next: NextFunction): Promise<void> {

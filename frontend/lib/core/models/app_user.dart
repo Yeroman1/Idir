@@ -11,10 +11,10 @@ extension UserRoleX on UserRole {
         UserRole.member => 'member',
       };
 
-  static UserRole fromString(String s) => switch (s) {
-        'chairperson' => UserRole.chairperson,
+  static UserRole fromString(String s) => switch (s.toLowerCase()) {
+        'chairperson' || 'creator' => UserRole.chairperson,
         'treasurer' => UserRole.treasurer,
-        'auditor' => UserRole.auditor,
+        'auditor' || 'secretary' => UserRole.auditor,
         _ => UserRole.member,
       };
 
@@ -63,7 +63,10 @@ class AppUser extends Equatable {
     required this.isActive,
     required this.createdAt,
     this.faydaId,
-  });
+    this.idirId,
+    this.idirName,
+    bool? isFaydaVerified,
+  }) : _isFaydaVerified = isFaydaVerified;
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
     return AppUser(
@@ -75,6 +78,10 @@ class AppUser extends Equatable {
       isActive: map['isActive'] as bool? ?? true,
       createdAt: (map['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
       faydaId: map['faydaId'] as String?,
+      idirId: map['idirId'] as String?,
+      idirName: map['idirName'] as String?,
+      isFaydaVerified: map['isFaydaVerified'] as bool? ??
+          (map['faydaId'] != null && (map['faydaId'] as String).trim().isNotEmpty),
     );
   }
 
@@ -86,8 +93,14 @@ class AppUser extends Equatable {
   final bool isActive;
   final DateTime createdAt;
   final String? faydaId;
+  final String? idirId;
+  final String? idirName;
+  final bool? _isFaydaVerified;
 
-  bool get isFaydaVerified => faydaId != null && faydaId!.trim().isNotEmpty;
+  bool get isFaydaVerified =>
+      _isFaydaVerified ?? (faydaId != null && faydaId!.trim().isNotEmpty);
+
+  bool get hasIdir => idirId != null && idirId!.trim().isNotEmpty;
 
   Map<String, dynamic> toMap() => {
         'name': name,
@@ -97,6 +110,9 @@ class AppUser extends Equatable {
         'isActive': isActive,
         'createdAt': createdAt,
         if (faydaId != null) 'faydaId': faydaId,
+        if (idirId != null) 'idirId': idirId,
+        if (idirName != null) 'idirName': idirName,
+        'isFaydaVerified': isFaydaVerified,
       };
 
   AppUser copyWith({
@@ -108,6 +124,9 @@ class AppUser extends Equatable {
     bool? isActive,
     DateTime? createdAt,
     String? faydaId,
+    String? idirId,
+    String? idirName,
+    bool? isFaydaVerified,
   }) {
     return AppUser(
       uid: uid ?? this.uid,
@@ -118,10 +137,25 @@ class AppUser extends Equatable {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       faydaId: faydaId ?? this.faydaId,
+      idirId: idirId ?? this.idirId,
+      idirName: idirName ?? this.idirName,
+      isFaydaVerified: isFaydaVerified ??
+          (faydaId != null ? faydaId.trim().isNotEmpty : this.isFaydaVerified),
     );
   }
 
   @override
-  List<Object?> get props =>
-      [uid, name, phone, role, memberId, isActive, createdAt, faydaId];
+  List<Object?> get props => [
+        uid,
+        name,
+        phone,
+        role,
+        memberId,
+        isActive,
+        createdAt,
+        faydaId,
+        idirId,
+        idirName,
+        isFaydaVerified,
+      ];
 }

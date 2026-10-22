@@ -14,7 +14,7 @@ vi.mock('../src/config/database.js', () => ({
     expense: { create: vi.fn() },
     assistanceCase: { create: vi.fn() },
     ikubPayout: { create: vi.fn() },
-  },
+  } as any,
 }));
 
 describe('Stage 3: Lock Money & Claim Features until ACTIVE (assertIdirActive)', () => {

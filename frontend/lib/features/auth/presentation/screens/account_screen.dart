@@ -9,7 +9,6 @@ import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../home/presentation/providers/dashboard_provider.dart';
-import '../../data/auth_repository.dart';
 import '../../data/fayda_service.dart';
 import '../providers/auth_provider.dart';
 
@@ -327,100 +326,7 @@ class AccountScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // ── 2. Quick Demo Role Switcher ───────────────────────────────────
-          const _SectionTitle(title: 'Quick Switch Institutional Role (Testing)'),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.cardTheme.color ?? theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: theme.dividerColor.withValues(alpha: 0.4),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Tap any role below to instantly simulate permissions:',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _RoleChip(
-                        label: 'Chairperson',
-                        icon: Icons.star_rounded,
-                        color: AppColors.primary,
-                        isActive: user.role == UserRole.chairperson,
-                        onTap: () {
-                          ref.read(authNotifierProvider.notifier).switchDemoUser(
-                                FirebaseAuthRepository.demoUsers[0],
-                              );
-                          _showRoleSwitchedSnack(context, 'Chairperson');
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _RoleChip(
-                        label: 'Treasurer',
-                        icon: Icons.account_balance_wallet_rounded,
-                        color: AppColors.secondary,
-                        isActive: user.role == UserRole.treasurer,
-                        onTap: () {
-                          ref.read(authNotifierProvider.notifier).switchDemoUser(
-                                FirebaseAuthRepository.demoUsers[1],
-                              );
-                          _showRoleSwitchedSnack(context, 'Treasurer');
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _RoleChip(
-                        label: 'Auditor',
-                        icon: Icons.policy_rounded,
-                        color: const Color(0xFF1565C0),
-                        isActive: user.role == UserRole.auditor,
-                        onTap: () {
-                          ref.read(authNotifierProvider.notifier).switchDemoUser(
-                                FirebaseAuthRepository.demoUsers[2],
-                              );
-                          _showRoleSwitchedSnack(context, 'Auditor');
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _RoleChip(
-                        label: 'Member',
-                        icon: Icons.person_rounded,
-                        color: const Color(0xFF4E7D6B),
-                        isActive: user.role == UserRole.member,
-                        onTap: () {
-                          ref.read(authNotifierProvider.notifier).switchDemoUser(
-                                FirebaseAuthRepository.demoUsers[3],
-                              );
-                          _showRoleSwitchedSnack(context, 'Member');
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+
 
           // ── 3. Personal Member Standing Card (Especially for Regular Member)
           if (user.role == UserRole.member) ...[
@@ -683,17 +589,6 @@ class AccountScreen extends ConsumerWidget {
       ),
     );
   }
-
-  void _showRoleSwitchedSnack(BuildContext context, String roleName) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Simulating institutional role: $roleName'),
-        backgroundColor: AppColors.primary,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -709,57 +604,6 @@ class _SectionTitle extends StatelessWidget {
         fontWeight: FontWeight.bold,
         letterSpacing: 0.8,
         color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-      ),
-    );
-  }
-}
-
-class _RoleChip extends StatelessWidget {
-  const _RoleChip({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final Color color;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        decoration: BoxDecoration(
-          color: isActive ? color.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive ? color : Colors.grey.withValues(alpha: 0.25),
-            width: isActive ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 16, color: isActive ? color : Colors.grey),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-                color: isActive ? color : null,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

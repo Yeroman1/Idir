@@ -16,55 +16,97 @@ import { RegisterInput, LoginInput, RefreshTokenInput } from './auth.validation.
 
 export class AuthService {
   async register(input: RegisterInput, ipAddress?: string) {
-    const existingPhone = await prisma.user.findUnique({
-      where: { phoneNumber: input.phoneNumber },
-    });
-    if (existingPhone) {
-      throw new ConflictError('A user with this phone number already exists');
-    }
-
-    if (input.email) {
-      const existingEmail = await prisma.user.findUnique({
-        where: { email: input.email },
-      });
-      if (existingEmail) {
-        throw new ConflictError('A user with this email address already exists');
-      }
-    }
-
+    let existingUser = null;
     if (input.faydaId) {
-      const existingFayda = await prisma.user.findUnique({
-        where: { faydaId: input.faydaId },
+      existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { faydaId: input.faydaId },
+            { phoneNumber: input.phoneNumber },
+          ],
+        },
       });
-      if (existingFayda) {
-        throw new ConflictError('A user with this Fayda ID already exists');
-      }
+    } else {
+      existingUser = await prisma.user.findUnique({
+        where: { phoneNumber: input.phoneNumber },
+      });
     }
 
     const passwordHash = await hashPassword(input.password);
 
-    const user = await prisma.user.create({
-      data: {
-        fullName: input.fullName,
-        phoneNumber: input.phoneNumber,
-        email: input.email,
-        passwordHash,
-        preferredLanguage: input.preferredLanguage || 'am',
-        faydaId: input.faydaId,
-        status: 'ACTIVE',
-      },
-      select: {
-        id: true,
-        fullName: true,
-        phoneNumber: true,
-        email: true,
-        preferredLanguage: true,
-        faydaId: true,
-        status: true,
-        isPlatformAdmin: true,
-        createdAt: true,
-      },
-    });
+    let user;
+    if (existingUser) {
+      user = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          fullName: input.fullName,
+          phoneNumber: input.phoneNumber,
+          email: input.email ?? existingUser.email,
+          passwordHash,
+          preferredLanguage: input.preferredLanguage || existingUser.preferredLanguage,
+          faydaId: input.faydaId ?? existingUser.faydaId,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          fullName: true,
+          phoneNumber: true,
+          email: true,
+          preferredLanguage: true,
+          faydaId: true,
+          status: true,
+          isPlatformAdmin: true,
+          createdAt: true,
+          memberships: {
+            include: {
+              idir: {
+                select: {
+                  id: true,
+                  name: true,
+                  currency: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    } else {
+      user = await prisma.user.create({
+        data: {
+          fullName: input.fullName,
+          phoneNumber: input.phoneNumber,
+          email: input.email,
+          passwordHash,
+          preferredLanguage: input.preferredLanguage || 'am',
+          faydaId: input.faydaId,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          fullName: true,
+          phoneNumber: true,
+          email: true,
+          preferredLanguage: true,
+          faydaId: true,
+          status: true,
+          isPlatformAdmin: true,
+          createdAt: true,
+          memberships: {
+            include: {
+              idir: {
+                select: {
+                  id: true,
+                  name: true,
+                  currency: true,
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    }
 
     const tokenPayload = {
       userId: user.id,

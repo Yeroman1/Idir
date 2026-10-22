@@ -3,10 +3,11 @@ import { env } from './config/env.js';
 import { logger } from './shared/utils/logger.js';
 import { prisma } from './config/database.js';
 
-const server = app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, '0.0.0.0', () => {
   logger.info(
     {
       port: env.PORT,
+      host: '0.0.0.0',
       env: env.NODE_ENV,
       apiPrefix: env.API_PREFIX,
       docsUrl: `http://localhost:${env.PORT}/api/docs`,
