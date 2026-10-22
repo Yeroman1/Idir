@@ -6,6 +6,7 @@ import '../../domain/models/election_model.dart';
 import '../../domain/models/nomination_model.dart';
 import '../../domain/models/vote_receipt_model.dart';
 import '../../domain/models/election_results_model.dart';
+import '../../domain/models/leadership_events_model.dart';
 
 class ElectionCreationState {
   const ElectionCreationState({
@@ -738,5 +739,258 @@ final resultsActionProvider =
     StateNotifierProvider<ResultsActionNotifier, ResultsActionState>((ref) {
   final repo = ref.watch(electionsRepositoryProvider);
   return ResultsActionNotifier(repo);
+});
+
+/* ==========================================================================
+   TASK 5: OTHER LEADERSHIP EVENTS & VACANCIES PROVIDERS
+   ========================================================================== */
+
+final leadershipVacanciesProvider =
+    FutureProvider.family<List<LeadershipVacancyModel>, String>((ref, idirId) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.getLeadershipVacancies(idirId: idirId);
+});
+
+final noConfidenceVotesProvider =
+    FutureProvider.family<List<NoConfidenceVoteModel>, String>((ref, idirId) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.listNoConfidenceVotes(idirId: idirId);
+});
+
+class VoteDetailsQueryArgs extends Equatable {
+  const VoteDetailsQueryArgs({required this.idirId, required this.voteId});
+  final String idirId;
+  final String voteId;
+
+  @override
+  List<Object?> get props => [idirId, voteId];
+}
+
+final noConfidenceVoteDetailsProvider =
+    FutureProvider.family<NoConfidenceVoteModel, VoteDetailsQueryArgs>((ref, args) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.getNoConfidenceVote(idirId: args.idirId, voteId: args.voteId);
+});
+
+class LeadershipEventsActionState extends Equatable {
+  const LeadershipEventsActionState({
+    this.isLoading = false,
+    this.errorMessage,
+    this.successMessage,
+    this.lastVote,
+  });
+
+  final bool isLoading;
+  final String? errorMessage;
+  final String? successMessage;
+  final NoConfidenceVoteModel? lastVote;
+
+  LeadershipEventsActionState copyWith({
+    bool? isLoading,
+    String? errorMessage,
+    String? successMessage,
+    NoConfidenceVoteModel? lastVote,
+  }) {
+    return LeadershipEventsActionState(
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
+      successMessage: successMessage,
+      lastVote: lastVote ?? this.lastVote,
+    );
+  }
+
+  @override
+  List<Object?> get props => [isLoading, errorMessage, successMessage, lastVote];
+}
+
+class LeadershipEventsActionNotifier extends StateNotifier<LeadershipEventsActionState> {
+  LeadershipEventsActionNotifier(this._repository)
+      : super(const LeadershipEventsActionState());
+
+  final ElectionsRepository _repository;
+
+  Future<bool> initiateNoConfidence({
+    required String idirId,
+    required String targetMembershipId,
+    required String targetRole,
+    required String reason,
+    double thresholdPercentage = 66.67,
+    double quorumPercentage = 50.0,
+    int durationDays = 7,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final vote = await _repository.initiateNoConfidence(
+        idirId: idirId,
+        targetMembershipId: targetMembershipId,
+        targetRole: targetRole,
+        reason: reason,
+        thresholdPercentage: thresholdPercentage,
+        quorumPercentage: quorumPercentage,
+        durationDays: durationDays,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        lastVote: vote,
+        successMessage: 'Vote of no-confidence initiated successfully against $targetRole.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> castNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    required String choice,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      await _repository.castNoConfidenceVote(
+        idirId: idirId,
+        voteId: voteId,
+        choice: choice,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        successMessage: 'Your ballot has been securely cast ($choice).',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> resolveNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    bool force = false,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final res = await _repository.resolveNoConfidenceVote(
+        idirId: idirId,
+        voteId: voteId,
+        force: force,
+      );
+
+      final resultMap = res['result'] is Map<String, dynamic> ? res['result'] as Map<String, dynamic> : null;
+      final passed = resultMap?['passed'] == true;
+      final status = resultMap?['finalStatus'] ?? 'CONCLUDED';
+
+      state = state.copyWith(
+        isLoading: false,
+        successMessage: passed
+            ? 'No-confidence vote passed! Officer removed and leadership seat vacated.'
+            : 'Vote concluded ($status). Officer retained.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> appointTemporaryOfficer({
+    required String idirId,
+    required String vacantRole,
+    required String appointeeMembershipId,
+    String? reason,
+    int termMonths = 6,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      await _repository.appointTemporaryOfficer(
+        idirId: idirId,
+        vacantRole: vacantRole,
+        appointeeMembershipId: appointeeMembershipId,
+        reason: reason,
+        termMonths: termMonths,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        successMessage: 'Interim temporary officer appointed for $vacantRole.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> createByElection({
+    required String idirId,
+    required String vacantRole,
+    String? title,
+    String? description,
+    required DateTime startDate,
+    required DateTime endDate,
+    DateTime? nominationStartDate,
+    DateTime? nominationEndDate,
+    required List<String> committeeMemberIds,
+    double quorumPercentage = 50.0,
+    int termLengthMonths = 12,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      await _repository.createByElection(
+        idirId: idirId,
+        vacantRole: vacantRole,
+        title: title,
+        description: description,
+        startDate: startDate,
+        endDate: endDate,
+        nominationStartDate: nominationStartDate,
+        nominationEndDate: nominationEndDate,
+        committeeMemberIds: committeeMemberIds,
+        quorumPercentage: quorumPercentage,
+        termLengthMonths: termLengthMonths,
+      );
+
+      state = state.copyWith(
+        isLoading: false,
+        successMessage: 'By-election successfully scheduled for $vacantRole.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  void clearError() {
+    state = state.copyWith(errorMessage: null);
+  }
+
+  void reset() {
+    state = const LeadershipEventsActionState();
+  }
+}
+
+final leadershipEventsActionProvider =
+    StateNotifierProvider<LeadershipEventsActionNotifier, LeadershipEventsActionState>((ref) {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return LeadershipEventsActionNotifier(repo);
 });
 

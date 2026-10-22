@@ -7,6 +7,7 @@ import '../domain/models/election_model.dart';
 import '../domain/models/nomination_model.dart';
 import '../domain/models/vote_receipt_model.dart';
 import '../domain/models/election_results_model.dart';
+import '../domain/models/leadership_events_model.dart';
 
 abstract class ElectionsRepository {
   Future<ElectionModel> createElection({
@@ -151,6 +152,63 @@ abstract class ElectionsRepository {
     required String electionId,
     required String role,
     DateTime? runoffEndDate,
+  });
+
+  Future<NoConfidenceVoteModel> initiateNoConfidence({
+    required String idirId,
+    required String targetMembershipId,
+    required String targetRole,
+    required String reason,
+    double thresholdPercentage = 66.67,
+    double quorumPercentage = 50.0,
+    int durationDays = 7,
+  });
+
+  Future<List<NoConfidenceVoteModel>> listNoConfidenceVotes({
+    required String idirId,
+  });
+
+  Future<NoConfidenceVoteModel> getNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+  });
+
+  Future<Map<String, dynamic>> castNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    required String choice,
+  });
+
+  Future<Map<String, dynamic>> resolveNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    bool force = false,
+  });
+
+  Future<List<LeadershipVacancyModel>> getLeadershipVacancies({
+    required String idirId,
+  });
+
+  Future<Map<String, dynamic>> appointTemporaryOfficer({
+    required String idirId,
+    required String vacantRole,
+    required String appointeeMembershipId,
+    String? reason,
+    int termMonths = 6,
+  });
+
+  Future<ElectionModel> createByElection({
+    required String idirId,
+    required String vacantRole,
+    String? title,
+    String? description,
+    required DateTime startDate,
+    required DateTime endDate,
+    DateTime? nominationStartDate,
+    DateTime? nominationEndDate,
+    required List<String> committeeMemberIds,
+    double quorumPercentage = 50.0,
+    int termLengthMonths = 12,
   });
 }
 
@@ -706,6 +764,185 @@ class RestElectionsRepository implements ElectionsRepository {
     return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
         ? res['data'] as Map<String, dynamic>
         : (res as Map<String, dynamic>);
+  }
+
+  @override
+  Future<NoConfidenceVoteModel> initiateNoConfidence({
+    required String idirId,
+    required String targetMembershipId,
+    required String targetRole,
+    required String reason,
+    double thresholdPercentage = 66.67,
+    double quorumPercentage = 50.0,
+    int durationDays = 7,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/no-confidence',
+      body: {
+        'targetMembershipId': targetMembershipId,
+        'targetRole': targetRole,
+        'reason': reason,
+        'thresholdPercentage': thresholdPercentage,
+        'quorumPercentage': quorumPercentage,
+        'durationDays': durationDays,
+      },
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    return NoConfidenceVoteModel.fromMap(data);
+  }
+
+  @override
+  Future<List<NoConfidenceVoteModel>> listNoConfidenceVotes({
+    required String idirId,
+  }) async {
+    final res = await _api.get(
+      '/idirs/$idirId/elections/no-confidence',
+    );
+
+    final raw = res is Map<String, dynamic> && res['data'] is List
+        ? res['data'] as List
+        : (res is List ? res : []);
+
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => NoConfidenceVoteModel.fromMap(m))
+        .toList();
+  }
+
+  @override
+  Future<NoConfidenceVoteModel> getNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+  }) async {
+    final res = await _api.get(
+      '/idirs/$idirId/elections/no-confidence/$voteId',
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    return NoConfidenceVoteModel.fromMap(data);
+  }
+
+  @override
+  Future<Map<String, dynamic>> castNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    required String choice,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/no-confidence/$voteId/vote',
+      body: {
+        'choice': choice,
+      },
+    );
+
+    return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+  }
+
+  @override
+  Future<Map<String, dynamic>> resolveNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    bool force = false,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/no-confidence/$voteId/resolve',
+      body: {
+        'force': force,
+      },
+    );
+
+    return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+  }
+
+  @override
+  Future<List<LeadershipVacancyModel>> getLeadershipVacancies({
+    required String idirId,
+  }) async {
+    final res = await _api.get(
+      '/idirs/$idirId/elections/vacancies/status',
+    );
+
+    final raw = res is Map<String, dynamic> && res['data'] is List
+        ? res['data'] as List
+        : (res is List ? res : []);
+
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map((m) => LeadershipVacancyModel.fromMap(m))
+        .toList();
+  }
+
+  @override
+  Future<Map<String, dynamic>> appointTemporaryOfficer({
+    required String idirId,
+    required String vacantRole,
+    required String appointeeMembershipId,
+    String? reason,
+    int termMonths = 6,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/vacancies/appoint',
+      body: {
+        'vacantRole': vacantRole,
+        'appointeeMembershipId': appointeeMembershipId,
+        if (reason != null) 'reason': reason,
+        'termMonths': termMonths,
+      },
+    );
+
+    return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+  }
+
+  @override
+  Future<ElectionModel> createByElection({
+    required String idirId,
+    required String vacantRole,
+    String? title,
+    String? description,
+    required DateTime startDate,
+    required DateTime endDate,
+    DateTime? nominationStartDate,
+    DateTime? nominationEndDate,
+    required List<String> committeeMemberIds,
+    double quorumPercentage = 50.0,
+    int termLengthMonths = 12,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/vacancies/by-election',
+      body: {
+        'vacantRole': vacantRole,
+        if (title != null) 'title': title,
+        if (description != null) 'description': description,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        if (nominationStartDate != null)
+          'nominationStartDate': nominationStartDate.toIso8601String(),
+        if (nominationEndDate != null)
+          'nominationEndDate': nominationEndDate.toIso8601String(),
+        'committeeMemberIds': committeeMemberIds,
+        'quorumPercentage': quorumPercentage,
+        'termLengthMonths': termLengthMonths,
+      },
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    return ElectionModel.fromMap(data);
   }
 
   static const _receiptCacheKeyPrefix = 'cached_vote_receipts_';

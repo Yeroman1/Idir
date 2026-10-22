@@ -4,6 +4,7 @@ import 'package:idir_app/features/elections/domain/models/election_model.dart';
 import 'package:idir_app/features/elections/domain/models/nomination_model.dart';
 import 'package:idir_app/features/elections/domain/models/vote_receipt_model.dart';
 import 'package:idir_app/features/elections/domain/models/election_results_model.dart';
+import 'package:idir_app/features/elections/domain/models/leadership_events_model.dart';
 import 'package:idir_app/features/elections/data/elections_repository.dart';
 import 'package:idir_app/features/elections/presentation/providers/elections_provider.dart';
 
@@ -269,6 +270,79 @@ class MockNominationsRepository implements ElectionsRepository {
     required String electionId,
     required String role,
     DateTime? runoffEndDate,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<NoConfidenceVoteModel> initiateNoConfidence({
+    required String idirId,
+    required String targetMembershipId,
+    required String targetRole,
+    required String reason,
+    double thresholdPercentage = 66.67,
+    double quorumPercentage = 50.0,
+    int durationDays = 7,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<NoConfidenceVoteModel>> listNoConfidenceVotes({
+    required String idirId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<NoConfidenceVoteModel> getNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> castNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    required String choice,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> resolveNoConfidenceVote({
+    required String idirId,
+    required String voteId,
+    bool force = false,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<LeadershipVacancyModel>> getLeadershipVacancies({
+    required String idirId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> appointTemporaryOfficer({
+    required String idirId,
+    required String vacantRole,
+    required String appointeeMembershipId,
+    String? reason,
+    int termMonths = 6,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ElectionModel> createByElection({
+    required String idirId,
+    required String vacantRole,
+    String? title,
+    String? description,
+    required DateTime startDate,
+    required DateTime endDate,
+    DateTime? nominationStartDate,
+    DateTime? nominationEndDate,
+    required List<String> committeeMemberIds,
+    double quorumPercentage = 50.0,
+    int termLengthMonths = 12,
   }) =>
       throw UnimplementedError();
 }

@@ -9,6 +9,7 @@ import '../providers/elections_provider.dart';
 import 'candidates_and_nominations_screen.dart';
 import 'voting_booth_screen.dart';
 import 'election_results_screen.dart';
+import 'leadership_events_screen.dart';
 
 class ElectionsDashboardScreen extends ConsumerWidget {
   const ElectionsDashboardScreen({super.key, this.idirId = 'active-idir-id'});
@@ -45,6 +46,17 @@ class ElectionsDashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Leadership Elections'),
         actions: [
+          IconButton(
+            tooltip: 'Governance & Vacancies',
+            icon: const Icon(Icons.account_balance),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (ctx) => LeadershipEventsScreen(idirId: idirId),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.refresh(electionsListProvider(idirId)),

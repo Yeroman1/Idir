@@ -271,6 +271,7 @@ model Idir {
   invitations            Invitation[]
   elections              Election[]
   roleTerms              RoleTerm[]
+  noConfidenceVotes      NoConfidenceVote[]
 
   @@index([name])
   @@index([region])
@@ -316,6 +317,9 @@ model Membership {
   openBallots                  Ballot[]                  @relation("OpenBallots")
   disputesFiled                ElectionDispute[]
   roleTerms                    RoleTerm[]
+  noConfidenceTargets          NoConfidenceVote[]   @relation("NoConfidenceTarget")
+  noConfidenceInitiated        NoConfidenceVote[]   @relation("NoConfidenceInitiator")
+  noConfidenceBallots          NoConfidenceBallot[]
 
   @@unique([idirId, userId])
   @@unique([idirId, memberNumber])
@@ -906,5 +910,64 @@ model RoleTerm {
 
   @@index([idirId])
   @@index([membershipId])
+}
+
+// ─── NO-CONFIDENCE VOTES & LEADERSHIP EVENTS (Task 5) ────────────────────────
+
+enum NoConfidenceStatus {
+  ACTIVE
+  PASSED
+  FAILED
+  FAILED_NO_QUORUM
+  CANCELLED
+}
+
+enum NoConfidenceChoice {
+  SUPPORT
+  OPPOSE
+}
+
+model NoConfidenceVote {
+  id                      String              @id @default(uuid())
+  idirId                  String
+  idir                    Idir                @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  targetMembershipId      String
+  targetMembership        Membership          @relation("NoConfidenceTarget", fields: [targetMembershipId], references: [id], onDelete: Cascade)
+  targetRole              MembershipRole
+  initiatedByMembershipId String
+  initiatedByMembership   Membership          @relation("NoConfidenceInitiator", fields: [initiatedByMembershipId], references: [id], onDelete: Cascade)
+  reason                  String              @db.Text
+  thresholdPercentage     Decimal             @default(66.67) @db.Decimal(5, 2)
+  quorumPercentage        Decimal             @default(50.00) @db.Decimal(5, 2)
+  startDate               DateTime            @default(now())
+  endDate                 DateTime
+  status                  NoConfidenceStatus  @default(ACTIVE)
+  totalEligibleMembers    Int                 @default(0)
+  totalVotesCast          Int                 @default(0)
+  supportVotes            Int                 @default(0)
+  opposeVotes             Int                 @default(0)
+  resolvedAt              DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+
+  ballots                 NoConfidenceBallot[]
+
+  @@index([idirId])
+  @@index([targetMembershipId])
+  @@index([status])
+}
+
+model NoConfidenceBallot {
+  id                 String              @id @default(uuid())
+  voteId             String
+  vote               NoConfidenceVote    @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  voterMembershipId  String
+  voterMembership    Membership          @relation(fields: [voterMembershipId], references: [id], onDelete: Cascade)
+  choice             NoConfidenceChoice
+  castAt             DateTime            @default(now())
+
+  @@unique([voteId, voterMembershipId])
+  @@index([voteId])
+  @@index([voterMembershipId])
 }
 

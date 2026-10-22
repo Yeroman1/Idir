@@ -30,6 +30,14 @@ import {
   certifyElectionSchema,
   triggerRunoffSchema,
 } from './results.validation.js';
+import { leadershipEventsController } from './leadership_events.controller.js';
+import {
+  initiateNoConfidenceSchema,
+  castNoConfidenceVoteSchema,
+  resolveNoConfidenceSchema,
+  appointInterimSchema,
+  createByElectionSchema,
+} from './leadership_events.validation.js';
 
 const router = Router({ mergeParams: true });
 
@@ -206,6 +214,65 @@ router.post(
   '/:electionId/runoff',
   validate({ body: triggerRunoffSchema }),
   resultsController.triggerRunoff
+);
+
+/* ==========================================================================
+   OTHER LEADERSHIP EVENTS & VACANCIES (Task 5)
+   ========================================================================== */
+
+// Inspect leadership vacancies across all institutional roles
+router.get(
+  '/vacancies/status',
+  leadershipEventsController.getLeadershipVacancies
+);
+
+// Appoint an active member as interim temporary officer for a vacant role
+router.post(
+  '/vacancies/appoint',
+  requireIdirRole([...ELECTION_MANAGERS]),
+  validate({ body: appointInterimSchema }),
+  leadershipEventsController.appointTemporaryOfficer
+);
+
+// Schedule an expedited by-election for a vacant leadership seat
+router.post(
+  '/vacancies/by-election',
+  requireIdirRole([...ELECTION_MANAGERS]),
+  validate({ body: createByElectionSchema }),
+  leadershipEventsController.createByElection
+);
+
+// Initiate a vote of no-confidence against a sitting officer
+router.post(
+  '/no-confidence',
+  validate({ body: initiateNoConfidenceSchema }),
+  leadershipEventsController.initiateNoConfidence
+);
+
+// List all no-confidence votes in the Idir
+router.get(
+  '/no-confidence',
+  leadershipEventsController.listNoConfidenceVotes
+);
+
+// Get single no-confidence vote details
+router.get(
+  '/no-confidence/:voteId',
+  leadershipEventsController.getNoConfidenceVote
+);
+
+// Cast ballot in active no-confidence motion
+router.post(
+  '/no-confidence/:voteId/vote',
+  validate({ body: castNoConfidenceVoteSchema }),
+  leadershipEventsController.castNoConfidenceVote
+);
+
+// Resolve and conclude no-confidence vote (tally, quorum check, role removal)
+router.post(
+  '/no-confidence/:voteId/resolve',
+  validate({ body: resolveNoConfidenceSchema }),
+  leadershipEventsController.resolveNoConfidenceVote
 );
 
 export const electionRoutes = router;
