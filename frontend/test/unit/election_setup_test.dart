@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:idir_app/core/models/app_user.dart';
 import 'package:idir_app/features/elections/domain/models/election_model.dart';
+import 'package:idir_app/features/elections/domain/models/nomination_model.dart';
 import 'package:idir_app/features/elections/data/elections_repository.dart';
 import 'package:idir_app/features/elections/presentation/providers/elections_provider.dart';
 
@@ -96,6 +97,105 @@ class MockElectionsRepository implements ElectionsRepository {
     required String electionId,
     required String reason,
   }) async {}
+
+  @override
+  Future<NominationModel> nominateCandidate({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String nomineeMembershipId,
+    String? statement,
+  }) async {
+    return NominationModel(
+      id: 'nom-1',
+      electionId: electionId,
+      role: role,
+      nomineeMembershipId: nomineeMembershipId,
+      nominatedByMembershipId: nomineeMembershipId,
+      statement: statement,
+      status: 'ACCEPTED',
+    );
+  }
+
+  @override
+  Future<NominationModel> respondToNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String action,
+    String? statement,
+  }) async {
+    return NominationModel(
+      id: nominationId,
+      electionId: electionId,
+      role: 'CHAIRPERSON',
+      nomineeMembershipId: 'm-1',
+      nominatedByMembershipId: 'm-2',
+      statement: statement,
+      status: action == 'ACCEPT' ? 'ACCEPTED' : 'DECLINED',
+    );
+  }
+
+  @override
+  Future<NominationModel> withdrawNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+  }) async {
+    return NominationModel(
+      id: nominationId,
+      electionId: electionId,
+      role: 'CHAIRPERSON',
+      nomineeMembershipId: 'm-1',
+      nominatedByMembershipId: 'm-2',
+      status: 'WITHDRAWN',
+    );
+  }
+
+  @override
+  Future<NominationModel> updateCandidateStatement({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String statement,
+  }) async {
+    return NominationModel(
+      id: nominationId,
+      electionId: electionId,
+      role: 'CHAIRPERSON',
+      nomineeMembershipId: 'm-1',
+      nominatedByMembershipId: 'm-2',
+      statement: statement,
+      status: 'ACCEPTED',
+    );
+  }
+
+  @override
+  Future<List<NominationModel>> listNominations({
+    required String idirId,
+    required String electionId,
+    String? role,
+    String? status,
+    bool? ballotOnly,
+  }) async {
+    return [];
+  }
+
+  @override
+  Future<NominationModel> getCandidatePage({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+  }) async {
+    return NominationModel(
+      id: nominationId,
+      electionId: electionId,
+      role: 'CHAIRPERSON',
+      nomineeMembershipId: 'm-1',
+      nominatedByMembershipId: 'm-2',
+      status: 'ACCEPTED',
+    );
+  }
 }
 
 void main() {

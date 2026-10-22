@@ -1,7 +1,9 @@
+import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/elections_repository.dart';
 import '../../domain/models/election_model.dart';
+import '../../domain/models/nomination_model.dart';
 
 class ElectionCreationState {
   const ElectionCreationState({
@@ -163,4 +165,227 @@ final electionsListProvider =
     FutureProvider.family<List<ElectionModel>, String>((ref, idirId) async {
   final repo = ref.watch(electionsRepositoryProvider);
   return repo.listElections(idirId: idirId);
+});
+
+class NominationsQueryArgs extends Equatable {
+  const NominationsQueryArgs({
+    required this.idirId,
+    required this.electionId,
+    this.role,
+    this.status,
+    this.ballotOnly,
+  });
+
+  final String idirId;
+  final String electionId;
+  final String? role;
+  final String? status;
+  final bool? ballotOnly;
+
+  @override
+  List<Object?> get props => [idirId, electionId, role, status, ballotOnly];
+}
+
+final nominationsListProvider =
+    FutureProvider.family<List<NominationModel>, NominationsQueryArgs>((ref, args) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.listNominations(
+    idirId: args.idirId,
+    electionId: args.electionId,
+    role: args.role,
+    status: args.status,
+    ballotOnly: args.ballotOnly,
+  );
+});
+
+class CandidatePageQueryArgs extends Equatable {
+  const CandidatePageQueryArgs({
+    required this.idirId,
+    required this.electionId,
+    required this.nominationId,
+  });
+
+  final String idirId;
+  final String electionId;
+  final String nominationId;
+
+  @override
+  List<Object?> get props => [idirId, electionId, nominationId];
+}
+
+final candidatePageProvider =
+    FutureProvider.family<NominationModel, CandidatePageQueryArgs>((ref, args) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.getCandidatePage(
+    idirId: args.idirId,
+    electionId: args.electionId,
+    nominationId: args.nominationId,
+  );
+});
+
+class NominationActionState {
+  const NominationActionState({
+    this.isLoading = false,
+    this.errorMessage,
+    this.successMessage,
+    this.nomination,
+  });
+
+  final bool isLoading;
+  final String? errorMessage;
+  final String? successMessage;
+  final NominationModel? nomination;
+
+  NominationActionState copyWith({
+    bool? isLoading,
+    String? errorMessage,
+    String? successMessage,
+    NominationModel? nomination,
+  }) {
+    return NominationActionState(
+      isLoading: isLoading ?? this.isLoading,
+      errorMessage: errorMessage,
+      successMessage: successMessage,
+      nomination: nomination ?? this.nomination,
+    );
+  }
+}
+
+class NominationActionNotifier extends StateNotifier<NominationActionState> {
+  NominationActionNotifier(this._repository)
+      : super(const NominationActionState());
+
+  final ElectionsRepository _repository;
+
+  Future<bool> nominateCandidate({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String nomineeMembershipId,
+    String? statement,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final res = await _repository.nominateCandidate(
+        idirId: idirId,
+        electionId: electionId,
+        role: role,
+        nomineeMembershipId: nomineeMembershipId,
+        statement: statement,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        nomination: res,
+        successMessage: res.isAccepted
+            ? 'Candidate self-nomination accepted!'
+            : 'Nomination submitted successfully; pending nominee acceptance.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> respondToNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String action,
+    String? statement,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final res = await _repository.respondToNomination(
+        idirId: idirId,
+        electionId: electionId,
+        nominationId: nominationId,
+        action: action,
+        statement: statement,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        nomination: res,
+        successMessage: res.isAccepted
+            ? 'Nomination accepted! You will appear on the ballot.'
+            : 'Nomination declined.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> withdrawNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final res = await _repository.withdrawNomination(
+        idirId: idirId,
+        electionId: electionId,
+        nominationId: nominationId,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        nomination: res,
+        successMessage: 'Candidacy withdrawn successfully.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> updateStatement({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String statement,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null, successMessage: null);
+    try {
+      final res = await _repository.updateCandidateStatement(
+        idirId: idirId,
+        electionId: electionId,
+        nominationId: nominationId,
+        statement: statement,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        nomination: res,
+        successMessage: 'Candidate statement updated successfully.',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  void reset() {
+    state = const NominationActionState();
+  }
+}
+
+final nominationActionProvider =
+    StateNotifierProvider<NominationActionNotifier, NominationActionState>((ref) {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return NominationActionNotifier(repo);
 });

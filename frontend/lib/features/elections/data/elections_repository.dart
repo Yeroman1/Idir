@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../domain/models/election_model.dart';
+import '../domain/models/nomination_model.dart';
 
 abstract class ElectionsRepository {
   Future<ElectionModel> createElection({
@@ -46,6 +47,49 @@ abstract class ElectionsRepository {
     required String idirId,
     required String electionId,
     required String reason,
+  });
+
+  Future<NominationModel> nominateCandidate({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String nomineeMembershipId,
+    String? statement,
+  });
+
+  Future<NominationModel> respondToNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String action,
+    String? statement,
+  });
+
+  Future<NominationModel> withdrawNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+  });
+
+  Future<NominationModel> updateCandidateStatement({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String statement,
+  });
+
+  Future<List<NominationModel>> listNominations({
+    required String idirId,
+    required String electionId,
+    String? role,
+    String? status,
+    bool? ballotOnly,
+  });
+
+  Future<NominationModel> getCandidatePage({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
   });
 }
 
@@ -228,6 +272,214 @@ class RestElectionsRepository implements ElectionsRepository {
       '/idirs/$idirId/elections/$electionId/cancel',
       body: {'reason': reason},
     );
+  }
+
+  @override
+  Future<NominationModel> nominateCandidate({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String nomineeMembershipId,
+    String? statement,
+  }) async {
+    final payload = {
+      'role': role,
+      'nomineeMembershipId': nomineeMembershipId,
+      if (statement != null && statement.isNotEmpty) 'statement': statement,
+    };
+
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/nominations',
+      body: payload,
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    final nomination = NominationModel.fromMap(data);
+    await _cacheNominationLocally(electionId, nomination);
+    return nomination;
+  }
+
+  @override
+  Future<NominationModel> respondToNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String action,
+    String? statement,
+  }) async {
+    final payload = {
+      'action': action,
+      if (statement != null && statement.isNotEmpty) 'statement': statement,
+    };
+
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/nominations/$nominationId/respond',
+      body: payload,
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    final nomination = NominationModel.fromMap(data);
+    await _cacheNominationLocally(electionId, nomination);
+    return nomination;
+  }
+
+  @override
+  Future<NominationModel> withdrawNomination({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+  }) async {
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/nominations/$nominationId/withdraw',
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    final nomination = NominationModel.fromMap(data);
+    await _cacheNominationLocally(electionId, nomination);
+    return nomination;
+  }
+
+  @override
+  Future<NominationModel> updateCandidateStatement({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+    required String statement,
+  }) async {
+    final res = await _api.patch(
+      '/idirs/$idirId/elections/$electionId/nominations/$nominationId/statement',
+      body: {'statement': statement},
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    final nomination = NominationModel.fromMap(data);
+    await _cacheNominationLocally(electionId, nomination);
+    return nomination;
+  }
+
+  @override
+  Future<List<NominationModel>> listNominations({
+    required String idirId,
+    required String electionId,
+    String? role,
+    String? status,
+    bool? ballotOnly,
+  }) async {
+    try {
+      final queryParams = <String, String>{};
+      if (role != null) queryParams['role'] = role;
+      if (status != null) queryParams['status'] = status;
+      if (ballotOnly != null) queryParams['ballotOnly'] = ballotOnly.toString();
+
+      final res = await _api.get(
+        '/idirs/$idirId/elections/$electionId/nominations',
+        queryParams: queryParams.isNotEmpty ? queryParams : null,
+      );
+
+      final List rawList;
+      if (res is Map<String, dynamic> && res['data'] is List) {
+        rawList = res['data'] as List;
+      } else if (res is List) {
+        rawList = res;
+      } else {
+        rawList = [];
+      }
+
+      final items = rawList
+          .whereType<Map<String, dynamic>>()
+          .map((m) => NominationModel.fromMap(m))
+          .toList();
+
+      await _overwriteCachedNominations(electionId, items);
+      return items;
+    } catch (_) {
+      final cached = await _getCachedNominations(electionId);
+      if (ballotOnly == true || (ballotOnly == null && status == null)) {
+        return cached.where((n) => n.isAccepted).toList();
+      }
+      if (status != null && status != 'ALL') {
+        return cached.where((n) => n.status.toUpperCase() == status.toUpperCase()).toList();
+      }
+      return cached;
+    }
+  }
+
+  @override
+  Future<NominationModel> getCandidatePage({
+    required String idirId,
+    required String electionId,
+    required String nominationId,
+  }) async {
+    try {
+      final res = await _api.get(
+        '/idirs/$idirId/elections/$electionId/nominations/$nominationId',
+      );
+
+      final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+          ? res['data'] as Map<String, dynamic>
+          : (res as Map<String, dynamic>);
+
+      return NominationModel.fromMap(data);
+    } catch (e) {
+      final cached = await _getCachedNominations(electionId);
+      final found = cached.firstWhere(
+        (n) => n.id == nominationId,
+        orElse: () => throw Exception('Candidate page not found locally: $e'),
+      );
+      return found;
+    }
+  }
+
+  static const _nomCacheKeyPrefix = 'cached_nominations_';
+
+  Future<void> _cacheNominationLocally(String electionId, NominationModel item) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = await _getCachedNominations(electionId);
+      final idx = list.indexWhere((n) => n.id == item.id);
+      if (idx >= 0) {
+        list[idx] = item;
+      } else {
+        list.insert(0, item);
+      }
+      final encoded = jsonEncode(list.map((n) => n.toMap()).toList());
+      await prefs.setString('$_nomCacheKeyPrefix$electionId', encoded);
+    } catch (_) {}
+  }
+
+  Future<void> _overwriteCachedNominations(String electionId, List<NominationModel> items) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(items.map((n) => n.toMap()).toList());
+      await prefs.setString('$_nomCacheKeyPrefix$electionId', encoded);
+    } catch (_) {}
+  }
+
+  Future<List<NominationModel>> _getCachedNominations(String electionId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_nomCacheKeyPrefix$electionId');
+      if (raw == null || raw.isEmpty) return [];
+      final decoded = jsonDecode(raw) as List;
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map((m) => NominationModel.fromMap(m))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   // ── Local caching helpers ──────────────────────────────────────────────────

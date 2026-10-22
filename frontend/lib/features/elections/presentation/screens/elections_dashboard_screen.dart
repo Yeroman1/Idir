@@ -6,6 +6,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/models/app_user.dart';
 import '../../../../core/router/app_router.dart';
 import '../providers/elections_provider.dart';
+import 'candidates_and_nominations_screen.dart';
 
 class ElectionsDashboardScreen extends ConsumerWidget {
   const ElectionsDashboardScreen({super.key, this.idirId = 'active-idir-id'});
@@ -186,6 +187,24 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                             style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => CandidatesAndNominationsScreen(
+                                  idirId: idirId,
+                                  election: election,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.people_outline, size: 18),
+                          label: const Text('Candidates & Nominations'),
+                        ),
                       ),
                     ],
                   ),

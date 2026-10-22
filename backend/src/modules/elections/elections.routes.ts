@@ -10,6 +10,13 @@ import {
   queryElectionsSchema,
   cancelElectionSchema,
 } from './elections.validation.js';
+import { nominationsController } from './nominations.controller.js';
+import {
+  createNominationSchema,
+  respondNominationSchema,
+  updateStatementSchema,
+  queryNominationsSchema,
+} from './nominations.validation.js';
 
 const router = Router({ mergeParams: true });
 
@@ -61,6 +68,50 @@ router.post(
   requireIdirRole([...ELECTION_MANAGERS]),
   validate({ body: cancelElectionSchema }),
   electionsController.cancelElection
+);
+
+/* ==========================================================================
+   NOMINATIONS & CANDIDATES (Task 2)
+   ========================================================================== */
+
+// Nominate self or another active member
+router.post(
+  '/:electionId/nominations',
+  validate({ body: createNominationSchema }),
+  nominationsController.createNomination
+);
+
+// List nominations (by default only ACCEPTED candidates for the ballot)
+router.get(
+  '/:electionId/nominations',
+  validate({ query: queryNominationsSchema }),
+  nominationsController.listNominations
+);
+
+// View candidate page & details
+router.get(
+  '/:electionId/nominations/:nominationId',
+  nominationsController.getCandidatePage
+);
+
+// Respond to nomination (accept or decline)
+router.post(
+  '/:electionId/nominations/:nominationId/respond',
+  validate({ body: respondNominationSchema }),
+  nominationsController.respondToNomination
+);
+
+// Withdraw candidacy
+router.post(
+  '/:electionId/nominations/:nominationId/withdraw',
+  nominationsController.withdrawNomination
+);
+
+// Update candidate short statement
+router.patch(
+  '/:electionId/nominations/:nominationId/statement',
+  validate({ body: updateStatementSchema }),
+  nominationsController.updateStatement
 );
 
 export const electionRoutes = router;
