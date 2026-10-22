@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/storage/offline_cache_service.dart';
 import '../domain/models/member.dart';
 import 'rest_members_repository.dart';
@@ -309,9 +310,12 @@ class FirestoreMembersRepository implements MembersRepository {
 final membersRepositoryProvider = Provider<MembersRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
+  final activeIdirId =
+      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
   return RestMembersRepository(
     apiClient: apiClient,
     cacheService: cache,
     ref: ref,
+    idirId: activeIdirId,
   );
 });

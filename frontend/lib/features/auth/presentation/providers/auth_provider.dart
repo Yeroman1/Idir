@@ -98,6 +98,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> _init() async {
     final cached = await _repository.getCurrentUser();
+    if (!mounted) return;
     state = AuthState(
       user: cached,
       isLoading: false,
@@ -110,6 +111,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> refreshCurrentUser() async {
     try {
       final fresh = await _repository.getCurrentUser();
+      if (!mounted) return;
       if (fresh != null && fresh != state.user) {
         state = state.copyWith(user: () => fresh);
       }
@@ -296,6 +298,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final updated = current.copyWith(name: name, phone: phone);
     await _repository.updateProfile(updated);
     state = state.copyWith(user: () => updated);
+  }
+
+  Future<void> switchActiveIdir(UserMembership membership) async {
+    final current = state.user;
+    if (current == null) return;
+    final updated = current.copyWith(
+      idirId: membership.idirId,
+      idirName: membership.idirName,
+      role: membership.role,
+      memberId: membership.memberNumber,
+    );
+    state = state.copyWith(user: () => updated);
+    await _repository.updateProfile(updated);
   }
 
   void clearError() {

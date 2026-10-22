@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/models/app_user.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/providers/pin_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
@@ -20,6 +21,7 @@ import '../providers/dashboard_provider.dart';
 import '../../../idirs/domain/models/idir_model.dart';
 import '../../../idirs/presentation/providers/idir_creation_provider.dart';
 import '../../../invitations/presentation/widgets/invite_members_dialog.dart';
+import '../../../settings/presentation/widgets/telegram_idir_switcher.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -39,9 +41,18 @@ class HomeScreen extends ConsumerWidget {
         ? memberStats.pinnedAnnouncement
         : officerStats.pinnedAnnouncement;
 
+    final activeIdirState = ref.watch(activeIdirProvider);
+    final activeIdir = activeIdirState.activeIdir;
+    final availableIdirs = activeIdirState.availableIdirs;
+
     final draftIdirAsync = ref.watch(userDraftIdirProvider);
     final draftIdir = draftIdirAsync.value;
-    final hasActiveIdir = (user?.hasIdir == true) || draftIdir != null;
+    final hasActiveIdir =
+        activeIdir != null || (user?.hasIdir == true) || draftIdir != null;
+    final currentIdirName = activeIdir?.idirName ??
+        draftIdir?.name ??
+        user?.idirName ??
+        l10n.associationName;
 
     return Scaffold(
       appBar: AppBar(
@@ -50,9 +61,7 @@ class HomeScreen extends ConsumerWidget {
           children: [
             Text(l10n.dashboardTitle),
             Text(
-              hasActiveIdir
-                  ? (draftIdir?.name ?? user?.idirName ?? l10n.associationName)
-                  : 'Idir Community Network',
+              hasActiveIdir ? currentIdirName : 'Idir Community Network',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
                 letterSpacing: 0.2,
@@ -127,7 +136,17 @@ class HomeScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
-            // ── 1. User Profile & Role Card ───────────────────────────────
+            // ── 1. Prominent Current Active Idir Dashboard Header ──────────
+            if (activeIdir != null) ...[
+              _ActiveIdirDashboardCard(
+                activeIdir: activeIdir,
+                availableCount: availableIdirs.length,
+                draftIdir: draftIdir,
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            // ── 2. User Profile & Role Card ───────────────────────────────
             if (user != null)
               _UserProfileHeader(
                 user: user,
@@ -140,8 +159,8 @@ class HomeScreen extends ConsumerWidget {
               _NoIdirOnboardingView(user: user),
               const SizedBox(height: 24),
             ] else ...[
-              // ── 1.1 Idir Status Card (with DRAFT badge) ───────────────────
-              if (draftIdir != null) ...[
+              // Fallback draft card if draft exists and is distinct from activeIdir
+              if (draftIdir != null && activeIdir?.idirId != draftIdir.id) ...[
                 _DraftIdirDashboardCard(idir: draftIdir),
                 const SizedBox(height: 14),
               ],
@@ -431,6 +450,326 @@ class _UserProfileHeader extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Current Active Idir Dashboard Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ActiveIdirDashboardCard extends StatelessWidget {
+  const _ActiveIdirDashboardCard({
+    required this.activeIdir,
+    required this.availableCount,
+    this.draftIdir,
+  });
+
+  final UserMembership activeIdir;
+  final int availableCount;
+  final IdirModel? draftIdir;
+
+  Color _avatarColor(String name) {
+    const palette = [
+      Color(0xFF1B5E20),
+      Color(0xFF0D47A1),
+      Color(0xFFE65100),
+      Color(0xFF4A148C),
+      Color(0xFF006064),
+      Color(0xFF880E4F),
+    ];
+    final code = name.codeUnits.fold<int>(0, (acc, c) => acc + c);
+    return palette[code % palette.length];
+  }
+
+  String _initials(String name) {
+    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return 'ID';
+    if (words.length == 1) {
+      return words[0].substring(0, words[0].length.clamp(0, 2)).toUpperCase();
+    }
+    return '${words[0][0]}${words[1][0]}'.toUpperCase();
+  }
+
+  Color _roleColor(UserRole role) {
+    return switch (role) {
+      UserRole.chairperson => AppColors.primary,
+      UserRole.treasurer => AppColors.secondary,
+      UserRole.auditor => const Color(0xFF1565C0),
+      UserRole.member => const Color(0xFF4E7D6B),
+    };
+  }
+
+  String _roleLabel(UserRole role) {
+    return switch (role) {
+      UserRole.chairperson => 'Chairperson (ሰብሳቢ)',
+      UserRole.treasurer => 'Treasurer (ገንዘብ ያዥ)',
+      UserRole.auditor => 'Auditor (ተቆጣጣሪ)',
+      UserRole.member => 'Member (አባል)',
+    };
+  }
+
+  IconData _roleIcon(UserRole role) {
+    return switch (role) {
+      UserRole.chairperson => Icons.admin_panel_settings_rounded,
+      UserRole.treasurer => Icons.account_balance_rounded,
+      UserRole.auditor => Icons.policy_rounded,
+      UserRole.member => Icons.person_rounded,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final avatarColor = _avatarColor(activeIdir.idirName);
+    final roleColor = _roleColor(activeIdir.role);
+    final isDraft = activeIdir.isDraft || (draftIdir != null && draftIdir!.isDraft);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDraft
+              ? AppColors.warning.withValues(alpha: 0.6)
+              : AppColors.primary.withValues(alpha: 0.35),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Top Indicator & Switcher Button ──
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: (isDraft ? AppColors.warning : AppColors.success)
+                      .withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (isDraft ? AppColors.warning : AppColors.success)
+                        .withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: isDraft ? AppColors.warning : AppColors.success,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      isDraft ? 'DRAFT IDIR' : 'ACTIVE COMMUNITY',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: isDraft ? AppColors.warning : AppColors.success,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              // Switch Button
+              OutlinedButton.icon(
+                onPressed: () => showIdirSwitcherModal(context),
+                icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                label: Text(
+                  availableCount > 1 ? 'Switch ($availableCount)' : 'Switch Idir',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: AppColors.primary,
+                  side: BorderSide(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // ── Idir Details Row ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: avatarColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: avatarColor.withValues(alpha: 0.4)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(activeIdir.idirName),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: avatarColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activeIdir.idirName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (activeIdir.community != null &&
+                        activeIdir.community!.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        '${activeIdir.community}${activeIdir.location != null ? ' • ${activeIdir.location}' : ''}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: theme.dividerColor.withValues(alpha: 0.5)),
+          const SizedBox(height: 10),
+
+          // ── Bottom Meta Row (Role badge & Dues) ──
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: roleColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_roleIcon(activeIdir.role), size: 14, color: roleColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      _roleLabel(activeIdir.role),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: roleColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (activeIdir.memberNumber.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  activeIdir.memberNumber,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+              const Spacer(),
+              if (activeIdir.contributionAmount != null &&
+                  activeIdir.contributionAmount! > 0)
+                Text(
+                  'ETB ${activeIdir.contributionAmount!.toStringAsFixed(0)}/${activeIdir.contributionFrequency?.toLowerCase() ?? "mo"}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+            ],
+          ),
+
+          // ── Draft Actions if applicable ──
+          if (isDraft) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_clock, size: 16, color: AppColors.warning),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Financial & claim actions are locked. Available once this Idir is active.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => InviteMembersDialog(
+                      idirId: activeIdir.idirId,
+                      idirName: activeIdir.idirName,
+                    ),
+                  );
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                icon: const Icon(Icons.person_add_alt_1, size: 18),
+                label: const Text('Invite Members by Phone'),
+              ),
+            ),
+          ],
         ],
       ),
     );
