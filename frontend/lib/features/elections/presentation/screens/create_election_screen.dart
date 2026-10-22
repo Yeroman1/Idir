@@ -49,7 +49,7 @@ class _CreateElectionScreenState extends ConsumerState<CreateElectionScreen> {
   String _votingMethod = 'SIMPLE_MAJORITY'; // 'SIMPLE_MAJORITY' or 'RUNOFF'
   String _ballotType = 'SECRET'; // 'SECRET' or 'OPEN'
   bool _requiresGoodStanding = true;
-  int _minTenureDays = 90;
+  final int _minTenureDays = 90;
 
   @override
   void initState() {
@@ -80,11 +80,13 @@ class _CreateElectionScreenState extends ConsumerState<CreateElectionScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
+    if (!mounted) return;
     if (picked != null) {
       final time = await showTimePicker(
         context: context,
         initialTime: _startTime,
       );
+      if (!mounted) return;
       setState(() {
         _startDate = picked;
         if (time != null) _startTime = time;
@@ -99,11 +101,13 @@ class _CreateElectionScreenState extends ConsumerState<CreateElectionScreen> {
       firstDate: _startDate,
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
+    if (!mounted) return;
     if (picked != null) {
       final time = await showTimePicker(
         context: context,
         initialTime: _endTime,
       );
+      if (!mounted) return;
       setState(() {
         _endDate = picked;
         if (time != null) _endTime = time;
@@ -342,7 +346,7 @@ class _CreateElectionScreenState extends ConsumerState<CreateElectionScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _votingMethod,
+                      initialValue: _votingMethod,
                       decoration: const InputDecoration(
                         labelText: 'Voting Method',
                         border: OutlineInputBorder(),
@@ -365,7 +369,7 @@ class _CreateElectionScreenState extends ConsumerState<CreateElectionScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _ballotType,
+                      initialValue: _ballotType,
                       decoration: const InputDecoration(
                         labelText: 'Ballot Privacy',
                         border: OutlineInputBorder(),

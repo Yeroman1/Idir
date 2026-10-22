@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/models/app_user.dart';
 import '../../../../core/router/app_router.dart';
-import '../../domain/models/election_model.dart';
 import '../providers/elections_provider.dart';
 
 class ElectionsDashboardScreen extends ConsumerWidget {
@@ -133,9 +132,9 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.12),
+                              color: statusColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: statusColor.withOpacity(0.5)),
+                              border: Border.all(color: statusColor.withValues(alpha: 0.5)),
                             ),
                             child: Text(
                               election.status,

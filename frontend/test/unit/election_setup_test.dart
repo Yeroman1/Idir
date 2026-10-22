@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:idir_app/core/models/app_user.dart';
 import 'package:idir_app/features/elections/domain/models/election_model.dart';
