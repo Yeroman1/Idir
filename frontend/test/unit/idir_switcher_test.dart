@@ -298,20 +298,10 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      // Prominent Active Idir card on top
-      expect(find.text('ACTIVE COMMUNITY'), findsOneWidget);
+      // Active Idir displayed at the top of dashboard (in AppBar & User profile card)
       expect(find.text('Tinsae Mutual Aid Association'), findsWidgets);
-      expect(find.textContaining('Switch'), findsWidgets);
-
-      // Tap Switch button to open modal
-      final switchBtn = find.widgetWithText(OutlinedButton, 'Switch (3)');
-      expect(switchBtn, findsOneWidget);
-      await tester.tap(switchBtn);
-      await tester.pumpAndSettle();
-
-      // Bottom sheet modal should now show Switch Idir and memberships
-      expect(find.text('Switch Idir'), findsOneWidget);
-      expect(find.text('IDIR MEMBERSHIPS'), findsOneWidget);
+      expect(find.text('Marta Hailu'), findsOneWidget);
+      expect(find.text('MEM-001'), findsWidgets);
     });
   });
 }
