@@ -27,6 +27,7 @@ import {
   invitationRoutes,
   publicInvitationRoutes,
 } from './modules/invitations/invitations.routes.js';
+import { electionRoutes } from './modules/elections/elections.routes.js';
 
 export const app = express();
 
@@ -74,6 +75,7 @@ api.use('/idirs/:idirId/announcements', announcementRoutes);
 api.use('/idirs/:idirId/reports', reportRoutes);
 api.use('/idirs/:idirId/audit', auditRoutes);
 api.use('/idirs/:idirId/invitations', invitationRoutes);
+api.use('/idirs/:idirId/elections', electionRoutes);
 
 app.use(env.API_PREFIX, api);
 

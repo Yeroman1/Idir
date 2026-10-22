@@ -183,6 +183,24 @@ class ApiClient {
     );
   }
 
+  /// Core HTTP PATCH
+  Future<dynamic> patch(
+    String path, {
+    dynamic body,
+    Map<String, dynamic>? queryParams,
+    bool requiresAuth = true,
+  }) async {
+    return _sendWithRetry(
+      () => _buildUri(path, queryParams),
+      (uri, headers) => _client.patch(
+        uri,
+        headers: headers,
+        body: body != null ? jsonEncode(body) : null,
+      ),
+      requiresAuth: requiresAuth,
+    );
+  }
+
   /// Core HTTP DELETE
   Future<dynamic> delete(
     String path, {

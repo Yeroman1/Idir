@@ -29,7 +29,8 @@ void main() {
       expect(cached, isA<List<dynamic>>());
       final list = cached as List<dynamic>;
       expect(list.length, 1);
-      expect(list.first['receiptNumber'], 'REC-2026-101');
+      final firstItem = list.first as Map<String, dynamic>;
+      expect(firstItem['receiptNumber'], 'REC-2026-101');
 
       final cachedTime = await cacheService.getLastCachedTime(key);
       expect(cachedTime, isNotNull);
