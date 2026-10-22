@@ -17,6 +17,11 @@ import {
   updateStatementSchema,
   queryNominationsSchema,
 } from './nominations.validation.js';
+import { votingController } from './voting.controller.js';
+import {
+  castVoteSchema,
+  castBatchVotesSchema,
+} from './voting.validation.js';
 
 const router = Router({ mergeParams: true });
 
@@ -112,6 +117,36 @@ router.patch(
   '/:electionId/nominations/:nominationId/statement',
   validate({ body: updateStatementSchema }),
   nominationsController.updateStatement
+);
+
+/* ==========================================================================
+   VOTING & BALLOTS (Task 3)
+   ========================================================================== */
+
+// Get ballot with accepted candidates per contested role
+router.get(
+  '/:electionId/ballot',
+  votingController.getElectionBallot
+);
+
+// Get member voting status (voted roles, verification receipts)
+router.get(
+  '/:electionId/voting-status',
+  votingController.getMemberVotingStatus
+);
+
+// Cast a vote for a role (Fayda verified, one vote per role)
+router.post(
+  '/:electionId/vote',
+  validate({ body: castVoteSchema }),
+  votingController.castVote
+);
+
+// Cast multiple votes in batch
+router.post(
+  '/:electionId/vote/batch',
+  validate({ body: castBatchVotesSchema }),
+  votingController.castBatchVotes
 );
 
 export const electionRoutes = router;

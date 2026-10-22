@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:idir_app/core/models/app_user.dart';
 import 'package:idir_app/features/elections/domain/models/election_model.dart';
 import 'package:idir_app/features/elections/domain/models/nomination_model.dart';
+import 'package:idir_app/features/elections/domain/models/vote_receipt_model.dart';
 import 'package:idir_app/features/elections/data/elections_repository.dart';
 import 'package:idir_app/features/elections/presentation/providers/elections_provider.dart';
 
@@ -195,6 +196,52 @@ class MockElectionsRepository implements ElectionsRepository {
       nominatedByMembershipId: 'm-2',
       status: 'ACCEPTED',
     );
+  }
+
+  @override
+  Future<VoteReceiptModel> castVote({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String candidateNominationId,
+  }) async {
+    return VoteReceiptModel(
+      id: 'mock-receipt-1',
+      electionId: electionId,
+      role: role,
+      votedAt: DateTime.now(),
+      receiptTokenHash: 'mock-hash-1234',
+    );
+  }
+
+  @override
+  Future<VotingStatusModel> getVotingStatus({
+    required String idirId,
+    required String electionId,
+  }) async {
+    return const VotingStatusModel(
+      electionId: 'mock-election-uuid-1',
+      electionTitle: 'Mock Election',
+      ballotType: 'SECRET',
+      votingMethod: 'SIMPLE_MAJORITY',
+      isWindowOpen: true,
+      isFaydaVerified: true,
+      isTenureEligible: true,
+      canVote: true,
+      roles: ['CHAIRPERSON'],
+      votedRoles: [],
+      pendingRoles: ['CHAIRPERSON'],
+      receipts: [],
+      allRolesVoted: false,
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> getBallot({
+    required String idirId,
+    required String electionId,
+  }) async {
+    return {'electionId': electionId, 'roles': []};
   }
 }
 

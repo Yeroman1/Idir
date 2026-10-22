@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/elections_repository.dart';
 import '../../domain/models/election_model.dart';
 import '../../domain/models/nomination_model.dart';
+import '../../domain/models/vote_receipt_model.dart';
 
 class ElectionCreationState {
   const ElectionCreationState({
@@ -388,4 +389,119 @@ final nominationActionProvider =
     StateNotifierProvider<NominationActionNotifier, NominationActionState>((ref) {
   final repo = ref.watch(electionsRepositoryProvider);
   return NominationActionNotifier(repo);
+});
+
+/* ==========================================================================
+   VOTING PROVIDERS & ACTIONS (Task 3)
+   ========================================================================== */
+
+class VotingQueryArgs extends Equatable {
+  const VotingQueryArgs({
+    required this.idirId,
+    required this.electionId,
+  });
+
+  final String idirId;
+  final String electionId;
+
+  @override
+  List<Object?> get props => [idirId, electionId];
+}
+
+final votingStatusProvider =
+    FutureProvider.family<VotingStatusModel, VotingQueryArgs>((ref, args) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.getVotingStatus(
+    idirId: args.idirId,
+    electionId: args.electionId,
+  );
+});
+
+final electionBallotProvider =
+    FutureProvider.family<Map<String, dynamic>, VotingQueryArgs>((ref, args) async {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return repo.getBallot(
+    idirId: args.idirId,
+    electionId: args.electionId,
+  );
+});
+
+class VotingActionState {
+  const VotingActionState({
+    this.isVoting = false,
+    this.errorMessage,
+    this.successMessage,
+    this.lastReceipt,
+  });
+
+  final bool isVoting;
+  final String? errorMessage;
+  final String? successMessage;
+  final VoteReceiptModel? lastReceipt;
+
+  bool get isLoading => isVoting;
+
+  VotingActionState copyWith({
+    bool? isVoting,
+    String? errorMessage,
+    String? successMessage,
+    VoteReceiptModel? lastReceipt,
+  }) {
+    return VotingActionState(
+      isVoting: isVoting ?? this.isVoting,
+      errorMessage: errorMessage,
+      successMessage: successMessage,
+      lastReceipt: lastReceipt ?? this.lastReceipt,
+    );
+  }
+}
+
+class VotingActionNotifier extends StateNotifier<VotingActionState> {
+  VotingActionNotifier(this._repository) : super(const VotingActionState());
+
+  final ElectionsRepository _repository;
+
+  Future<bool> castVote({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String candidateNominationId,
+  }) async {
+    state = state.copyWith(isVoting: true, errorMessage: null, successMessage: null);
+    try {
+      final receipt = await _repository.castVote(
+        idirId: idirId,
+        electionId: electionId,
+        role: role,
+        candidateNominationId: candidateNominationId,
+      );
+
+      state = state.copyWith(
+        isVoting: false,
+        lastReceipt: receipt,
+        successMessage: 'Vote cast successfully for $role!',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isVoting: false,
+        errorMessage: e.toString().replaceAll('Exception: ', ''),
+      );
+      return false;
+    }
+  }
+
+  void clearError() {
+    state = state.copyWith(errorMessage: null);
+  }
+
+  void reset() {
+    state = const VotingActionState();
+  }
+}
+
+final votingActionProvider =
+    StateNotifierProvider<VotingActionNotifier, VotingActionState>((ref) {
+  final repo = ref.watch(electionsRepositoryProvider);
+  return VotingActionNotifier(repo);
 });

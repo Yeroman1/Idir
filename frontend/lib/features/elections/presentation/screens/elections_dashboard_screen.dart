@@ -7,6 +7,7 @@ import '../../../../core/models/app_user.dart';
 import '../../../../core/router/app_router.dart';
 import '../providers/elections_provider.dart';
 import 'candidates_and_nominations_screen.dart';
+import 'voting_booth_screen.dart';
 
 class ElectionsDashboardScreen extends ConsumerWidget {
   const ElectionsDashboardScreen({super.key, this.idirId = 'active-idir-id'});
@@ -189,22 +190,55 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => CandidatesAndNominationsScreen(
-                                  idirId: idirId,
-                                  election: election,
-                                ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => CandidatesAndNominationsScreen(
+                                      idirId: idirId,
+                                      election: election,
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.people_outline, size: 16),
+                              label: const Text('Candidates', style: TextStyle(fontSize: 13)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => VotingBoothScreen(
+                                      idirId: idirId,
+                                      election: election,
+                                    ),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: election.status.toUpperCase() == 'VOTING'
+                                    ? Colors.green.shade700
+                                    : null,
+                                foregroundColor: election.status.toUpperCase() == 'VOTING'
+                                    ? Colors.white
+                                    : null,
                               ),
-                            );
-                          },
-                          icon: const Icon(Icons.people_outline, size: 18),
-                          label: const Text('Candidates & Nominations'),
-                        ),
+                              icon: const Icon(Icons.how_to_vote, size: 16),
+                              label: Text(
+                                election.status.toUpperCase() == 'VOTING'
+                                    ? 'Vote Now'
+                                    : 'Voting Booth',
+                                style: const TextStyle(fontSize: 13),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

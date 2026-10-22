@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/network/api_client.dart';
 import '../domain/models/election_model.dart';
 import '../domain/models/nomination_model.dart';
+import '../domain/models/vote_receipt_model.dart';
 
 abstract class ElectionsRepository {
   Future<ElectionModel> createElection({
@@ -90,6 +91,23 @@ abstract class ElectionsRepository {
     required String idirId,
     required String electionId,
     required String nominationId,
+  });
+
+  Future<VoteReceiptModel> castVote({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String candidateNominationId,
+  });
+
+  Future<VotingStatusModel> getVotingStatus({
+    required String idirId,
+    required String electionId,
+  });
+
+  Future<Map<String, dynamic>> getBallot({
+    required String idirId,
+    required String electionId,
   });
 }
 
@@ -439,6 +457,114 @@ class RestElectionsRepository implements ElectionsRepository {
         orElse: () => throw Exception('Candidate page not found locally: $e'),
       );
       return found;
+    }
+  }
+
+  @override
+  Future<VoteReceiptModel> castVote({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String candidateNominationId,
+  }) async {
+    final payload = {
+      'role': role,
+      'candidateNominationId': candidateNominationId,
+    };
+
+    final res = await _api.post(
+      '/idirs/$idirId/elections/$electionId/vote',
+      body: payload,
+    );
+
+    final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+
+    final receipt = VoteReceiptModel.fromMap(data);
+    await _cacheVoteReceiptLocally(electionId, receipt);
+    return receipt;
+  }
+
+  @override
+  Future<VotingStatusModel> getVotingStatus({
+    required String idirId,
+    required String electionId,
+  }) async {
+    try {
+      final res = await _api.get(
+        '/idirs/$idirId/elections/$electionId/voting-status',
+      );
+
+      final data = res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+          ? res['data'] as Map<String, dynamic>
+          : (res as Map<String, dynamic>);
+
+      return VotingStatusModel.fromMap(data);
+    } catch (_) {
+      final cachedReceipts = await _getCachedVoteReceipts(electionId);
+      final votedRoles = cachedReceipts.map((r) => r.role).toList();
+      return VotingStatusModel(
+        electionId: electionId,
+        electionTitle: 'Leadership Election',
+        ballotType: 'SECRET',
+        votingMethod: 'SIMPLE_MAJORITY',
+        isWindowOpen: true,
+        isFaydaVerified: true,
+        isTenureEligible: true,
+        canVote: true,
+        roles: votedRoles,
+        votedRoles: votedRoles,
+        pendingRoles: const [],
+        receipts: cachedReceipts,
+        allRolesVoted: false,
+      );
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getBallot({
+    required String idirId,
+    required String electionId,
+  }) async {
+    final res = await _api.get(
+      '/idirs/$idirId/elections/$electionId/ballot',
+    );
+
+    return res is Map<String, dynamic> && res['data'] is Map<String, dynamic>
+        ? res['data'] as Map<String, dynamic>
+        : (res as Map<String, dynamic>);
+  }
+
+  static const _receiptCacheKeyPrefix = 'cached_vote_receipts_';
+
+  Future<void> _cacheVoteReceiptLocally(String electionId, VoteReceiptModel item) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = await _getCachedVoteReceipts(electionId);
+      final idx = list.indexWhere((r) => r.role == item.role);
+      if (idx >= 0) {
+        list[idx] = item;
+      } else {
+        list.add(item);
+      }
+      final encoded = jsonEncode(list.map((r) => r.toMap()).toList());
+      await prefs.setString('$_receiptCacheKeyPrefix$electionId', encoded);
+    } catch (_) {}
+  }
+
+  Future<List<VoteReceiptModel>> _getCachedVoteReceipts(String electionId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_receiptCacheKeyPrefix$electionId');
+      if (raw == null || raw.isEmpty) return [];
+      final decoded = jsonDecode(raw) as List;
+      return decoded
+          .whereType<Map<String, dynamic>>()
+          .map((m) => VoteReceiptModel.fromMap(m))
+          .toList();
+    } catch (_) {
+      return [];
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:idir_app/features/elections/domain/models/election_model.dart';
 import 'package:idir_app/features/elections/domain/models/nomination_model.dart';
+import 'package:idir_app/features/elections/domain/models/vote_receipt_model.dart';
 import 'package:idir_app/features/elections/data/elections_repository.dart';
 import 'package:idir_app/features/elections/presentation/providers/elections_provider.dart';
 
@@ -188,6 +189,29 @@ class MockNominationsRepository implements ElectionsRepository {
     required String idirId,
     required String electionId,
     required String reason,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<VoteReceiptModel> castVote({
+    required String idirId,
+    required String electionId,
+    required String role,
+    required String candidateNominationId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<VotingStatusModel> getVotingStatus({
+    required String idirId,
+    required String electionId,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> getBallot({
+    required String idirId,
+    required String electionId,
   }) =>
       throw UnimplementedError();
 }
