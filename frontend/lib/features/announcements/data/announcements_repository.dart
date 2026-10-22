@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/providers/active_idir_provider.dart';
 import '../../../core/storage/offline_cache_service.dart';
 import '../domain/models/announcement.dart';
 import 'rest_announcements_repository.dart';
@@ -213,10 +214,13 @@ final announcementsRepositoryProvider =
     Provider<AnnouncementsRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
+  final activeIdirId =
+      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
   return RestAnnouncementsRepository(
     apiClient: apiClient,
     cacheService: cache,
     ref: ref,
+    idirId: activeIdirId,
   );
 });
 

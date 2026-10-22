@@ -229,7 +229,7 @@ class RestAuthRepository implements AuthRepository {
       try {
         final res = await _apiClient.get('/auth/me');
         if (res is Map<String, dynamic>) {
-          final refreshed = _userFromBackendJson(res);
+          final refreshed = await _userFromBackendJson(res);
           await _cacheUser(refreshed);
           return refreshed;
         }
@@ -314,7 +314,7 @@ class RestAuthRepository implements AuthRepository {
     return _userFromBackendJson(userData);
   }
 
-  AppUser _userFromBackendJson(Map<String, dynamic> json) {
+  Future<AppUser> _userFromBackendJson(Map<String, dynamic> json) async {
     final uid = json['id'] as String? ?? json['uid'] as String? ?? '';
     final name = json['fullName'] as String? ?? json['name'] as String? ?? '';
     final phone = json['phoneNumber'] as String? ?? json['phone'] as String? ?? '';
@@ -322,26 +322,41 @@ class RestAuthRepository implements AuthRepository {
     final isActive = json['status'] == 'ACTIVE' || json['isActive'] == true;
     final createdAt = DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now();
 
+    final prefs = await SharedPreferences.getInstance();
+    final preferredActiveIdirId = prefs.getString(AppConstants.prefActiveIdirId);
+
     // Determine role, member ID, and Idir affiliation from memberships array
     UserRole role = UserRole.member;
     String memberId = 'IDIR-${uid.isNotEmpty ? uid.substring(0, uid.length.clamp(0, 6)) : "001"}';
     String? idirId;
     String? idirName;
 
-    final memberships = json['memberships'] as List<dynamic>?;
-    if (memberships != null && memberships.isNotEmpty) {
-      final primary = memberships.first as Map<String, dynamic>;
-      final roleStr = (primary['role'] as String? ?? '').toUpperCase();
-      memberId = primary['memberNumber'] as String? ?? memberId;
-      idirId = primary['idirId'] as String? ?? (primary['idir'] as Map<String, dynamic>?)?['id'] as String?;
-      idirName = (primary['idir'] as Map<String, dynamic>?)?['name'] as String?;
+    final membershipsRaw = json['memberships'] as List<dynamic>?;
+    final List<UserMembership> memberships = [];
 
-      role = switch (roleStr) {
-        'CREATOR' || 'CHAIRPERSON' => UserRole.chairperson,
-        'TREASURER' => UserRole.treasurer,
-        'AUDITOR' || 'SECRETARY' => UserRole.auditor,
-        _ => UserRole.member,
-      };
+    if (membershipsRaw != null && membershipsRaw.isNotEmpty) {
+      for (final item in membershipsRaw) {
+        if (item is Map<String, dynamic>) {
+          memberships.add(UserMembership.fromMap(item));
+        }
+      }
+
+      // Pick active membership based on user preference or first available
+      UserMembership? selected;
+      if (preferredActiveIdirId != null) {
+        selected = memberships.where((m) => m.idirId == preferredActiveIdirId).firstOrNull;
+      }
+      selected ??= memberships.first;
+
+      role = selected.role;
+      memberId = selected.memberNumber.isNotEmpty ? selected.memberNumber : memberId;
+      idirId = selected.idirId;
+      idirName = selected.idirName;
+
+      // Persist active ID if not set
+      if (preferredActiveIdirId == null && idirId.isNotEmpty) {
+        await prefs.setString(AppConstants.prefActiveIdirId, idirId);
+      }
     } else if (json['role'] != null) {
       role = UserRoleX.fromString(json['role'] as String);
     }
@@ -357,11 +372,17 @@ class RestAuthRepository implements AuthRepository {
       faydaId: faydaId,
       idirId: idirId,
       idirName: idirName,
+      memberships: memberships,
       isFaydaVerified: faydaId != null && faydaId.trim().isNotEmpty,
     );
   }
 
   AppUser _userFromMap(Map<String, dynamic> map) {
+    final membershipsList = (map['memberships'] as List<dynamic>?)
+            ?.map((m) => UserMembership.fromMap(m as Map<String, dynamic>))
+            .toList() ??
+        const [];
+
     return AppUser(
       uid: map['uid'] as String? ?? '',
       name: map['name'] as String? ?? '',
@@ -373,6 +394,7 @@ class RestAuthRepository implements AuthRepository {
       faydaId: map['faydaId'] as String?,
       idirId: map['idirId'] as String?,
       idirName: map['idirName'] as String?,
+      memberships: membershipsList,
       isFaydaVerified: map['isFaydaVerified'] as bool? ??
           (map['faydaId'] != null && (map['faydaId'] as String).trim().isNotEmpty),
     );
@@ -393,6 +415,7 @@ class RestAuthRepository implements AuthRepository {
       if (user.faydaId != null) 'faydaId': user.faydaId,
       if (user.idirId != null) 'idirId': user.idirId,
       if (user.idirName != null) 'idirName': user.idirName,
+      'memberships': user.memberships.map((m) => m.toMap()).toList(),
       'isFaydaVerified': user.isFaydaVerified,
     };
 

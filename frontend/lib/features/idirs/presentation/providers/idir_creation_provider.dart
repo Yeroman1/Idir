@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/models/app_user.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../data/idirs_repository.dart';
 import '../../domain/models/idir_model.dart';
 
@@ -122,6 +124,20 @@ class CreateIdirNotifier extends StateNotifier<CreateIdirState> {
       );
 
       _ref.read(userDraftIdirProvider.notifier).setDraft(idir);
+      await _ref.read(activeIdirProvider.notifier).addAndSwitchIdir(
+            UserMembership(
+              id: idir.id,
+              idirId: idir.id,
+              idirName: idir.name,
+              role: UserRole.chairperson,
+              memberNumber: 'CREATOR-01',
+              status: idir.status,
+              community: idir.community,
+              location: idir.location,
+              contributionAmount: idir.contributionAmount,
+              contributionFrequency: idir.contributionFrequency,
+            ),
+          );
       state = state.copyWith(isLoading: false, createdIdir: idir);
       return true;
     } catch (e) {

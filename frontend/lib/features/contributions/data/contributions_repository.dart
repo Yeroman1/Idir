@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/storage/offline_cache_service.dart';
 import '../../members/data/members_repository.dart';
 import '../domain/models/contribution.dart';
@@ -337,11 +338,14 @@ final contributionsRepositoryProvider =
   final cache = ref.watch(offlineCacheServiceProvider);
   final membersRepo = ref.watch(membersRepositoryProvider);
   final calc = ref.watch(balanceCalculatorServiceProvider);
+  final activeIdirId =
+      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
   return RestContributionsRepository(
     apiClient: apiClient,
     cacheService: cache,
     ref: ref,
     membersRepository: membersRepo,
     balanceCalculator: calc,
+    idirId: activeIdirId,
   );
 });

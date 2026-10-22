@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/providers/active_idir_provider.dart';
 import '../../../core/storage/offline_cache_service.dart';
 import '../../expenses/data/expenses_repository.dart';
 import '../../expenses/domain/models/expense.dart';
@@ -355,10 +356,13 @@ class FirestoreClaimsRepository implements ClaimsRepository {
 final claimsRepositoryProvider = Provider<ClaimsRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
+  final activeIdirId =
+      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
   return RestClaimsRepository(
     apiClient: apiClient,
     cacheService: cache,
     ref: ref,
+    idirId: activeIdirId,
   );
 });
 

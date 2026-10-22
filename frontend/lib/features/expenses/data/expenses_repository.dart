@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/providers/active_idir_provider.dart';
 import '../../../core/storage/offline_cache_service.dart';
 import '../domain/models/expense.dart';
 import 'rest_expenses_repository.dart';
@@ -225,10 +226,13 @@ class FirestoreExpensesRepository implements ExpensesRepository {
 final expensesRepositoryProvider = Provider<ExpensesRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
+  final activeIdirId =
+      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
   return RestExpensesRepository(
     apiClient: apiClient,
     cacheService: cache,
     ref: ref,
+    idirId: activeIdirId,
   );
 });
 

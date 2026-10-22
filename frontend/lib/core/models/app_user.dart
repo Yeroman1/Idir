@@ -52,6 +52,119 @@ extension UserRoleX on UserRole {
   bool get canManageElections => this == UserRole.chairperson;
 }
 
+/// Domain model representing a user's membership in a specific Idir association.
+class UserMembership extends Equatable {
+  const UserMembership({
+    required this.id,
+    required this.idirId,
+    required this.idirName,
+    required this.role,
+    required this.memberNumber,
+    required this.status,
+    this.community,
+    this.location,
+    this.contributionAmount,
+    this.contributionFrequency,
+  });
+
+  factory UserMembership.fromMap(Map<String, dynamic> map) {
+    final roleStr = (map['role'] as String? ?? 'member').toUpperCase();
+    final role = switch (roleStr) {
+      'CREATOR' || 'CHAIRPERSON' => UserRole.chairperson,
+      'TREASURER' => UserRole.treasurer,
+      'AUDITOR' || 'SECRETARY' => UserRole.auditor,
+      _ => UserRole.member,
+    };
+    final idirMap = map['idir'] as Map<String, dynamic>?;
+    return UserMembership(
+      id: map['id'] as String? ?? map['idirId'] as String? ?? '',
+      idirId: map['idirId'] as String? ?? idirMap?['id'] as String? ?? '',
+      idirName: map['idirName'] as String? ?? idirMap?['name'] as String? ?? 'Idir Community',
+      role: role,
+      memberNumber: map['memberNumber'] as String? ?? '',
+      status: map['status'] as String? ?? idirMap?['status'] as String? ?? 'ACTIVE',
+      community: map['community'] as String? ?? idirMap?['community'] as String?,
+      location: map['location'] as String? ?? idirMap?['location'] as String?,
+      contributionAmount: (map['contributionAmount'] != null)
+          ? double.tryParse(map['contributionAmount'].toString())
+          : (idirMap?['contributionAmount'] != null
+              ? double.tryParse(idirMap!['contributionAmount'].toString())
+              : null),
+      contributionFrequency: map['contributionFrequency'] as String? ??
+          idirMap?['contributionFrequency'] as String?,
+    );
+  }
+
+  final String id;
+  final String idirId;
+  final String idirName;
+  final UserRole role;
+  final String memberNumber;
+  final String status;
+  final String? community;
+  final String? location;
+  final double? contributionAmount;
+  final String? contributionFrequency;
+
+  bool get isActive => status.toUpperCase() == 'ACTIVE';
+  bool get isDraft => status.toUpperCase() == 'DRAFT';
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'idirId': idirId,
+        'idirName': idirName,
+        'role': role.name,
+        'memberNumber': memberNumber,
+        'status': status,
+        if (community != null) 'community': community,
+        if (location != null) 'location': location,
+        if (contributionAmount != null) 'contributionAmount': contributionAmount,
+        if (contributionFrequency != null)
+          'contributionFrequency': contributionFrequency,
+      };
+
+  UserMembership copyWith({
+    String? id,
+    String? idirId,
+    String? idirName,
+    UserRole? role,
+    String? memberNumber,
+    String? status,
+    String? community,
+    String? location,
+    double? contributionAmount,
+    String? contributionFrequency,
+  }) {
+    return UserMembership(
+      id: id ?? this.id,
+      idirId: idirId ?? this.idirId,
+      idirName: idirName ?? this.idirName,
+      role: role ?? this.role,
+      memberNumber: memberNumber ?? this.memberNumber,
+      status: status ?? this.status,
+      community: community ?? this.community,
+      location: location ?? this.location,
+      contributionAmount: contributionAmount ?? this.contributionAmount,
+      contributionFrequency:
+          contributionFrequency ?? this.contributionFrequency,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        idirId,
+        idirName,
+        role,
+        memberNumber,
+        status,
+        community,
+        location,
+        contributionAmount,
+        contributionFrequency,
+      ];
+}
+
 /// Domain model for an authenticated user.
 class AppUser extends Equatable {
   const AppUser({
@@ -65,10 +178,16 @@ class AppUser extends Equatable {
     this.faydaId,
     this.idirId,
     this.idirName,
+    this.memberships = const [],
     bool? isFaydaVerified,
   }) : _isFaydaVerified = isFaydaVerified;
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
+    final membershipsList = (map['memberships'] as List<dynamic>?)
+            ?.map((m) => UserMembership.fromMap(m as Map<String, dynamic>))
+            .toList() ??
+        const [];
+
     return AppUser(
       uid: uid,
       name: map['name'] as String? ?? '',
@@ -76,12 +195,18 @@ class AppUser extends Equatable {
       role: UserRoleX.fromString(map['role'] as String? ?? 'member'),
       memberId: map['memberId'] as String? ?? '',
       isActive: map['isActive'] as bool? ?? true,
-      createdAt: (map['createdAt'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: switch (map['createdAt']) {
+        DateTime dt => dt,
+        Object obj => DateTime.tryParse(obj.toString()) ?? DateTime.now(),
+        _ => DateTime.now(),
+      },
       faydaId: map['faydaId'] as String?,
       idirId: map['idirId'] as String?,
       idirName: map['idirName'] as String?,
+      memberships: membershipsList,
       isFaydaVerified: map['isFaydaVerified'] as bool? ??
-          (map['faydaId'] != null && (map['faydaId'] as String).trim().isNotEmpty),
+          (map['faydaId'] is String &&
+              (map['faydaId'] as String).trim().isNotEmpty),
     );
   }
 
@@ -95,6 +220,7 @@ class AppUser extends Equatable {
   final String? faydaId;
   final String? idirId;
   final String? idirName;
+  final List<UserMembership> memberships;
   final bool? _isFaydaVerified;
 
   bool get isFaydaVerified =>
@@ -112,6 +238,7 @@ class AppUser extends Equatable {
         if (faydaId != null) 'faydaId': faydaId,
         if (idirId != null) 'idirId': idirId,
         if (idirName != null) 'idirName': idirName,
+        'memberships': memberships.map((m) => m.toMap()).toList(),
         'isFaydaVerified': isFaydaVerified,
       };
 
@@ -126,6 +253,7 @@ class AppUser extends Equatable {
     String? faydaId,
     String? idirId,
     String? idirName,
+    List<UserMembership>? memberships,
     bool? isFaydaVerified,
   }) {
     return AppUser(
@@ -139,6 +267,7 @@ class AppUser extends Equatable {
       faydaId: faydaId ?? this.faydaId,
       idirId: idirId ?? this.idirId,
       idirName: idirName ?? this.idirName,
+      memberships: memberships ?? this.memberships,
       isFaydaVerified: isFaydaVerified ??
           (faydaId != null ? faydaId.trim().isNotEmpty : this.isFaydaVerified),
     );
@@ -156,6 +285,7 @@ class AppUser extends Equatable {
         faydaId,
         idirId,
         idirName,
+        memberships,
         isFaydaVerified,
       ];
 }

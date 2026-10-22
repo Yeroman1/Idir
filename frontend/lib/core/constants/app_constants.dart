@@ -6,6 +6,7 @@ abstract final class AppConstants {
   static const prefThemeMode = 'theme_mode';
   static const prefPinEnabled = 'pin_enabled';
   static const prefLastActiveTimestamp = 'last_active_timestamp';
+  static const prefActiveIdirId = 'active_idir_id';
 
   // Firestore collection names
   static const colUsers = 'users';

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/models/app_user.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/providers/pin_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
@@ -14,6 +15,7 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/offline_indicator_bar.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../widgets/telegram_idir_switcher.dart';
 
 // ─── Settings Providers ────────────────────────────────────────────────────────
 
@@ -326,8 +328,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final pinState = ref.watch(pinNotifierProvider);
     final locale = ref.watch(localeProvider);
     final themeMode = ref.watch(themeModeProvider);
-    final monthlyDues = ref.watch(_monthlyDuesProvider);
-    final assocName = ref.watch(_associationNameProvider);
+    final activeIdir = ref.watch(currentActiveIdirProvider);
+    final double monthlyDues =
+        activeIdir?.contributionAmount ?? ref.watch(_monthlyDuesProvider);
+    final String assocName =
+        activeIdir?.idirName ?? ref.watch(_associationNameProvider);
     final syncState = ref.watch(syncProvider);
 
     return Scaffold(
@@ -337,6 +342,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          // ── Section: Account & Telegram-Style Idir Switcher ───────────────
+          const _SectionHeader(
+            icon: Icons.account_circle_outlined,
+            label: 'Account & Idir Profiles',
+            color: AppColors.primary,
+          ),
+          const TelegramIdirSwitcherSection(),
+          const SizedBox(height: 8),
+
           // ── Section: Association Configuration ────────────────────────────
           const _SectionHeader(
             icon: Icons.business_outlined,
