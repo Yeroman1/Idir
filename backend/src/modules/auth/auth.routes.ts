@@ -7,10 +7,15 @@ import {
   registerSchema,
   loginSchema,
   refreshTokenSchema,
+  sendEmailOtpSchema,
+  verifyEmailOtpSchema,
+  completeEmailRegistrationSchema,
+  emailLoginSchema,
 } from './auth.validation.js';
 
 const router = Router();
 
+// ── Standard Phone/Credentials Auth ──────────────────────────────────────────
 router.post(
   '/register',
   authLimiter,
@@ -42,6 +47,35 @@ router.get(
   '/me',
   authenticate,
   authController.me
+);
+
+// ── Email OTP Registration Flow (Zero External APIs Required) ────────────────
+router.post(
+  '/email/send-otp',
+  authLimiter,
+  validate({ body: sendEmailOtpSchema }),
+  authController.sendEmailOtp
+);
+
+router.post(
+  '/email/verify-otp',
+  authLimiter,
+  validate({ body: verifyEmailOtpSchema }),
+  authController.verifyEmailOtp
+);
+
+router.post(
+  '/email/complete-registration',
+  authLimiter,
+  validate({ body: completeEmailRegistrationSchema }),
+  authController.completeEmailRegistration
+);
+
+router.post(
+  '/email/login',
+  authLimiter,
+  validate({ body: emailLoginSchema }),
+  authController.emailLogin
 );
 
 export const authRoutes = router;

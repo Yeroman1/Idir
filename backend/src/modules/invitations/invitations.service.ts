@@ -12,15 +12,18 @@ import {
   hashInvitationToken,
 } from './invitation-crypto.js';
 import { smsService } from './sms.service.js';
+import { sendInvitationEmail } from '../auth/email.mailer.js';
 
 export interface SkippedInvitation {
-  phoneNumber: string;
+  phoneNumber?: string;
+  email?: string;
   reason: string;
 }
 
 export interface SentInvitationItem {
   id: string;
-  phoneNumber: string;
+  phoneNumber?: string | null;
+  email?: string | null;
   inviteUrl: string;
   expiresAt: Date;
 }
@@ -34,23 +37,23 @@ export interface BatchInvitationResult {
 
 export class InvitationsService {
   /**
-   * Dispatches invitations in bulk to a list of Ethiopian mobile phone numbers.
+   * Dispatches invitations in bulk to a list of Ethiopian mobile phone numbers and/or email addresses.
    *
    * Enforces:
    * 1. Actor is Idir creator or an active officer (CREATOR, CHAIRPERSON, SECRETARY, OFFICER).
    * 2. Hourly rate limit of max 100 invitations per Idir.
-   * 3. Normalization to E.164 (+2519... or +2517...).
+   * 3. Normalization of phone numbers to E.164 (+2519... or +2517...) and valid emails.
    * 4. Deduplication within the batch.
    * 5. Skipping existing active members.
    * 6. Cryptographic token generation (only SHA-256 hash persisted).
-   * 7. Dispatching SMS via SmsService.
+   * 7. Dispatching SMS via SmsService or email via sendInvitationEmail.
    */
   async sendBatchInvitations(
     idirId: string,
     actorId: string,
-    phoneNumbers: string[],
+    phoneNumbers: string[] = [],
     expiresInDays = 7,
-    options?: { baseUrl?: string; maxPerHour?: number }
+    options?: { baseUrl?: string; maxPerHour?: number; emails?: string[] }
   ): Promise<BatchInvitationResult> {
     const idir = await prisma.idir.findUnique({
       where: { id: idirId },
@@ -90,6 +93,14 @@ export class InvitationsService {
       );
     }
 
+    const actorUser = await prisma.user.findUnique({
+      where: { id: actorId },
+      select: { fullName: true },
+    });
+
+    const emails = options?.emails || [];
+    const totalInputCount = phoneNumbers.length + emails.length;
+
     // Rate limit check: Maximum 100 invitations per Idir per hour
     const maxPerHour = options?.maxPerHour ?? 100;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -100,7 +111,7 @@ export class InvitationsService {
       },
     });
 
-    if (recentInvitationsCount + phoneNumbers.length > maxPerHour) {
+    if (recentInvitationsCount + totalInputCount > maxPerHour) {
       throw new RateLimitError(
         `Invitation rate limit exceeded: Maximum ${maxPerHour} invitations allowed per hour. Already sent: ${recentInvitationsCount}`
       );
@@ -116,9 +127,12 @@ export class InvitationsService {
     const created: SentInvitationItem[] = [];
     const skipped: SkippedInvitation[] = [];
     const seenNumbersInBatch = new Set<string>();
+    const seenEmailsInBatch = new Set<string>();
 
+    // ── Process Phone Numbers ───────────────────────────────────────────────
     for (const rawPhone of phoneNumbers) {
-      // 1. Phone number format validation & normalization
+      if (!rawPhone || !rawPhone.trim()) continue;
+
       let normalized: string;
       try {
         normalized = normalizeEthPhone(rawPhone);
@@ -130,7 +144,6 @@ export class InvitationsService {
         continue;
       }
 
-      // 2. In-batch deduplication
       if (seenNumbersInBatch.has(normalized)) {
         skipped.push({
           phoneNumber: rawPhone,
@@ -140,7 +153,6 @@ export class InvitationsService {
       }
       seenNumbersInBatch.add(normalized);
 
-      // 3. Check if user is registered in the database
       const rawDigits = normalized.replace(/\D/g, '');
       const localPhone = '0' + rawDigits.slice(3);
       const compactPhone = rawDigits.slice(3);
@@ -166,7 +178,6 @@ export class InvitationsService {
         continue;
       }
 
-      // 4. Skip if user is already an active member of this Idir
       const activeMember = await prisma.membership.findFirst({
         where: {
           idirId,
@@ -184,40 +195,40 @@ export class InvitationsService {
         continue;
       }
 
-      // 4. Generate high-entropy cryptographic token
       const { rawToken, tokenHash } = generateInvitationToken();
 
-      // 5. Upsert invitation (refreshes if previously invited)
-      const invitation = await prisma.invitation.upsert({
-        where: {
-          idirId_phoneNumber: {
-            idirId,
-            phoneNumber: normalized,
-          },
-        },
-        create: {
-          idirId,
-          phoneNumber: normalized,
-          tokenHash,
-          status: 'PENDING',
-          expiresAt,
-          createdById: actorId,
-        },
-        update: {
-          tokenHash,
-          status: 'PENDING',
-          expiresAt,
-          createdById: actorId,
-          usedAt: null,
-          revokedAt: null,
-          revokedById: null,
-        },
+      const existing = await prisma.invitation.findFirst({
+        where: { idirId, phoneNumber: normalized, status: 'PENDING' },
       });
 
-      // 6. Form full public invitation URL
-      const inviteUrl = `${baseUrl}/invitation?token=${rawToken}`;
+      let invitation;
+      if (existing) {
+        invitation = await prisma.invitation.update({
+          where: { id: existing.id },
+          data: {
+            tokenHash,
+            status: 'PENDING',
+            expiresAt,
+            createdById: actorId,
+            usedAt: null,
+            revokedAt: null,
+            revokedById: null,
+          },
+        });
+      } else {
+        invitation = await prisma.invitation.create({
+          data: {
+            idirId,
+            phoneNumber: normalized,
+            tokenHash,
+            status: 'PENDING',
+            expiresAt,
+            createdById: actorId,
+          },
+        });
+      }
 
-      // 7. Dispatch SMS notification
+      const inviteUrl = `${baseUrl}/invitation?token=${rawToken}`;
       await smsService.sendInvitationSms(normalized, idir.name, inviteUrl);
 
       created.push({
@@ -228,8 +239,101 @@ export class InvitationsService {
       });
     }
 
+    // ── Process Emails ──────────────────────────────────────────────────────
+    for (const rawEmail of emails) {
+      if (!rawEmail || !rawEmail.trim()) continue;
+      const normalized = rawEmail.trim().toLowerCase();
+
+      if (!normalized.includes('@') || !normalized.includes('.')) {
+        skipped.push({
+          email: rawEmail,
+          reason: 'Invalid email address format',
+        });
+        continue;
+      }
+
+      if (seenEmailsInBatch.has(normalized)) {
+        skipped.push({
+          email: rawEmail,
+          reason: 'Duplicate email in current batch request',
+        });
+        continue;
+      }
+      seenEmailsInBatch.add(normalized);
+
+      // Check if user is registered with this email
+      const registeredUser = await prisma.user.findFirst({
+        where: { email: { equals: normalized, mode: 'insensitive' } },
+        select: { id: true, fullName: true, email: true },
+      });
+
+      if (registeredUser) {
+        const activeMember = await prisma.membership.findFirst({
+          where: {
+            idirId,
+            userId: registeredUser.id,
+            status: 'ACTIVE',
+          },
+          select: { id: true },
+        });
+
+        if (activeMember) {
+          skipped.push({
+            email: normalized,
+            reason: `${registeredUser.fullName} is already an active member of this Idir`,
+          });
+          continue;
+        }
+      }
+
+      const { rawToken, tokenHash } = generateInvitationToken();
+
+      const existing = await prisma.invitation.findFirst({
+        where: { idirId, email: normalized, status: 'PENDING' },
+      });
+
+      let invitation;
+      if (existing) {
+        invitation = await prisma.invitation.update({
+          where: { id: existing.id },
+          data: {
+            tokenHash,
+            status: 'PENDING',
+            expiresAt,
+            createdById: actorId,
+            usedAt: null,
+            revokedAt: null,
+            revokedById: null,
+          },
+        });
+      } else {
+        invitation = await prisma.invitation.create({
+          data: {
+            idirId,
+            email: normalized,
+            tokenHash,
+            status: 'PENDING',
+            expiresAt,
+            createdById: actorId,
+          },
+        });
+      }
+
+      const inviteUrl = `${baseUrl}/invitation?token=${rawToken}`;
+
+      // Dispatch invitation email using Gmail SMTP / Resend
+      await sendInvitationEmail(normalized, idir.name, inviteUrl, actorUser?.fullName);
+
+      created.push({
+        id: invitation.id,
+        email: normalized,
+        inviteUrl,
+        expiresAt,
+      });
+    }
+
     return {
-      totalRequested: phoneNumbers.length,
+      totalRequested: totalInputCount,
       sentCount: created.length,
       invitations: created,
       skipped,
@@ -237,52 +341,72 @@ export class InvitationsService {
   }
 
   /**
-   * Pre-check if a user is registered before sending an invitation.
+   * Pre-check if a user is registered by phone number or email before sending an invitation.
    */
   async checkUserRegistration(
     idirId: string,
     actorId: string,
-    rawPhone: string
+    identifier: string
   ): Promise<{
     exists: boolean;
-    user?: { id: string; fullName: string; phoneNumber: string };
+    user?: { id: string; fullName: string; phoneNumber?: string | null; email?: string | null };
     isAlreadyMember?: boolean;
     message: string;
   }> {
     await this.assertCanManageInvitations(idirId, actorId);
 
-    let normalized: string;
-    try {
-      normalized = normalizeEthPhone(rawPhone);
-    } catch (e: any) {
-      return {
-        exists: false,
-        message: e?.message || 'Invalid Ethiopian mobile phone number format',
-      };
+    const cleanInput = identifier.trim();
+    if (!cleanInput) {
+      return { exists: false, message: 'Please provide a phone number or email address.' };
     }
 
-    const rawDigits = normalized.replace(/\D/g, '');
-    const localPhone = '0' + rawDigits.slice(3);
-    const compactPhone = rawDigits.slice(3);
+    let registeredUser;
 
-    const registeredUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { phoneNumber: normalized },
-          { phoneNumber: localPhone },
-          { phoneNumber: compactPhone },
-          { phoneNumber: rawDigits },
-          { phoneNumber: rawPhone.trim() },
-        ],
-      },
-      select: { id: true, fullName: true, phoneNumber: true },
-    });
+    if (cleanInput.includes('@')) {
+      registeredUser = await prisma.user.findFirst({
+        where: { email: { equals: cleanInput, mode: 'insensitive' } },
+        select: { id: true, fullName: true, phoneNumber: true, email: true },
+      });
+      if (!registeredUser) {
+        return {
+          exists: false,
+          message: `No user found registered with email "${cleanInput}". The user must register first.`,
+        };
+      }
+    } else {
+      let normalized: string;
+      try {
+        normalized = normalizeEthPhone(cleanInput);
+      } catch (e: any) {
+        return {
+          exists: false,
+          message: e?.message || 'Invalid Ethiopian mobile phone number format',
+        };
+      }
 
-    if (!registeredUser) {
-      return {
-        exists: false,
-        message: `No user found registered with phone number "${rawPhone}". The user must register first.`,
-      };
+      const rawDigits = normalized.replace(/\D/g, '');
+      const localPhone = '0' + rawDigits.slice(3);
+      const compactPhone = rawDigits.slice(3);
+
+      registeredUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { phoneNumber: normalized },
+            { phoneNumber: localPhone },
+            { phoneNumber: compactPhone },
+            { phoneNumber: rawDigits },
+            { phoneNumber: cleanInput },
+          ],
+        },
+        select: { id: true, fullName: true, phoneNumber: true, email: true },
+      });
+
+      if (!registeredUser) {
+        return {
+          exists: false,
+          message: `No user found registered with phone number "${cleanInput}". The user must register first.`,
+        };
+      }
     }
 
     const activeMember = await prisma.membership.findFirst({
@@ -307,7 +431,7 @@ export class InvitationsService {
       exists: true,
       user: registeredUser,
       isAlreadyMember: false,
-      message: `User found: ${registeredUser.fullName} (${registeredUser.phoneNumber}).`,
+      message: `User found: ${registeredUser.fullName} (${registeredUser.email || registeredUser.phoneNumber}).`,
     };
   }
 
@@ -387,6 +511,7 @@ export class InvitationsService {
       valid: true,
       invitation: {
         phoneNumber: invitation.phoneNumber,
+        email: invitation.email,
         expiresAt: invitation.expiresAt,
       },
       idir: invitation.idir,
@@ -447,39 +572,45 @@ export class InvitationsService {
       },
     });
 
-    await prisma.$transaction(async (tx) => {
-      if (existingMembership) {
-        if (existingMembership.status !== 'ACTIVE') {
-          await tx.membership.update({
-            where: { id: existingMembership.id },
-            data: { status: 'ACTIVE' },
+    await prisma.$transaction(
+      async (tx) => {
+        if (existingMembership) {
+          if (existingMembership.status !== 'ACTIVE') {
+            await tx.membership.update({
+              where: { id: existingMembership.id },
+              data: { status: 'ACTIVE' },
+            });
+          }
+        } else {
+          const count = await tx.membership.count({
+            where: { idirId: invitation.idirId },
+          });
+          const memberNumber = `M-${(count + 1).toString().padStart(4, '0')}`;
+
+          await tx.membership.create({
+            data: {
+              idirId: invitation.idirId,
+              userId,
+              memberNumber,
+              role: 'MEMBER',
+              status: 'ACTIVE',
+            },
           });
         }
-      } else {
-        const count = await tx.membership.count({
-          where: { idirId: invitation.idirId },
-        });
-        const memberNumber = `M-${(count + 1).toString().padStart(4, '0')}`;
 
-        await tx.membership.create({
+        await tx.invitation.update({
+          where: { id: invitation.id },
           data: {
-            idirId: invitation.idirId,
-            userId,
-            memberNumber,
-            role: 'MEMBER',
-            status: 'ACTIVE',
+            status: 'ACCEPTED',
+            usedAt: now,
           },
         });
+      },
+      {
+        maxWait: 15000,
+        timeout: 30000,
       }
-
-      await tx.invitation.update({
-        where: { id: invitation.id },
-        data: {
-          status: 'ACCEPTED',
-          usedAt: now,
-        },
-      });
-    });
+    );
 
     return {
       success: true,
@@ -501,6 +632,7 @@ export class InvitationsService {
       select: {
         id: true,
         phoneNumber: true,
+        email: true,
         status: true,
         expiresAt: true,
         usedAt: true,

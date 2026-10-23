@@ -81,7 +81,7 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
         ),
       ),
       body: SafeArea(
-        child: isFaydaVerified
+        child: user != null
             ? _buildCreateForm(context, theme, user, state)
             : _buildUnverifiedNotice(context, theme),
       ),

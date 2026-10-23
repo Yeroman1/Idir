@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -51,6 +52,11 @@ class _PublicInvitationScreenState extends ConsumerState<PublicInvitationScreen>
             action: action,
           );
 
+      if (action == 'ACCEPT') {
+        await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
+        await ref.read(activeIdirProvider.notifier).reloadIdirs();
+      }
+
       setState(() {
         _isResponding = false;
         _responseSuccessMessage = res['message']?.toString() ??
@@ -88,7 +94,7 @@ class _PublicInvitationScreenState extends ConsumerState<PublicInvitationScreen>
           FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              context.go(AppRoutes.login);
+              context.go(AppRoutes.supabaseLogin);
             },
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             child: const Text('Log In'),

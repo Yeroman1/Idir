@@ -1,7 +1,8 @@
 class InvitationItem {
   const InvitationItem({
     required this.id,
-    required this.phoneNumber,
+    this.phoneNumber = '',
+    this.email = '',
     required this.inviteUrl,
     required this.expiresAt,
   });
@@ -10,6 +11,7 @@ class InvitationItem {
     return InvitationItem(
       id: map['id']?.toString() ?? '',
       phoneNumber: map['phoneNumber']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
       inviteUrl: map['inviteUrl']?.toString() ?? '',
       expiresAt: map['expiresAt'] != null
           ? DateTime.tryParse(map['expiresAt'].toString()) ?? DateTime.now()
@@ -19,25 +21,33 @@ class InvitationItem {
 
   final String id;
   final String phoneNumber;
+  final String email;
   final String inviteUrl;
   final DateTime expiresAt;
+
+  String get target => email.isNotEmpty ? email : phoneNumber;
 }
 
 class SkippedInvitation {
   const SkippedInvitation({
-    required this.phoneNumber,
+    this.phoneNumber = '',
+    this.email = '',
     required this.reason,
   });
 
   factory SkippedInvitation.fromMap(Map<String, dynamic> map) {
     return SkippedInvitation(
       phoneNumber: map['phoneNumber']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
       reason: map['reason']?.toString() ?? '',
     );
   }
 
   final String phoneNumber;
+  final String email;
   final String reason;
+
+  String get target => email.isNotEmpty ? email : phoneNumber;
 }
 
 class BatchInvitationResult {
@@ -75,7 +85,8 @@ class BatchInvitationResult {
 
 class PublicInvitationDetails {
   const PublicInvitationDetails({
-    required this.phoneNumber,
+    this.phoneNumber = '',
+    this.email = '',
     required this.expiresAt,
     required this.idirId,
     required this.idirName,
@@ -93,6 +104,7 @@ class PublicInvitationDetails {
 
     return PublicInvitationDetails(
       phoneNumber: inv['phoneNumber']?.toString() ?? '',
+      email: inv['email']?.toString() ?? '',
       expiresAt: inv['expiresAt'] != null
           ? DateTime.tryParse(inv['expiresAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -102,12 +114,13 @@ class PublicInvitationDetails {
       location: idir['location']?.toString() ?? '',
       purpose: idir['purpose']?.toString() ?? '',
       rules: idir['rules']?.toString() ?? '',
-      contributionAmount: (idir['contributionAmount'] as num?)?.toDouble() ?? 0.0,
+      contributionAmount: (idir['contributionAmount'] as num?)?.toDouble() ?? 100.0,
       contributionFrequency: idir['contributionFrequency']?.toString() ?? 'MONTHLY',
     );
   }
 
   final String phoneNumber;
+  final String email;
   final DateTime expiresAt;
   final String idirId;
   final String idirName;
@@ -118,4 +131,5 @@ class PublicInvitationDetails {
   final double contributionAmount;
   final String contributionFrequency;
 }
+
 

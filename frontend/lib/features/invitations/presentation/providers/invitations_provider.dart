@@ -33,7 +33,8 @@ class InvitationNotifier extends StateNotifier<InvitationState> {
 
   Future<bool> sendBatch({
     required String idirId,
-    required List<String> phoneNumbers,
+    List<String> phoneNumbers = const [],
+    List<String> emails = const [],
     int expiresInDays = 7,
   }) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -42,6 +43,7 @@ class InvitationNotifier extends StateNotifier<InvitationState> {
       final res = await _repository.sendBatchInvitations(
         idirId: idirId,
         phoneNumbers: phoneNumbers,
+        emails: emails,
         expiresInDays: expiresInDays,
       );
 

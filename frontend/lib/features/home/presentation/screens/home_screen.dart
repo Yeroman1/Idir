@@ -186,7 +186,6 @@ class HomeScreen extends ConsumerWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 10),
             _QuickActionsGrid(
               userRole: effectiveRole,
               l10n: l10n,
@@ -196,6 +195,21 @@ class HomeScreen extends ConsumerWidget {
                   context: context,
                   builder: (_) => const RecordContributionDialog(),
                 );
+              },
+              onInviteMember: () {
+                final targetId = activeIdir?.idirId ?? draftIdir?.id;
+                final targetName = activeIdir?.idirName ?? draftIdir?.name ?? 'Idir';
+                if (targetId != null) {
+                  showDialog(
+                    context: context,
+                    builder: (_) => InviteMembersDialog(
+                      idirId: targetId,
+                      idirName: targetName,
+                    ),
+                  );
+                } else {
+                  context.push(AppRoutes.membersAdd);
+                }
               },
             ),
             const SizedBox(height: 24),
@@ -680,7 +694,7 @@ class _DraftIdirDashboardCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 10),
               ),
               icon: const Icon(Icons.person_add_alt_1, size: 18),
-              label: const Text('Invite Members by Phone'),
+              label: const Text('Invite Members (Email / Phone)'),
             ),
           ),
         ],
@@ -1801,12 +1815,14 @@ class _QuickActionsGrid extends StatelessWidget {
     required this.userRole,
     required this.l10n,
     required this.onRecordPayment,
+    this.onInviteMember,
     this.isDraft = false,
   });
 
   final UserRole userRole;
   final AppLocalizations l10n;
   final VoidCallback onRecordPayment;
+  final VoidCallback? onInviteMember;
   final bool isDraft;
 
   @override
@@ -1827,7 +1843,7 @@ class _QuickActionsGrid extends StatelessWidget {
             icon: Icons.person_add_alt_1,
             label: l10n.actionAddMember,
             color: AppColors.primary,
-            onTap: () => context.push(AppRoutes.membersAdd),
+            onTap: onInviteMember ?? () => context.push(AppRoutes.membersAdd),
           ),
           _ActionTile(
             icon: Icons.assignment_outlined,
@@ -1847,9 +1863,9 @@ class _QuickActionsGrid extends StatelessWidget {
         actions.addAll([
           _ActionTile(
             icon: Icons.person_add_alt_1,
-            label: l10n.actionAddMember,
+            label: 'Invite Member',
             color: AppColors.primary,
-            onTap: () => context.push(AppRoutes.membersAdd),
+            onTap: onInviteMember ?? () => context.push(AppRoutes.membersAdd),
           ),
           _ActionTile(
             icon: Icons.fact_check_outlined,

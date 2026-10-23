@@ -14,13 +14,14 @@ export class InvitationsController {
   ): Promise<void> {
     try {
       const idirId = req.params.idirId;
-      const { phoneNumbers, expiresInDays } = req.body as BatchInviteInput;
+      const { phoneNumbers = [], emails = [], expiresInDays = 7 } = req.body as BatchInviteInput;
 
       const result = await invitationsService.sendBatchInvitations(
         idirId,
         req.user!.id,
         phoneNumbers,
-        expiresInDays
+        expiresInDays,
+        { emails }
       );
 
       res.status(201).json({
@@ -34,8 +35,8 @@ export class InvitationsController {
   }
 
   /**
-   * Check if a phone number corresponds to a registered user before inviting.
-   * GET /api/v1/idirs/:idirId/invitations/check-user?phone=...
+   * Check if a phone number or email corresponds to a registered user before inviting.
+   * GET /api/v1/idirs/:idirId/invitations/check-user?phone=... or ?email=...
    */
   async checkUser(
     req: AuthenticatedRequest,
@@ -44,12 +45,12 @@ export class InvitationsController {
   ): Promise<void> {
     try {
       const idirId = req.params.idirId;
-      const phone = (req.query.phone as string) || '';
+      const identifier = (req.query.email as string) || (req.query.phone as string) || '';
 
       const result = await invitationsService.checkUserRegistration(
         idirId,
         req.user!.id,
-        phone
+        identifier
       );
 
       res.status(200).json({

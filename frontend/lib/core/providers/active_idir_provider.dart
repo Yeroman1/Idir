@@ -49,12 +49,17 @@ class ActiveIdirState extends Equatable {
 
 class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
   ActiveIdirNotifier(this._ref)
-      : super(ActiveIdirState(
-          availableIdirs: _defaultSampleIdirs(),
-          activeIdir: _defaultSampleIdirs().first,
+      : super(const ActiveIdirState(
+          availableIdirs: [],
+          activeIdir: null,
           isLoading: false,
         )) {
     _init();
+    _ref.listen<AppUser?>(currentUserProvider, (prev, next) {
+      if (prev != next) {
+        reloadIdirs();
+      }
+    });
   }
 
   final Ref _ref;
@@ -127,8 +132,8 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
         }
       } catch (_) {}
 
-      // 4. If still empty, provide standard demo Idirs so switcher is always testable & rich
-      if (list.isEmpty) {
+      // 4. If still empty AND no user is logged in, provide standard demo Idirs
+      if (list.isEmpty && user == null) {
         final defaults = _defaultSampleIdirs();
         for (final d in defaults) {
           addMembership(d);
