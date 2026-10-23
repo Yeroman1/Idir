@@ -54,6 +54,8 @@ class EthiopianPhoneInputFormatter extends TextInputFormatter {
   }
 }
 
+enum InviteMode { email, phone }
+
 class InviteMembersDialog extends ConsumerStatefulWidget {
   const InviteMembersDialog({
     super.key,
@@ -70,24 +72,53 @@ class InviteMembersDialog extends ConsumerStatefulWidget {
 
 class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  InviteMode _inviteMode = InviteMode.email;
   int _expiresInDays = 7;
   String? _localError;
   Timer? _debounceTimer;
   bool _isCheckingUser = false;
   Map<String, dynamic>? _userCheckResult;
 
+  static final RegExp _emailRegex =
+      RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+
   @override
   void initState() {
     super.initState();
     _phoneController.addListener(_onPhoneChanged);
+    _emailController.addListener(_onEmailChanged);
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
     _phoneController.removeListener(_onPhoneChanged);
+    _emailController.removeListener(_onEmailChanged);
     _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
+  }
+
+  void _onEmailChanged() {
+    _debounceTimer?.cancel();
+    final email = _emailController.text.trim();
+
+    if (_localError != null) {
+      _localError = null;
+    }
+
+    if (_emailRegex.hasMatch(email)) {
+      _debounceTimer = Timer(const Duration(milliseconds: 400), () {
+        _checkUser(email: email);
+      });
+    } else {
+      if (_userCheckResult != null || _isCheckingUser) {
+        _userCheckResult = null;
+        _isCheckingUser = false;
+      }
+    }
+    setState(() {});
   }
 
   void _onPhoneChanged() {
@@ -101,7 +132,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
     if (digits.length == 9) {
       final fullPhone = '+251$digits';
       _debounceTimer = Timer(const Duration(milliseconds: 350), () {
-        _checkSingleUser(fullPhone);
+        _checkUser(phone: fullPhone);
       });
     } else {
       if (_userCheckResult != null || _isCheckingUser) {
@@ -112,7 +143,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
     setState(() {});
   }
 
-  Future<void> _checkSingleUser(String phone) async {
+  Future<void> _checkUser({String? phone, String? email}) async {
     setState(() {
       _isCheckingUser = true;
       _userCheckResult = null;
@@ -122,6 +153,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
       final res = await ref.read(invitationsRepositoryProvider).checkUserRegistration(
             idirId: widget.idirId,
             phone: phone,
+            email: email,
           );
       if (mounted) {
         setState(() {
@@ -139,46 +171,74 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
   }
 
   Future<void> _submit() async {
-    final digits = _phoneController.text.trim();
-    if (digits.isEmpty) {
-      setState(() {
-        _localError = 'Please enter an Ethiopian mobile phone number.';
-      });
-      return;
+    setState(() => _localError = null);
+
+    if (_inviteMode == InviteMode.email) {
+      final email = _emailController.text.trim();
+      if (email.isEmpty) {
+        setState(() {
+          _localError = 'Please enter an email address.';
+        });
+        return;
+      }
+
+      if (!_emailRegex.hasMatch(email)) {
+        setState(() {
+          _localError = 'Please enter a valid email address (e.g. name@example.com).';
+        });
+        return;
+      }
+
+      if (_userCheckResult != null && _userCheckResult!['isAlreadyMember'] == true) {
+        setState(() {
+          _localError = 'This user is already an active member of this Idir.';
+        });
+        return;
+      }
+
+      await ref.read(invitationNotifierProvider.notifier).sendBatch(
+            idirId: widget.idirId,
+            emails: [email],
+            expiresInDays: _expiresInDays,
+          );
+    } else {
+      final digits = _phoneController.text.trim();
+      if (digits.isEmpty) {
+        setState(() {
+          _localError = 'Please enter an Ethiopian mobile phone number.';
+        });
+        return;
+      }
+
+      if (digits.length != 9) {
+        setState(() {
+          _localError = 'Phone number must be exactly 9 digits (e.g. 911223344).';
+        });
+        return;
+      }
+
+      if (!digits.startsWith('9') && !digits.startsWith('7')) {
+        setState(() {
+          _localError = 'Ethiopian mobile number must start with 9 or 7 (e.g. 911223344).';
+        });
+        return;
+      }
+
+      final fullPhone = '+251$digits';
+
+      if (_userCheckResult != null && _userCheckResult!['exists'] == false) {
+        setState(() {
+          _localError = 'No user found with phone number "$fullPhone". User must register first.';
+        });
+        return;
+      }
+
+      await ref.read(invitationNotifierProvider.notifier).sendBatch(
+            idirId: widget.idirId,
+            phoneNumbers: [fullPhone],
+            expiresInDays: _expiresInDays,
+          );
     }
-
-    if (digits.length != 9) {
-      setState(() {
-        _localError = 'Phone number must be exactly 9 digits (e.g. 911223344).';
-      });
-      return;
-    }
-
-    if (!digits.startsWith('9') && !digits.startsWith('7')) {
-      setState(() {
-        _localError = 'Ethiopian mobile number must start with 9 or 7 (e.g. 911223344).';
-      });
-      return;
-    }
-
-    final fullPhone = '+251$digits';
-
-    if (_userCheckResult != null && _userCheckResult!['exists'] == false) {
-      setState(() {
-        _localError = 'No user found with phone number "$fullPhone". User must register first.';
-      });
-      return;
-    }
-
-    setState(() {
-      _localError = null;
-    });
-
-    await ref.read(invitationNotifierProvider.notifier).sendBatch(
-          idirId: widget.idirId,
-          phoneNumbers: [fullPhone],
-          expiresInDays: _expiresInDays,
-        );
   }
 
   @override
@@ -265,6 +325,11 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                         onPressed: () {
                           ref.read(invitationNotifierProvider.notifier).reset();
                           _phoneController.clear();
+                          _emailController.clear();
+                          setState(() {
+                            _localError = null;
+                            _userCheckResult = null;
+                          });
                         },
                         child: const Text('Invite Another', overflow: TextOverflow.ellipsis),
                       ),
@@ -305,7 +370,11 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                               )
                             : const Icon(Icons.send_rounded, size: 16),
                         label: Text(
-                          state.isLoading ? 'Sending...' : 'Send SMS Invite',
+                          state.isLoading
+                              ? 'Sending...'
+                              : (_inviteMode == InviteMode.email
+                                  ? 'Send Email Invite'
+                                  : 'Send SMS Invite'),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -326,86 +395,162 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Ethiopian Mobile Number',
-          style: theme.textTheme.labelMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Enter the 9-digit mobile number. The invitee receives an SMS with a secure personal join link.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _phoneController,
-          maxLines: 1,
-          maxLength: 9,
-          keyboardType: TextInputType.phone,
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => _submit(),
-          inputFormatters: [
-            EthiopianPhoneInputFormatter(),
-          ],
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 1.0,
-          ),
-          decoration: InputDecoration(
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            prefixIcon: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                border: Border(
-                  right: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.5),
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.phone_android_outlined, size: 18, color: AppColors.primary),
-                  const SizedBox(width: 6),
-                  Text(
-                    '+251',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
+        // Mode Selector: Email vs Phone
+        SegmentedButton<InviteMode>(
+          segments: const [
+            ButtonSegment(
+              value: InviteMode.email,
+              label: Text('Email'),
+              icon: Icon(Icons.email_outlined, size: 18),
             ),
-            prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
-            hintText: '911223344',
-            hintStyle: TextStyle(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+            ButtonSegment(
+              value: InviteMode.phone,
+              label: Text('Phone'),
+              icon: Icon(Icons.phone_android_outlined, size: 18),
+            ),
+          ],
+          selected: {_inviteMode},
+          onSelectionChanged: (newSelection) {
+            setState(() {
+              _inviteMode = newSelection.first;
+              _localError = null;
+              _userCheckResult = null;
+            });
+          },
+        ),
+        const SizedBox(height: 16),
+
+        if (_inviteMode == InviteMode.email) ...[
+          Text(
+            'Invitee Email Address',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enter the email address of the invitee. They will receive an email invitation with their personal secure join link.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _emailController,
+            maxLines: 1,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primary, size: 20),
+              hintText: 'e.g. member@example.com',
+              hintStyle: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              suffixIcon: _emailController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 16),
+                      tooltip: 'Clear',
+                      splashRadius: 16,
+                      onPressed: () {
+                        _emailController.clear();
+                      },
+                    )
+                  : null,
+            ),
+          ),
+        ] else ...[
+          Text(
+            'Ethiopian Mobile Number',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Enter the 9-digit mobile number. The invitee receives an SMS with a secure personal join link.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _phoneController,
+            maxLines: 1,
+            maxLength: 9,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => _submit(),
+            inputFormatters: [
+              EthiopianPhoneInputFormatter(),
+            ],
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
               letterSpacing: 1.0,
             ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              prefixIcon: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(
+                      color: theme.dividerColor.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.phone_android_outlined, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      '+251',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+              hintText: '911223344',
+              hintStyle: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+                letterSpacing: 1.0,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              counterText: '',
+              suffixIcon: _phoneController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 16),
+                      tooltip: 'Clear',
+                      splashRadius: 16,
+                      onPressed: () {
+                        _phoneController.clear();
+                      },
+                    )
+                  : null,
             ),
-            counterText: '',
-            suffixIcon: _phoneController.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, size: 16),
-                    tooltip: 'Clear',
-                    splashRadius: 16,
-                    onPressed: () {
-                      _phoneController.clear();
-                    },
-                  )
-                : null,
           ),
-        ),
+        ],
+
         if (_isCheckingUser) ...[
           const SizedBox(height: 8),
           Row(
@@ -417,7 +562,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Checking registered user...',
+                'Checking user...',
                 style: TextStyle(
                   fontSize: 12,
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
@@ -456,7 +601,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                   Expanded(
                     child: Text(
                       _userCheckResult!['message']?.toString() ??
-                          'Registered user: ${((_userCheckResult!['user'] as Map<String, dynamic>?)?['fullName']) ?? ''}',
+                          'User: ${((_userCheckResult!['user'] as Map<String, dynamic>?)?['fullName']) ?? ''}',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -469,7 +614,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                 ],
               ),
             ),
-          ] else ...[
+          ] else if (_inviteMode == InviteMode.phone) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
@@ -571,7 +716,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '${result.sentCount} invitation sent successfully via SMS!',
+                    '${result.sentCount} invitation sent successfully via ${_inviteMode == InviteMode.email ? 'Email' : 'SMS'}!',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.success,
@@ -589,25 +734,27 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.person_off_outlined, color: AppColors.error, size: 24),
-                SizedBox(width: 10),
+                const Icon(Icons.error_outline, color: AppColors.error, size: 24),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'No Invitations Sent',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: AppColors.error,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        'The entered phone number does not belong to a registered user. The user must register first before receiving an invitation.',
-                        style: TextStyle(fontSize: 11),
+                        _inviteMode == InviteMode.email
+                            ? 'The invitation could not be sent. Please verify the email address.'
+                            : 'The entered phone number does not belong to a registered user. The user must register first before receiving an invitation.',
+                        style: const TextStyle(fontSize: 11),
                       ),
                     ],
                   ),
@@ -618,51 +765,55 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
         if (result.invitations.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(
-            'Generated Joining Links:',
+            'Generated Invitation Links:',
             style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-        ...result.invitations.map((inv) => Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-                side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
-              ),
-              child: ListTile(
-                dense: true,
-                leading: const Icon(Icons.link, color: AppColors.primary, size: 20),
-                title: Text(
-                  inv.phoneNumber,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ...result.invitations.map((inv) => Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5)),
                 ),
-                subtitle: Text(
-                  inv.inviteUrl,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11),
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(
+                    _inviteMode == InviteMode.email ? Icons.email_outlined : Icons.link,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                  title: Text(
+                    inv.target,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  subtitle: Text(
+                    inv.inviteUrl,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.copy, size: 18),
+                    tooltip: 'Copy Invite Link',
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: inv.inviteUrl));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Link for ${inv.target} copied to clipboard!'),
+                          duration: const Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
                 ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.copy, size: 18),
-                  tooltip: 'Copy Invite Link',
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: inv.inviteUrl));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Link for ${inv.phoneNumber} copied to clipboard!'),
-                        duration: const Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            )),
+              )),
         ],
         if (result.skipped.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(
-            'Skipped Numbers (${result.skipped.length}):',
+            'Skipped (${result.skipped.length}):',
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.warning,
@@ -682,7 +833,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                     const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.warning),
                     const SizedBox(width: 8),
                     Text(
-                      skip.phoneNumber,
+                      skip.target,
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                     ),
                     const SizedBox(width: 8),

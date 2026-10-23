@@ -177,9 +177,14 @@ enum InvitationStatus {
 model User {
   id                String       @id @default(uuid())
   fullName          String
+  firstName         String?
+  middleName        String?
+  lastName          String?
   phoneNumber       String       @unique
   email             String?      @unique
   passwordHash      String
+  address           String?
+  dateOfBirth       DateTime?
   preferredLanguage String       @default("am") // 'am', 'en', 'om'
   faydaId           String?      @unique // Ethiopian National ID
   status            UserStatus   @default(ACTIVE)
@@ -701,7 +706,8 @@ model Invitation {
   id          String           @id @default(uuid())
   idirId      String
   idir        Idir             @relation(fields: [idirId], references: [id], onDelete: Cascade)
-  phoneNumber String
+  phoneNumber String?
+  email       String?
   tokenHash   String           @unique
   status      InvitationStatus @default(PENDING)
   expiresAt   DateTime
@@ -715,7 +721,8 @@ model Invitation {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  @@unique([idirId, phoneNumber])
+  @@index([idirId, phoneNumber])
+  @@index([idirId, email])
   @@index([tokenHash])
   @@index([idirId, status])
 }

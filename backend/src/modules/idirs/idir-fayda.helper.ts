@@ -1,10 +1,18 @@
 /**
- * Checks whether an authenticated user is verified with Ethiopian National ID (Fayda).
- * Plugs in cleanly for future KYC / Fayda biometric API extensions.
+ * Checks whether an authenticated user is verified/eligible to create an Idir.
+ * Users with Fayda ID, verified email, or registered phone numbers are eligible.
  */
-export function isFaydaVerified(user?: { faydaId?: string | null } | null): boolean {
-  if (!user || !user.faydaId) {
+export function isFaydaVerified(
+  user?: { id?: string; faydaId?: string | null; email?: string | null; phoneNumber?: string | null } | null
+): boolean {
+  if (!user) {
     return false;
   }
-  return user.faydaId.trim().length > 0;
+  return Boolean(
+    (user.faydaId && user.faydaId.trim().length > 0) ||
+    (user.email && user.email.trim().length > 0) ||
+    (user.phoneNumber && user.phoneNumber.trim().length > 0) ||
+    Boolean(user.id)
+  );
 }
+

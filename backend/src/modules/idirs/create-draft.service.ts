@@ -64,13 +64,13 @@ export class CreateDraftIdirService {
         },
       });
 
-      // 4. Assign creator as CREATOR membership
+      // 4. Assign creator as CHAIRPERSON membership
       const membership = await tx.membership.create({
         data: {
           idirId: idir.id,
           userId: creatorUserId,
           memberNumber: 'IDIR-001',
-          role: 'CREATOR',
+          role: 'CHAIRPERSON',
           status: 'ACTIVE',
         },
       });
@@ -91,6 +91,9 @@ export class CreateDraftIdirService {
         ...idir,
         membership,
       };
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     });
   }
 }

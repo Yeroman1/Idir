@@ -295,6 +295,13 @@ class RestAuthRepository implements AuthRepository {
     await prefs.setBool(AppConstants.prefIsLoggedIn, false);
   }
 
+  @override
+  Future<AppUser> setSessionFromAuthResponse(Map<String, dynamic> responseData) async {
+    final appUser = await _parseUserResponse(responseData);
+    await _cacheUser(appUser);
+    return appUser;
+  }
+
   Future<AppUser> _parseUserResponse(dynamic res) async {
     if (res is! Map<String, dynamic>) {
       throw Exception('Unexpected response format from authentication server');

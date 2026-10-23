@@ -5,13 +5,15 @@ import '../domain/models/invitation_result.dart';
 abstract class InvitationsRepository {
   Future<BatchInvitationResult> sendBatchInvitations({
     required String idirId,
-    required List<String> phoneNumbers,
+    List<String> phoneNumbers = const [],
+    List<String> emails = const [],
     int expiresInDays = 7,
   });
 
   Future<Map<String, dynamic>> checkUserRegistration({
     required String idirId,
-    required String phone,
+    String? phone,
+    String? email,
   });
 
   Future<PublicInvitationDetails> verifyToken(String token);
@@ -30,11 +32,13 @@ class RestInvitationsRepository implements InvitationsRepository {
   @override
   Future<BatchInvitationResult> sendBatchInvitations({
     required String idirId,
-    required List<String> phoneNumbers,
+    List<String> phoneNumbers = const [],
+    List<String> emails = const [],
     int expiresInDays = 7,
   }) async {
     final payload = {
-      'phoneNumbers': phoneNumbers,
+      if (phoneNumbers.isNotEmpty) 'phoneNumbers': phoneNumbers,
+      if (emails.isNotEmpty) 'emails': emails,
       'expiresInDays': expiresInDays,
     };
 
@@ -53,10 +57,13 @@ class RestInvitationsRepository implements InvitationsRepository {
   @override
   Future<Map<String, dynamic>> checkUserRegistration({
     required String idirId,
-    required String phone,
+    String? phone,
+    String? email,
   }) async {
-    final encodedPhone = Uri.encodeComponent(phone.trim());
-    final res = await _api.get('/idirs/$idirId/invitations/check-user?phone=$encodedPhone');
+    final query = email != null && email.isNotEmpty
+        ? 'email=${Uri.encodeComponent(email.trim())}'
+        : 'phone=${Uri.encodeComponent((phone ?? '').trim())}';
+    final res = await _api.get('/idirs/$idirId/invitations/check-user?$query');
 
     if (res is Map<String, dynamic>) {
       return res['data'] is Map<String, dynamic>

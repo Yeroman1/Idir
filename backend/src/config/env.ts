@@ -19,6 +19,14 @@ const envSchema = z.object({
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().default(100),
   CORS_ORIGIN: z.string().default('*'),
   LOG_LEVEL: z.string().default('info'),
+  // Optional email dispatch settings
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().default('Idir App <onboarding@resend.dev>'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_SECURE: z.coerce.boolean().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

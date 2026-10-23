@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/models/app_user.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../invitations/presentation/widgets/invite_members_dialog.dart';
 import '../../domain/models/member.dart';
 import '../providers/members_provider.dart';
 
@@ -29,6 +31,23 @@ class MembersScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.membersTitle),
         actions: [
+          if (canManage)
+            IconButton(
+              icon: const Icon(Icons.email_outlined),
+              tooltip: 'Invite Member by Email / Phone',
+              onPressed: () {
+                final activeIdir = ref.read(activeIdirProvider).activeIdir;
+                if (activeIdir != null) {
+                  showDialog(
+                    context: context,
+                    builder: (_) => InviteMembersDialog(
+                      idirId: activeIdir.idirId,
+                      idirName: activeIdir.idirName,
+                    ),
+                  );
+                }
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
@@ -59,10 +78,34 @@ class MembersScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: canManage
-          ? FloatingActionButton.extended(
-              onPressed: () => context.push('${AppRoutes.members}/add'),
-              icon: const Icon(Icons.person_add),
-              label: Text(l10n.addMember),
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.extended(
+                  heroTag: 'invite_member_fab',
+                  onPressed: () {
+                    final activeIdir = ref.read(activeIdirProvider).activeIdir;
+                    if (activeIdir != null) {
+                      showDialog(
+                        context: context,
+                        builder: (_) => InviteMembersDialog(
+                          idirId: activeIdir.idirId,
+                          idirName: activeIdir.idirName,
+                        ),
+                      );
+                    }
+                  },
+                  backgroundColor: AppColors.secondary,
+                  icon: const Icon(Icons.email_outlined),
+                  label: const Text('Invite Member'),
+                ),
+                const SizedBox(width: 10),
+                FloatingActionButton(
+                  heroTag: 'add_member_fab',
+                  onPressed: () => context.push('${AppRoutes.members}/add'),
+                  child: const Icon(Icons.person_add),
+                ),
+              ],
             )
           : null,
       body: Column(

@@ -2,8 +2,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/firebase/firebase_options.dart';
+import 'features/supabase_auth/config/supabase_config.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/providers/locale_provider.dart';
@@ -27,6 +29,21 @@ Future<void> main() async {
     );
   } catch (e) {
     debugPrint('Firebase initialization notice: $e');
+  }
+
+  if (SupabaseConfig.isConfigured) {
+    try {
+      await Supabase.initialize(
+        url: SupabaseConfig.supabaseUrl,
+        anonKey: SupabaseConfig.supabaseAnonKey,
+      );
+    } catch (e) {
+      debugPrint('Supabase initialization notice: $e');
+    }
+  } else {
+    debugPrint(
+      'Supabase email auth: set SUPABASE_URL and SUPABASE_ANON_KEY via --dart-define to enable.',
+    );
   }
 
   runApp(

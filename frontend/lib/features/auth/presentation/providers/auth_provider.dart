@@ -270,6 +270,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     );
   }
 
+  /// Sets authenticated session from email login or registration completion response.
+  Future<void> setSessionFromAuthResponse(Map<String, dynamic> responseData) async {
+    state = state.copyWith(isLoading: true, errorMessage: () => null);
+    try {
+      final user = await _repository.setSessionFromAuthResponse(responseData);
+      state = state.copyWith(
+        user: () => user,
+        isLoading: false,
+        errorMessage: () => null,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: () => e.toString().replaceFirst('Exception: ', ''),
+      );
+      rethrow;
+    }
+  }
+
   /// Legacy signIn fallback
   Future<bool> signIn({
     required String email,

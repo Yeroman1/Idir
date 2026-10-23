@@ -40,6 +40,7 @@ abstract class AuthRepository {
   Future<void> signOut();
   Future<AppUser?> getCurrentUser();
   Future<void> updateProfile(AppUser user);
+  Future<AppUser> setSessionFromAuthResponse(Map<String, dynamic> responseData);
 }
 
 class FirebaseAuthRepository implements AuthRepository {
@@ -402,6 +403,13 @@ class FirebaseAuthRepository implements AuthRepository {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConstants.prefIsLoggedIn, false);
     await prefs.remove(_prefCachedUser);
+  }
+
+  @override
+  Future<AppUser> setSessionFromAuthResponse(Map<String, dynamic> responseData) async {
+    final user = demoUsers.first;
+    await _cacheUser(user);
+    return user;
   }
 }
 

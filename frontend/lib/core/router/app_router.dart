@@ -5,6 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/account_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/supabase_auth/screens/create_password_screen.dart';
+import '../../features/supabase_auth/screens/home_screen.dart' as supabase_auth;
+import '../../features/supabase_auth/screens/login_screen.dart' as supabase_auth;
+import '../../features/supabase_auth/screens/otp_verification_screen.dart';
+import '../../features/supabase_auth/screens/registration_screen.dart';
 import '../../features/auth/presentation/screens/pin_screen.dart';
 import '../../features/audit/presentation/screens/audit_log_screen.dart';
 import '../../features/announcements/presentation/screens/announcements_screen.dart';
@@ -41,7 +46,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
-    initialLocation: AppRoutes.login,
+    initialLocation: AppRoutes.supabaseLogin,
     debugLogDiagnostics: false,
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
@@ -57,14 +62,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── 1. Unauthenticated users must stay on Login ────────────────────
       if (!isAuthenticated) {
-        if (loc == AppRoutes.login || loc.startsWith(AppRoutes.invitation)) {
+        if (loc == AppRoutes.login ||
+            loc.startsWith(AppRoutes.invitation) ||
+            _isSupabaseEmailAuthRoute(loc)) {
           return null;
         }
-        return AppRoutes.login;
+        return AppRoutes.supabaseLogin;
       }
 
       // ── 2. Authenticated user attempting to visit Login ────────────────
-      if (loc == AppRoutes.login) {
+      if (loc == AppRoutes.login || loc == AppRoutes.supabaseLogin) {
         if (pin.isSet && !pin.isUnlocked) {
           return AppRoutes.pin;
         }
@@ -208,6 +215,40 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const CreateElectionScreen(),
       ),
 
+      // ── Supabase Email Auth Routes ──────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.supabaseLogin,
+        name: 'supabaseLogin',
+        builder: (_, __) => const supabase_auth.LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.supabaseRegister,
+        name: 'supabaseRegister',
+        builder: (_, __) => const RegistrationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.supabaseVerifyOtp,
+        name: 'supabaseVerifyOtp',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return OtpVerificationScreen(email: email);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.supabaseCreatePassword,
+        name: 'supabaseCreatePassword',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          final token = state.uri.queryParameters['token'] ?? '';
+          return CreatePasswordScreen(email: email, registrationToken: token);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.supabaseHome,
+        name: 'supabaseHome',
+        builder: (_, __) => const supabase_auth.HomeScreen(),
+      ),
+
       // ── Shell (Bottom Navigation Tabs) ──────────────────────────────────
       mainShellRoute,
     ],
@@ -215,6 +256,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
+bool _isSupabaseEmailAuthRoute(String loc) {
+  return loc == AppRoutes.supabaseLogin ||
+      loc == AppRoutes.supabaseRegister ||
+      loc.startsWith(AppRoutes.supabaseVerifyOtp) ||
+      loc.startsWith(AppRoutes.supabaseCreatePassword) ||
+      loc == AppRoutes.supabaseHome;
+}
 
 // ─── Error screen ─────────────────────────────────────────────────────────────
 class _ErrorScreen extends StatelessWidget {
@@ -243,6 +291,13 @@ abstract final class AppRoutes {
   static const pinChange = '/pin-change';
   static const accessDenied = '/access-denied';
   static const account = '/account';
+
+  // Supabase Auth routes
+  static const supabaseLogin = '/supabase-login';
+  static const supabaseRegister = '/supabase-register';
+  static const supabaseVerifyOtp = '/supabase-verify-otp';
+  static const supabaseCreatePassword = '/supabase-create-password';
+  static const supabaseHome = '/supabase-home';
 
   // Bottom navigation tabs
   static const home = '/home';
