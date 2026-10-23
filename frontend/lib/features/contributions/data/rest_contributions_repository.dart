@@ -5,8 +5,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/storage/offline_cache_service.dart';
+import '../../auth/presentation/providers/auth_provider.dart';
 import '../../members/data/members_repository.dart';
 import '../domain/models/contribution.dart';
 import '../domain/services/balance_calculator_service.dart';
@@ -45,7 +47,15 @@ class RestContributionsRepository implements ContributionsRepository {
   final BalanceCalculatorService _balanceCalculator;
   final String _idirId;
 
-  static const _cacheKey = 'cache_contributions';
+  String get _currentIdirId {
+    final active = _ref.read(currentActiveIdirProvider)?.idirId ??
+        _ref.read(currentUserProvider)?.idirId;
+    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') return active;
+    if (_idirId.isNotEmpty && _idirId != '00000000-0000-0000-0000-000000000001') return _idirId;
+    return AppConstants.defaultIdirId;
+  }
+
+  String get _cacheKey => 'cache_contributions_$_currentIdirId';
   final List<Contribution> _inMemoryItems = [];
   late final StreamController<List<Contribution>> _streamController;
 
@@ -69,8 +79,9 @@ class RestContributionsRepository implements ContributionsRepository {
 
   @override
   Future<List<Contribution>> getContributions() async {
+    final activeId = _currentIdirId;
     try {
-      final res = await _api.get('/idirs/$_idirId/contributions', queryParams: {'limit': 100});
+      final res = await _api.get('/idirs/$activeId/contributions', queryParams: {'limit': 100});
       List<dynamic> rawItems = [];
       if (res is Map<String, dynamic> && res.containsKey('items')) {
         rawItems = res['items'] as List<dynamic>? ?? [];
@@ -80,13 +91,11 @@ class RestContributionsRepository implements ContributionsRepository {
 
       final parsed = rawItems.map((e) => _fromBackendJson(e as Map<String, dynamic>)).toList();
 
-      if (parsed.isNotEmpty) {
-        _inMemoryItems.clear();
-        _inMemoryItems.addAll(parsed);
-        await _saveToCache(_inMemoryItems);
-        _streamController.add(List.unmodifiable(_inMemoryItems));
-        return List.unmodifiable(_inMemoryItems);
-      }
+      _inMemoryItems.clear();
+      _inMemoryItems.addAll(parsed);
+      await _saveToCache(_inMemoryItems);
+      _streamController.add(List.unmodifiable(_inMemoryItems));
+      return List.unmodifiable(_inMemoryItems);
     } on ApiException catch (e) {
       debugPrint('[RestContributionsRepository] Fetching live contributions failed (offline=${e.isOffline}): $e');
     } catch (e) {
@@ -100,14 +109,6 @@ class RestContributionsRepository implements ContributionsRepository {
       _inMemoryItems.addAll(cached);
       _streamController.add(List.unmodifiable(_inMemoryItems));
       return List.unmodifiable(_inMemoryItems);
-    }
-
-    // If completely empty on first launch, load initial fallback demo items
-    if (_inMemoryItems.isEmpty) {
-      final seed = _generateDemoSeed();
-      _inMemoryItems.addAll(seed);
-      await _saveToCache(_inMemoryItems);
-      _streamController.add(List.unmodifiable(_inMemoryItems));
     }
 
     return List.unmodifiable(_inMemoryItems);
@@ -142,7 +143,7 @@ class RestContributionsRepository implements ContributionsRepository {
       final matchedMember = members.where((m) => m.memberId == contribution.memberId || m.fullName == contribution.memberName).firstOrNull;
 
       await _api.post(
-        '/idirs/$_idirId/contributions',
+        '/idirs/$_currentIdirId/contributions',
         body: {
           'membershipId': matchedMember?.id ?? contribution.memberId,
           'amount': contribution.amount,
@@ -214,7 +215,7 @@ class RestContributionsRepository implements ContributionsRepository {
 
     try {
       await _api.post(
-        '/idirs/$_idirId/contributions/$originalId/reverse',
+        '/idirs/$_currentIdirId/contributions/$originalId/reverse',
         body: {'reversalReason': reason},
       );
     } catch (_) {
@@ -306,42 +307,5 @@ class RestContributionsRepository implements ContributionsRepository {
       return map;
     }).toList();
     await _cache.save(_cacheKey, jsonList);
-  }
-
-  List<Contribution> _generateDemoSeed() {
-    final now = DateTime.now();
-    final year = now.year;
-    return [
-      Contribution(
-        id: 'c_1',
-        receiptNumber: 'REC-$year-001',
-        memberId: 'BM-001',
-        memberName: 'Abebe Tadesse Kebede',
-        amount: 200.0,
-        date: DateTime(year, now.month, 1, 10, 30),
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        paymentMethod: PaymentMethod.telebirr,
-        periodMonth: now.month,
-        periodYear: year,
-        notes: 'Monthly contribution via Telebirr',
-        createdAt: DateTime(year, now.month, 1, 10, 30),
-      ),
-      Contribution(
-        id: 'c_2',
-        receiptNumber: 'REC-$year-002',
-        memberId: 'BM-002',
-        memberName: 'Chaltu Bekele Gemeda',
-        amount: 200.0,
-        date: DateTime(year, now.month, 2, 14, 0),
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        paymentMethod: PaymentMethod.cash,
-        periodMonth: now.month,
-        periodYear: year,
-        notes: 'Monthly dues paid in cash',
-        createdAt: DateTime(year, now.month, 2, 14, 0),
-      ),
-    ];
   }
 }

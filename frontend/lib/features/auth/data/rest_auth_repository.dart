@@ -350,9 +350,11 @@ class RestAuthRepository implements AuthRepository {
 
       // Pick active membership based on user preference or first available
       UserMembership? selected;
-      if (preferredActiveIdirId != null) {
+      if (preferredActiveIdirId != null &&
+          preferredActiveIdirId != '00000000-0000-0000-0000-000000000001') {
         selected = memberships.where((m) => m.idirId == preferredActiveIdirId).firstOrNull;
       }
+      selected ??= memberships.where((m) => m.idirId != '00000000-0000-0000-0000-000000000001').firstOrNull;
       selected ??= memberships.first;
 
       role = selected.role;
@@ -360,8 +362,8 @@ class RestAuthRepository implements AuthRepository {
       idirId = selected.idirId;
       idirName = selected.idirName;
 
-      // Persist active ID if not set
-      if (preferredActiveIdirId == null && idirId.isNotEmpty) {
+      // Always persist real active ID
+      if (idirId.isNotEmpty && idirId != '00000000-0000-0000-0000-000000000001') {
         await prefs.setString(AppConstants.prefActiveIdirId, idirId);
       }
     } else if (json['role'] != null) {

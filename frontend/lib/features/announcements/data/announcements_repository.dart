@@ -31,54 +31,7 @@ class FirestoreAnnouncementsRepository implements AnnouncementsRepository {
   final _streamController = StreamController<List<Announcement>>.broadcast();
 
   void _initLocalCache() {
-    final now = DateTime.now();
-
-    _localCache.addAll([
-      Announcement(
-        id: 'ann_001',
-        title: 'General Assembly & Annual Review Meeting',
-        body:
-            'All members are requested to attend the upcoming monthly review meeting at the community hall this Sunday at 9:00 AM. Annual balance sheet and audited records will be presented.',
-        category: AnnouncementCategory.meeting,
-        postedBy: 'demo_chair',
-        postedByName: 'Abebe Bikila (Chairperson)',
-        createdAt: now.subtract(const Duration(days: 2)),
-        pinned: true,
-      ),
-      Announcement(
-        id: 'ann_002',
-        title: 'Bereavement Notice: Condolences to Member MEM-002',
-        body:
-            'Our deepest condolences to the family of Fatuma Mohammed on the passing of her father. The association committee has disbursed condolence assistance and tent utensils.',
-        category: AnnouncementCategory.funeral,
-        postedBy: 'demo_chair',
-        postedByName: 'Abebe Bikila (Chairperson)',
-        createdAt: now.subtract(const Duration(days: 3)),
-        pinned: false,
-      ),
-      Announcement(
-        id: 'ann_003',
-        title: 'Monthly Dues Reminder for Current Cycle',
-        body:
-            'Members are kindly reminded to record their monthly dues with the treasurer before the 25th of this month to remain in good standing.',
-        category: AnnouncementCategory.reminder,
-        postedBy: 'demo_treasurer',
-        postedByName: 'Chaltu Bekele (Treasurer)',
-        createdAt: now.subtract(const Duration(days: 6)),
-        pinned: false,
-      ),
-      Announcement(
-        id: 'ann_004',
-        title: 'Community Tent & Utensils Inspection',
-        body:
-            'Routine inspection and cleaning of mutual-aid tents, benches, and cooking utensils completed by the administrative committee.',
-        category: AnnouncementCategory.general,
-        postedBy: 'demo_treasurer',
-        postedByName: 'Chaltu Bekele (Treasurer)',
-        createdAt: now.subtract(const Duration(days: 12)),
-        pinned: false,
-      ),
-    ]);
+    // No mock demo data in production real application
   }
 
   List<Announcement> _sortedList(List<Announcement> list) {
@@ -224,7 +177,8 @@ final announcementsRepositoryProvider =
   );
 });
 
-final announcementsStreamProvider = StreamProvider<List<Announcement>>((ref) {
+final announcementsStreamProvider = StreamProvider<List<Announcement>>((ref) async* {
   final repo = ref.watch(announcementsRepositoryProvider);
-  return repo.watchAnnouncements();
+  repo.getAnnouncements();
+  yield* repo.watchAnnouncements();
 });

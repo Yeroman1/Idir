@@ -5,9 +5,10 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/contributions_repository.dart';
 import '../../domain/models/contribution.dart';
 
-final contributionsStreamProvider = StreamProvider<List<Contribution>>((ref) {
+final contributionsStreamProvider = StreamProvider<List<Contribution>>((ref) async* {
   final repo = ref.watch(contributionsRepositoryProvider);
-  return repo.watchContributions();
+  repo.getContributions();
+  yield* repo.watchContributions();
 });
 
 final contributionSearchQueryProvider = StateProvider<String>((ref) => '');

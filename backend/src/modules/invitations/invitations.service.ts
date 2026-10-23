@@ -605,6 +605,12 @@ export class InvitationsService {
             usedAt: now,
           },
         });
+
+        // Ensure Idir status is ACTIVE now that members have joined
+        await tx.idir.update({
+          where: { id: invitation.idirId },
+          data: { status: 'ACTIVE' },
+        });
       },
       {
         maxWait: 15000,

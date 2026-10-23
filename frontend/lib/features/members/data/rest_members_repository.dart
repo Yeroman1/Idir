@@ -5,8 +5,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/storage/offline_cache_service.dart';
+import '../../auth/presentation/providers/auth_provider.dart';
 import '../domain/models/member.dart';
 import 'members_repository.dart';
 
@@ -36,7 +38,15 @@ class RestMembersRepository implements MembersRepository {
   final Ref _ref;
   final String _idirId;
 
-  static const _cacheKey = 'cache_members';
+  String get _currentIdirId {
+    final active = _ref.read(currentActiveIdirProvider)?.idirId ??
+        _ref.read(currentUserProvider)?.idirId;
+    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') return active;
+    if (_idirId.isNotEmpty && _idirId != '00000000-0000-0000-0000-000000000001') return _idirId;
+    return AppConstants.defaultIdirId;
+  }
+
+  String get _cacheKey => 'cache_members_$_currentIdirId';
   final List<Member> _inMemoryItems = [];
   late final StreamController<List<Member>> _streamController;
 
@@ -58,8 +68,9 @@ class RestMembersRepository implements MembersRepository {
 
   @override
   Future<List<Member>> getMembers() async {
+    final activeId = _currentIdirId;
     try {
-      final res = await _api.get('/idirs/$_idirId/members', queryParams: {'limit': 100});
+      final res = await _api.get('/idirs/$activeId/members', queryParams: {'limit': 100});
       List<dynamic> rawItems = [];
       if (res is Map<String, dynamic> && res.containsKey('items')) {
         rawItems = res['items'] as List<dynamic>? ?? [];
@@ -69,13 +80,11 @@ class RestMembersRepository implements MembersRepository {
 
       final parsed = rawItems.map((e) => _fromBackendJson(e as Map<String, dynamic>)).toList();
 
-      if (parsed.isNotEmpty) {
-        _inMemoryItems.clear();
-        _inMemoryItems.addAll(parsed);
-        await _saveToCache(_inMemoryItems);
-        _streamController.add(List.unmodifiable(_inMemoryItems));
-        return List.unmodifiable(_inMemoryItems);
-      }
+      _inMemoryItems.clear();
+      _inMemoryItems.addAll(parsed);
+      await _saveToCache(_inMemoryItems);
+      _streamController.add(List.unmodifiable(_inMemoryItems));
+      return List.unmodifiable(_inMemoryItems);
     } on ApiException catch (e) {
       debugPrint('[RestMembersRepository] Fetching live members failed (offline=${e.isOffline}): $e');
     } catch (e) {
@@ -89,13 +98,6 @@ class RestMembersRepository implements MembersRepository {
       _inMemoryItems.addAll(cached);
       _streamController.add(List.unmodifiable(_inMemoryItems));
       return List.unmodifiable(_inMemoryItems);
-    }
-
-    if (_inMemoryItems.isEmpty) {
-      final seed = _generateDemoSeed();
-      _inMemoryItems.addAll(seed);
-      await _saveToCache(_inMemoryItems);
-      _streamController.add(List.unmodifiable(_inMemoryItems));
     }
 
     return List.unmodifiable(_inMemoryItems);
@@ -115,7 +117,7 @@ class RestMembersRepository implements MembersRepository {
 
     try {
       await _api.post(
-        '/idirs/$_idirId/members',
+        '/idirs/$_currentIdirId/members',
         body: {
           'memberNumber': member.memberId,
           'phoneNumber': member.phone,
@@ -141,7 +143,7 @@ class RestMembersRepository implements MembersRepository {
 
     try {
       await _api.put(
-        '/idirs/$_idirId/members/${member.id}',
+        '/idirs/$_currentIdirId/members/${member.id}',
         body: {
           'memberNumber': member.memberId,
           'status': member.status.name.toUpperCase(),
@@ -162,7 +164,7 @@ class RestMembersRepository implements MembersRepository {
     _streamController.add(List.unmodifiable(_inMemoryItems));
 
     try {
-      await _api.delete('/idirs/$_idirId/members/$id');
+      await _api.delete('/idirs/$_currentIdirId/members/$id');
     } catch (_) {}
   }
 
@@ -228,54 +230,5 @@ class RestMembersRepository implements MembersRepository {
       return map;
     }).toList();
     await _cache.save(_cacheKey, jsonList);
-  }
-
-  List<Member> _generateDemoSeed() {
-    return [
-      Member(
-        id: 'mem_1',
-        memberId: 'BM-001',
-        fullName: 'Abebe Tadesse Kebede',
-        phone: '+251 91 111 1111',
-        registeredAt: DateTime(2023, 1, 15),
-        monthlyDues: 200.0,
-        status: MemberStatus.active,
-        emergencyContact: const EmergencyContact(
-          name: 'Almaz Tadesse',
-          phone: '+251 91 111 2233',
-          relationship: 'Spouse',
-        ),
-        dependents: const [
-          Dependent(id: 'd1', name: 'Yared Abebe', relationship: 'Son'),
-        ],
-        totalPaid: 2400.0,
-        balance: 200.0,
-        arrears: 0.0,
-        notes: 'Chairperson',
-        createdAt: DateTime(2023, 1, 15),
-        updatedAt: DateTime(2023, 1, 15),
-      ),
-      Member(
-        id: 'mem_2',
-        memberId: 'BM-002',
-        fullName: 'Chaltu Bekele Gemeda',
-        phone: '+251 91 122 2222',
-        registeredAt: DateTime(2023, 3, 10),
-        monthlyDues: 200.0,
-        status: MemberStatus.active,
-        emergencyContact: const EmergencyContact(
-          name: 'Bekele Gemechu',
-          phone: '+251 91 222 3344',
-          relationship: 'Father',
-        ),
-        dependents: const [],
-        totalPaid: 2400.0,
-        balance: 0.0,
-        arrears: 0.0,
-        notes: 'Treasurer',
-        createdAt: DateTime(2023, 3, 10),
-        updatedAt: DateTime(2023, 3, 10),
-      ),
-    ];
   }
 }

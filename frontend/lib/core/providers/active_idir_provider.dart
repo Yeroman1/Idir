@@ -66,6 +66,28 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
   static const _customIdirsCacheKey = 'custom_cached_user_idirs';
 
   Future<void> _init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getString(AppConstants.prefActiveIdirId) ==
+          '00000000-0000-0000-0000-000000000001') {
+        await prefs.remove(AppConstants.prefActiveIdirId);
+      }
+      final customRaw = prefs.getString(_customIdirsCacheKey);
+      if (customRaw != null &&
+          customRaw.contains('00000000-0000-0000-0000-000000000001')) {
+        await prefs.remove(_customIdirsCacheKey);
+      }
+      // Clean up old demo caches
+      final oldKeys = prefs.getKeys().where((k) =>
+          k.contains('00000000-0000-0000-0000-000000000001') ||
+          k == 'idir_cache_cache_contributions' ||
+          k == 'idir_cache_cache_claims' ||
+          k == 'idir_cache_cache_expenses' ||
+          k == 'idir_cache_cache_members');
+      for (final k in oldKeys.toList()) {
+        await prefs.remove(k);
+      }
+    } catch (_) {}
     await reloadIdirs();
   }
 
@@ -84,7 +106,9 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       final seenIds = <String>{};
 
       void addMembership(UserMembership m) {
-        if (m.idirId.isNotEmpty && !seenIds.contains(m.idirId)) {
+        if (m.idirId.isNotEmpty &&
+            m.idirId != '00000000-0000-0000-0000-000000000001' &&
+            !seenIds.contains(m.idirId)) {
           seenIds.add(m.idirId);
           list.add(m);
         }
@@ -104,7 +128,10 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
           final decoded = jsonDecode(customRaw) as List<dynamic>;
           for (final item in decoded) {
             if (item is Map<String, dynamic>) {
-              addMembership(UserMembership.fromMap(item));
+              final membership = UserMembership.fromMap(item);
+              if (membership.idirId != '00000000-0000-0000-0000-000000000001') {
+                addMembership(membership);
+              }
             }
           }
         } catch (_) {}
@@ -115,43 +142,46 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
         final idirsRepo = _ref.read(idirsRepositoryProvider);
         final fetchedIdirs = await idirsRepo.getUserIdirs();
         for (final idir in fetchedIdirs) {
-          addMembership(
-            UserMembership(
-              id: idir.id,
-              idirId: idir.id,
-              idirName: idir.name,
-              role: UserRole.chairperson,
-              memberNumber: 'CREATOR-01',
-              status: idir.status,
-              community: idir.community,
-              location: idir.location,
-              contributionAmount: idir.contributionAmount,
-              contributionFrequency: idir.contributionFrequency,
-            ),
-          );
+          if (idir.id != '00000000-0000-0000-0000-000000000001') {
+            addMembership(
+              UserMembership(
+                id: idir.id,
+                idirId: idir.id,
+                idirName: idir.name,
+                role: UserRole.chairperson,
+                memberNumber: 'CREATOR-01',
+                status: idir.status,
+                community: idir.community,
+                location: idir.location,
+                contributionAmount: idir.contributionAmount,
+                contributionFrequency: idir.contributionFrequency,
+              ),
+            );
+          }
         }
       } catch (_) {}
 
-      // 4. If still empty AND no user is logged in, provide standard demo Idirs
-      if (list.isEmpty && user == null) {
-        final defaults = _defaultSampleIdirs();
-        for (final d in defaults) {
-          addMembership(d);
-        }
-      }
+      // 4. No fake demo Idirs in real application
 
       // 5. Select active Idir
       UserMembership? active;
-      if (savedActiveIdirId != null) {
+      if (savedActiveIdirId != null &&
+          savedActiveIdirId != '00000000-0000-0000-0000-000000000001') {
         active = list.where((m) => m.idirId == savedActiveIdirId).firstOrNull;
       }
-      if (active == null && user?.idirId != null) {
+      if (active == null &&
+          user?.idirId != null &&
+          user!.idirId!.isNotEmpty &&
+          user!.idirId != '00000000-0000-0000-0000-000000000001') {
         active = list.where((m) => m.idirId == user!.idirId).firstOrNull;
       }
+      active ??= list.where((m) => m.idirId != '00000000-0000-0000-0000-000000000001').firstOrNull;
       active ??= list.isNotEmpty ? list.first : null;
 
       if (active != null) {
         await prefs.setString(AppConstants.prefActiveIdirId, active.idirId);
+      } else {
+        await prefs.setString(AppConstants.prefActiveIdirId, AppConstants.defaultIdirId);
       }
 
       if (!mounted) return;
@@ -240,46 +270,7 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
     }
   }
 
-  static List<UserMembership> _defaultSampleIdirs() {
-    return const [
-      UserMembership(
-        id: 'idir_tinsae_001',
-        idirId: 'idir_tinsae_001',
-        idirName: 'Tinsae Mutual Aid Association',
-        role: UserRole.chairperson,
-        memberNumber: 'MEM-001',
-        status: 'ACTIVE',
-        community: 'Kirkos Community',
-        location: 'Meskel Flower, Addis Ababa',
-        contributionAmount: 50.0,
-        contributionFrequency: 'MONTHLY',
-      ),
-      UserMembership(
-        id: AppConstants.defaultIdirId,
-        idirId: AppConstants.defaultIdirId,
-        idirName: 'Bole Medhanealem Yebego Adragot Idir',
-        role: UserRole.member,
-        memberNumber: 'BM-042',
-        status: 'ACTIVE',
-        community: 'Bole Community',
-        location: 'Near Medhanealem Cathedral, Addis Ababa',
-        contributionAmount: 200.0,
-        contributionFrequency: 'MONTHLY',
-      ),
-      UserMembership(
-        id: 'idir_kirkos_003',
-        idirId: 'idir_kirkos_003',
-        idirName: 'Kirkos Woreda 02 Community Idir',
-        role: UserRole.treasurer,
-        memberNumber: 'KW-015',
-        status: 'ACTIVE',
-        community: 'Kirkos Woreda 02',
-        location: 'Gotera Area, Addis Ababa',
-        contributionAmount: 75.0,
-        contributionFrequency: 'MONTHLY',
-      ),
-    ];
-  }
+
 }
 
 /// Provider managing active Idir and list of user memberships.
@@ -295,6 +286,10 @@ final currentActiveIdirProvider = Provider<UserMembership?>((ref) {
 
 /// Current active Idir ID string helper.
 final activeIdirIdProvider = Provider<String?>((ref) {
-  return ref.watch(currentActiveIdirProvider)?.idirId ??
+  final active = ref.watch(currentActiveIdirProvider)?.idirId ??
       ref.watch(currentUserProvider)?.idirId;
+  if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') {
+    return active;
+  }
+  return AppConstants.defaultIdirId;
 });
