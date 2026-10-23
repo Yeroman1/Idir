@@ -30,7 +30,7 @@ abstract final class AppConstants {
   static const String defaultApiBaseUrl = 'http://localhost:5000/api/v1';
   static const String androidDeviceApiBaseUrl = 'http://127.0.0.1:5000/api/v1';
   static const String androidEmulatorApiBaseUrl = 'http://10.0.2.2:5000/api/v1';
-  static const String defaultIdirId = '00000000-0000-0000-0000-000000000001';
+  static const String defaultIdirId = 'bc39b889-4e08-4543-bb9e-db42c17ed901';
 
   // Business defaults & security rules
   static const defaultClaimApprovalsRequired = 2;

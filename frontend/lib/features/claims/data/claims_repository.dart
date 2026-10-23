@@ -57,59 +57,7 @@ class FirestoreClaimsRepository implements ClaimsRepository {
   final _streamController = StreamController<List<Claim>>.broadcast();
 
   void _initLocalCache() {
-    final now = DateTime.now();
-    final year = now.year;
-
-    _localCache.addAll([
-      Claim(
-        id: 'clm_001',
-        claimNumber: 'CLM-$year-001',
-        memberId: 'MEM-002',
-        memberName: 'Fatuma Mohammed',
-        type: ClaimType.funeral,
-        description: 'Condolence and funeral burial support for covered dependent parent',
-        requestedAmount: 3000.0,
-        status: ClaimStatus.submitted,
-        submittedBy: 'demo_member_2',
-        submittedByName: 'Fatuma Mohammed',
-        approvals: const [],
-        createdAt: now.subtract(const Duration(hours: 18)),
-      ),
-      Claim(
-        id: 'clm_002',
-        claimNumber: 'CLM-$year-002',
-        memberId: 'MEM-001',
-        memberName: 'Abebe Tadesse',
-        type: ClaimType.illness,
-        description: 'Emergency emergency surgical hospitalization support',
-        requestedAmount: 1500.0,
-        status: ClaimStatus.paid,
-        submittedBy: 'demo_member_1',
-        submittedByName: 'Abebe Tadesse',
-        approvals: [
-          ClaimApproval(
-            uid: 'demo_chair',
-            name: 'Abebe Bikila (Chairperson)',
-            role: 'chairperson',
-            decision: 'approved',
-            comment: 'Verified hospital documents and family relationship.',
-            at: now.subtract(const Duration(days: 4)),
-          ),
-          ClaimApproval(
-            uid: 'demo_treasurer',
-            name: 'Chaltu Bekele (Treasurer)',
-            role: 'treasurer',
-            decision: 'approved',
-            comment: 'Member is in good financial standing. Approved.',
-            at: now.subtract(const Duration(days: 3)),
-          ),
-        ],
-        payoutAmount: 1500.0,
-        paidAt: now.subtract(const Duration(days: 2)),
-        payoutExpenseId: 'exp_002',
-        createdAt: now.subtract(const Duration(days: 5)),
-      ),
-    ]);
+    // No mock demo data in production real application
   }
 
   @override
@@ -366,7 +314,8 @@ final claimsRepositoryProvider = Provider<ClaimsRepository>((ref) {
   );
 });
 
-final claimsStreamProvider = StreamProvider<List<Claim>>((ref) {
+final claimsStreamProvider = StreamProvider<List<Claim>>((ref) async* {
   final repo = ref.watch(claimsRepositoryProvider);
-  return repo.watchClaims();
+  repo.getClaims();
+  yield* repo.watchClaims();
 });

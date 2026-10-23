@@ -236,7 +236,8 @@ final expensesRepositoryProvider = Provider<ExpensesRepository>((ref) {
   );
 });
 
-final expensesStreamProvider = StreamProvider<List<Expense>>((ref) {
+final expensesStreamProvider = StreamProvider<List<Expense>>((ref) async* {
   final repo = ref.watch(expensesRepositoryProvider);
-  return repo.watchExpenses();
+  repo.getExpenses();
+  yield* repo.watchExpenses();
 });

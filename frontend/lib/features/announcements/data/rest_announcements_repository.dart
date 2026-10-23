@@ -5,8 +5,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/storage/offline_cache_service.dart';
+import '../../auth/presentation/providers/auth_provider.dart';
 import '../domain/models/announcement.dart';
 import 'announcements_repository.dart';
 
@@ -35,7 +37,15 @@ class RestAnnouncementsRepository implements AnnouncementsRepository {
   final Ref _ref;
   final String _idirId;
 
-  static const _cacheKey = 'cache_announcements';
+  String get _currentIdirId {
+    final active = _ref.read(currentActiveIdirProvider)?.idirId ??
+        _ref.read(currentUserProvider)?.idirId;
+    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') return active;
+    if (_idirId.isNotEmpty && _idirId != '00000000-0000-0000-0000-000000000001') return _idirId;
+    return AppConstants.defaultIdirId;
+  }
+
+  String get _cacheKey => 'cache_announcements_$_currentIdirId';
   final List<Announcement> _inMemoryItems = [];
   late final StreamController<List<Announcement>> _streamController;
 
@@ -57,8 +67,9 @@ class RestAnnouncementsRepository implements AnnouncementsRepository {
 
   @override
   Future<List<Announcement>> getAnnouncements() async {
+    final activeId = _currentIdirId;
     try {
-      final res = await _api.get('/idirs/$_idirId/announcements', queryParams: {'limit': 50});
+      final res = await _api.get('/idirs/$activeId/announcements', queryParams: {'limit': 50});
       List<dynamic> rawItems = [];
       if (res is Map<String, dynamic> && res.containsKey('items')) {
         rawItems = res['items'] as List<dynamic>? ?? [];
@@ -68,13 +79,11 @@ class RestAnnouncementsRepository implements AnnouncementsRepository {
 
       final parsed = rawItems.map((e) => _fromBackendJson(e as Map<String, dynamic>)).toList();
 
-      if (parsed.isNotEmpty) {
-        _inMemoryItems.clear();
-        _inMemoryItems.addAll(parsed);
-        await _saveToCache(_inMemoryItems);
-        _streamController.add(List.unmodifiable(_inMemoryItems));
-        return List.unmodifiable(_inMemoryItems);
-      }
+      _inMemoryItems.clear();
+      _inMemoryItems.addAll(parsed);
+      await _saveToCache(_inMemoryItems);
+      _streamController.add(List.unmodifiable(_inMemoryItems));
+      return List.unmodifiable(_inMemoryItems);
     } on ApiException catch (e) {
       debugPrint('[RestAnnouncementsRepository] Live announcements failed (offline=${e.isOffline}): $e');
     } catch (e) {
@@ -87,13 +96,6 @@ class RestAnnouncementsRepository implements AnnouncementsRepository {
       _inMemoryItems.addAll(cached);
       _streamController.add(List.unmodifiable(_inMemoryItems));
       return List.unmodifiable(_inMemoryItems);
-    }
-
-    if (_inMemoryItems.isEmpty) {
-      final seed = _generateDemoSeed();
-      _inMemoryItems.addAll(seed);
-      await _saveToCache(_inMemoryItems);
-      _streamController.add(List.unmodifiable(_inMemoryItems));
     }
 
     return List.unmodifiable(_inMemoryItems);
@@ -113,7 +115,7 @@ class RestAnnouncementsRepository implements AnnouncementsRepository {
 
     try {
       await _api.post(
-        '/idirs/$_idirId/announcements',
+        '/idirs/$_currentIdirId/announcements',
         body: {
           'title': announcement.title,
           'content': announcement.body,
@@ -145,7 +147,7 @@ class RestAnnouncementsRepository implements AnnouncementsRepository {
     _streamController.add(List.unmodifiable(_inMemoryItems));
 
     try {
-      await _api.delete('/idirs/$_idirId/announcements/$id');
+      await _api.delete('/idirs/$_currentIdirId/announcements/$id');
     } catch (_) {}
   }
 
@@ -182,21 +184,5 @@ class RestAnnouncementsRepository implements AnnouncementsRepository {
       return map;
     }).toList();
     await _cache.save(_cacheKey, jsonList);
-  }
-
-  List<Announcement> _generateDemoSeed() {
-    return [
-      Announcement(
-        id: 'ann_001',
-        title: 'General Assembly & Annual Review Meeting',
-        body:
-            'All members are requested to attend the upcoming monthly review meeting at the community hall this Sunday at 9:00 AM. Annual balance sheet and audited records will be presented.',
-        category: AnnouncementCategory.meeting,
-        postedBy: 'demo_chair',
-        postedByName: 'Abebe Tadesse (Chairperson)',
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        pinned: true,
-      ),
-    ];
   }
 }

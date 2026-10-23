@@ -56,71 +56,7 @@ class FirestoreContributionsRepository implements ContributionsRepository {
   }
 
   void _initLocalDemoSeed() {
-    final now = DateTime.now();
-    final year = now.year;
-
-    _localCache.addAll([
-      Contribution(
-        id: 'c_1',
-        receiptNumber: 'REC-$year-001',
-        memberId: 'MEM-001',
-        memberName: 'Abebe Tadesse',
-        amount: 50.0,
-        date: DateTime(year, now.month, 1, 10, 30),
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        paymentMethod: PaymentMethod.telebirr,
-        periodMonth: now.month,
-        periodYear: year,
-        notes: 'Monthly contribution via Telebirr',
-        createdAt: DateTime(year, now.month, 1, 10, 30),
-      ),
-      Contribution(
-        id: 'c_2',
-        receiptNumber: 'REC-$year-002',
-        memberId: 'MEM-002',
-        memberName: 'Chaltu Bekele',
-        amount: 50.0,
-        date: DateTime(year, now.month, 2, 14, 0),
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        paymentMethod: PaymentMethod.cash,
-        periodMonth: now.month,
-        periodYear: year,
-        notes: 'Paid at monthly gathering',
-        createdAt: DateTime(year, now.month, 2, 14, 0),
-      ),
-      Contribution(
-        id: 'c_3',
-        receiptNumber: 'REC-$year-003',
-        memberId: 'MEM-005',
-        memberName: 'Haile Gebrselassie',
-        amount: 200.0,
-        date: DateTime(year, now.month, 3, 9, 15),
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        paymentMethod: PaymentMethod.cbeBirr,
-        periodMonth: now.month,
-        periodYear: year,
-        notes: 'Prepayment for 4 months',
-        createdAt: DateTime(year, now.month, 3, 9, 15),
-      ),
-      Contribution(
-        id: 'c_4',
-        receiptNumber: 'REC-$year-004',
-        memberId: 'MEM-001',
-        memberName: 'Abebe Tadesse',
-        amount: 50.0,
-        date: DateTime(year, now.month > 1 ? now.month - 1 : 12, 15),
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        paymentMethod: PaymentMethod.telebirr,
-        periodMonth: now.month > 1 ? now.month - 1 : 12,
-        periodYear: now.month > 1 ? year : year - 1,
-        notes: 'Previous month contribution',
-        createdAt: DateTime(year, now.month > 1 ? now.month - 1 : 12, 15),
-      ),
-    ]);
+    // No mock demo data in production real application
   }
 
   @override

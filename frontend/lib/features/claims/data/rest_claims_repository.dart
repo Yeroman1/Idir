@@ -5,8 +5,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/storage/offline_cache_service.dart';
+import '../../auth/presentation/providers/auth_provider.dart';
 import '../domain/models/claim.dart';
 import 'claims_repository.dart';
 
@@ -35,7 +37,15 @@ class RestClaimsRepository implements ClaimsRepository {
   final Ref _ref;
   final String _idirId;
 
-  static const _cacheKey = 'cache_claims';
+  String get _currentIdirId {
+    final active = _ref.read(currentActiveIdirProvider)?.idirId ??
+        _ref.read(currentUserProvider)?.idirId;
+    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') return active;
+    if (_idirId.isNotEmpty && _idirId != '00000000-0000-0000-0000-000000000001') return _idirId;
+    return AppConstants.defaultIdirId;
+  }
+
+  String get _cacheKey => 'cache_claims_$_currentIdirId';
   final List<Claim> _inMemoryItems = [];
   late final StreamController<List<Claim>> _streamController;
 
@@ -57,8 +67,9 @@ class RestClaimsRepository implements ClaimsRepository {
 
   @override
   Future<List<Claim>> getClaims() async {
+    final activeId = _currentIdirId;
     try {
-      final res = await _api.get('/idirs/$_idirId/assistance/cases');
+      final res = await _api.get('/idirs/$activeId/assistance/cases');
       List<dynamic> rawItems = [];
       if (res is Map<String, dynamic> && res.containsKey('items')) {
         rawItems = res['items'] as List<dynamic>? ?? [];
@@ -68,13 +79,11 @@ class RestClaimsRepository implements ClaimsRepository {
 
       final parsed = rawItems.map((e) => _fromBackendJson(e as Map<String, dynamic>)).toList();
 
-      if (parsed.isNotEmpty) {
-        _inMemoryItems.clear();
-        _inMemoryItems.addAll(parsed);
-        await _saveToCache(_inMemoryItems);
-        _streamController.add(List.unmodifiable(_inMemoryItems));
-        return List.unmodifiable(_inMemoryItems);
-      }
+      _inMemoryItems.clear();
+      _inMemoryItems.addAll(parsed);
+      await _saveToCache(_inMemoryItems);
+      _streamController.add(List.unmodifiable(_inMemoryItems));
+      return List.unmodifiable(_inMemoryItems);
     } on ApiException catch (e) {
       debugPrint('[RestClaimsRepository] Live assistance cases failed (offline=${e.isOffline}): $e');
     } catch (e) {
@@ -87,13 +96,6 @@ class RestClaimsRepository implements ClaimsRepository {
       _inMemoryItems.addAll(cached);
       _streamController.add(List.unmodifiable(_inMemoryItems));
       return List.unmodifiable(_inMemoryItems);
-    }
-
-    if (_inMemoryItems.isEmpty) {
-      final seed = _generateDemoSeed();
-      _inMemoryItems.addAll(seed);
-      await _saveToCache(_inMemoryItems);
-      _streamController.add(List.unmodifiable(_inMemoryItems));
     }
 
     return List.unmodifiable(_inMemoryItems);
@@ -113,7 +115,7 @@ class RestClaimsRepository implements ClaimsRepository {
 
     try {
       await _api.post(
-        '/idirs/$_idirId/assistance/cases',
+        '/idirs/$_currentIdirId/assistance/cases',
         body: {
           'caseType': claim.type.name.toUpperCase(),
           'requestedAmount': claim.requestedAmount,
@@ -165,7 +167,7 @@ class RestClaimsRepository implements ClaimsRepository {
 
       try {
         await _api.post(
-          '/idirs/$_idirId/assistance/cases/$claimId/reviews',
+          '/idirs/$_currentIdirId/assistance/cases/$claimId/reviews',
           body: {
             'decision': decision.toUpperCase(),
             'notes': comment,
@@ -269,35 +271,5 @@ class RestClaimsRepository implements ClaimsRepository {
       return map;
     }).toList();
     await _cache.save(_cacheKey, jsonList);
-  }
-
-  List<Claim> _generateDemoSeed() {
-    final now = DateTime.now();
-    final year = now.year;
-    return [
-      Claim(
-        id: 'clm_001',
-        claimNumber: 'CLM-$year-001',
-        memberId: 'BM-001',
-        memberName: 'Abebe Tadesse Kebede',
-        type: ClaimType.funeral,
-        description: 'Bereavement assistance request for funeral logistics',
-        requestedAmount: 5000.0,
-        status: ClaimStatus.approved,
-        submittedBy: 'demo_chair',
-        submittedByName: 'Abebe Tadesse',
-        createdAt: DateTime(year, now.month, 1),
-        approvals: [
-          ClaimApproval(
-            uid: 'demo_treasurer',
-            name: 'Chaltu Bekele',
-            role: 'treasurer',
-            decision: 'approved',
-            comment: 'Eligibility verified, dues fully up to date.',
-            at: DateTime(year, now.month, 2),
-          ),
-        ],
-      ),
-    ];
   }
 }

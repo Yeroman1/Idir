@@ -144,17 +144,19 @@ final dashboardStatsProvider = Provider<DashboardStats>((ref) {
     );
   }
 
-  // Add 1 sample pending claim activity
-  activities.add(
-    DashboardActivityItem(
-      id: 'act_cl_001',
-      title: 'Claim Submitted (MEM-002)',
-      subtitle: 'Bereavement assistance request awaiting approval',
-      timestamp: DateTime.now().subtract(const Duration(hours: 14)),
-      type: ActivityType.claimSubmitted,
-      amount: 3000.0,
-    ),
-  );
+  final claims = (ref.watch(claimsStreamProvider)).value ?? [];
+  for (final cl in claims.take(3)) {
+    activities.add(
+      DashboardActivityItem(
+        id: 'act_cl_${cl.id}',
+        title: 'Claim: ${cl.claimNumber} (${cl.type.name.toUpperCase()})',
+        subtitle: '${cl.memberName} • ${cl.status.name.toUpperCase()}',
+        timestamp: cl.createdAt,
+        type: ActivityType.claimSubmitted,
+        amount: cl.requestedAmount,
+      ),
+    );
+  }
 
   // Sort activities newest first
   activities.sort((a, b) => b.timestamp.compareTo(a.timestamp));

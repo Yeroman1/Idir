@@ -16,7 +16,7 @@ export class CreateDraftIdirService {
           rules: input.rules ? input.rules.trim() : null,
           contributionAmount: new Prisma.Decimal(input.contributionAmount),
           contributionFrequency: input.contributionFrequency,
-          status: 'DRAFT',
+          status: 'ACTIVE',
           createdById: creatorUserId,
           currency: 'ETB',
         },

@@ -5,8 +5,10 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
 import '../../../../core/storage/offline_cache_service.dart';
+import '../../auth/presentation/providers/auth_provider.dart';
 import '../domain/models/expense.dart';
 import 'expenses_repository.dart';
 
@@ -35,7 +37,15 @@ class RestExpensesRepository implements ExpensesRepository {
   final Ref _ref;
   final String _idirId;
 
-  static const _cacheKey = 'cache_expenses';
+  String get _currentIdirId {
+    final active = _ref.read(currentActiveIdirProvider)?.idirId ??
+        _ref.read(currentUserProvider)?.idirId;
+    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') return active;
+    if (_idirId.isNotEmpty && _idirId != '00000000-0000-0000-0000-000000000001') return _idirId;
+    return AppConstants.defaultIdirId;
+  }
+
+  String get _cacheKey => 'cache_expenses_$_currentIdirId';
   final List<Expense> _inMemoryItems = [];
   late final StreamController<List<Expense>> _streamController;
 
@@ -57,8 +67,9 @@ class RestExpensesRepository implements ExpensesRepository {
 
   @override
   Future<List<Expense>> getExpenses() async {
+    final activeId = _currentIdirId;
     try {
-      final res = await _api.get('/idirs/$_idirId/expenses', queryParams: {'limit': 100});
+      final res = await _api.get('/idirs/$activeId/expenses', queryParams: {'limit': 100});
       List<dynamic> rawItems = [];
       if (res is Map<String, dynamic> && res.containsKey('items')) {
         rawItems = res['items'] as List<dynamic>? ?? [];
@@ -68,13 +79,11 @@ class RestExpensesRepository implements ExpensesRepository {
 
       final parsed = rawItems.map((e) => _fromBackendJson(e as Map<String, dynamic>)).toList();
 
-      if (parsed.isNotEmpty) {
-        _inMemoryItems.clear();
-        _inMemoryItems.addAll(parsed);
-        await _saveToCache(_inMemoryItems);
-        _streamController.add(List.unmodifiable(_inMemoryItems));
-        return List.unmodifiable(_inMemoryItems);
-      }
+      _inMemoryItems.clear();
+      _inMemoryItems.addAll(parsed);
+      await _saveToCache(_inMemoryItems);
+      _streamController.add(List.unmodifiable(_inMemoryItems));
+      return List.unmodifiable(_inMemoryItems);
     } on ApiException catch (e) {
       debugPrint('[RestExpensesRepository] Live fetch failed (offline=${e.isOffline}): $e');
     } catch (e) {
@@ -87,13 +96,6 @@ class RestExpensesRepository implements ExpensesRepository {
       _inMemoryItems.addAll(cached);
       _streamController.add(List.unmodifiable(_inMemoryItems));
       return List.unmodifiable(_inMemoryItems);
-    }
-
-    if (_inMemoryItems.isEmpty) {
-      final seed = _generateDemoSeed();
-      _inMemoryItems.addAll(seed);
-      await _saveToCache(_inMemoryItems);
-      _streamController.add(List.unmodifiable(_inMemoryItems));
     }
 
     return List.unmodifiable(_inMemoryItems);
@@ -113,7 +115,7 @@ class RestExpensesRepository implements ExpensesRepository {
 
     try {
       await _api.post(
-        '/idirs/$_idirId/expenses',
+        '/idirs/$_currentIdirId/expenses',
         body: {
           'category': expense.category.name.toUpperCase(),
           'amount': expense.amount,
@@ -164,7 +166,7 @@ class RestExpensesRepository implements ExpensesRepository {
 
     try {
       await _api.post(
-        '/idirs/$_idirId/expenses/$originalId/reverse',
+        '/idirs/$_currentIdirId/expenses/$originalId/reverse',
         body: {'reversalReason': reason},
       );
     } catch (_) {
@@ -227,32 +229,5 @@ class RestExpensesRepository implements ExpensesRepository {
       return map;
     }).toList();
     await _cache.save(_cacheKey, jsonList);
-  }
-
-  List<Expense> _generateDemoSeed() {
-    final now = DateTime.now();
-    final year = now.year;
-    return [
-      Expense(
-        id: 'exp_001',
-        voucherNumber: 'EXP-$year-001',
-        category: ExpenseCategory.funeralEquipment,
-        amount: 850.0,
-        description: 'Community tent and chairs repair & maintenance',
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        createdAt: DateTime(year, now.month, 5),
-      ),
-      Expense(
-        id: 'exp_002',
-        voucherNumber: 'EXP-$year-002',
-        category: ExpenseCategory.administrative,
-        amount: 300.0,
-        description: 'Ledger books, stationery & printed receipt stamps',
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
-        createdAt: DateTime(year, now.month, 10),
-      ),
-    ];
   }
 }
