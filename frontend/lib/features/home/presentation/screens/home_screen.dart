@@ -743,12 +743,11 @@ class _NoIdirOnboardingViewState extends State<_NoIdirOnboardingView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isFaydaVerified = widget.user?.isFaydaVerified ?? false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Fayda Identity Verification Banner
+        // Member Account Welcome Banner
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -788,18 +787,15 @@ class _NoIdirOnboardingViewState extends State<_NoIdirOnboardingView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isFaydaVerified
-                              ? 'Fayda e-KYC Verified Citizen'
-                              : 'Account Registered',
+                          'Verified Member Account',
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: AppColors.primary,
                           ),
                         ),
-                        if (widget.user?.faydaId != null &&
-                            widget.user!.faydaId!.isNotEmpty)
+                        if (widget.user?.phone != null && widget.user!.phone.isNotEmpty)
                           Text(
-                            'FAN: ${widget.user!.faydaId}',
+                            widget.user!.phone,
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                               fontSize: 11,

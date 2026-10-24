@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/models/election_model.dart';
 import '../../domain/models/nomination_model.dart';
 import '../../domain/models/vote_receipt_model.dart';
@@ -198,8 +197,6 @@ class _VotingBoothScreenState extends ConsumerState<VotingBoothScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final user = ref.watch(authNotifierProvider).user;
-    final isFaydaVerified = user?.isFaydaVerified ?? false;
 
     final votingQuery = VotingQueryArgs(
       idirId: widget.idirId,
@@ -306,46 +303,6 @@ class _VotingBoothScreenState extends ConsumerState<VotingBoothScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Fayda Verification Gate Banner
-            if (!isFaydaVerified) ...[
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.shade300, width: 1.5),
-                ),
-                child: const Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Fayda Digital Identity Required',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                              fontSize: 14,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'National election standards require verified Fayda Digital ID login before casting a ballot. Voting is currently disabled.',
-                            style: TextStyle(fontSize: 12, color: Colors.black87),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
             // Status Progress Bar
             statusAsync.when(
               loading: () => const LinearProgressIndicator(),
@@ -414,7 +371,6 @@ class _VotingBoothScreenState extends ConsumerState<VotingBoothScreen> {
                           hasVoted: hasVoted,
                           receipt: receipt,
                           candidates: candidatesForRole,
-                          isFaydaVerified: isFaydaVerified,
                           isSecret: isSecret,
                           theme: theme,
                         );
@@ -436,7 +392,6 @@ class _VotingBoothScreenState extends ConsumerState<VotingBoothScreen> {
     required bool hasVoted,
     required VoteReceiptModel? receipt,
     required List<NominationModel> candidates,
-    required bool isFaydaVerified,
     required bool isSecret,
     required ThemeData theme,
   }) {
@@ -561,13 +516,11 @@ class _VotingBoothScreenState extends ConsumerState<VotingBoothScreen> {
                     ),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
-                      onTap: isFaydaVerified
-                          ? () {
-                              setState(() {
-                                _selectedCandidatePerRole[role] = c.id;
-                              });
-                            }
-                          : null,
+                      onTap: () {
+                        setState(() {
+                          _selectedCandidatePerRole[role] = c.id;
+                        });
+                      },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                         child: Row(
@@ -635,7 +588,7 @@ class _VotingBoothScreenState extends ConsumerState<VotingBoothScreen> {
                     backgroundColor: theme.colorScheme.primary,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  onPressed: (isFaydaVerified && selectedCandidateId != null)
+                  onPressed: selectedCandidateId != null
                       ? () {
                           final selectedCandidate = candidates
                               .firstWhere((c) => c.id == selectedCandidateId);

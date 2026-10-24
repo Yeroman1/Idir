@@ -186,7 +186,6 @@ model User {
   address           String?
   dateOfBirth       DateTime?
   preferredLanguage String       @default("am") // 'am', 'en', 'om'
-  faydaId           String?      @unique // Ethiopian National ID
   status            UserStatus   @default(ACTIVE)
   isPlatformAdmin   Boolean      @default(false)
   createdAt         DateTime     @default(now())
@@ -216,7 +215,6 @@ model User {
 
   @@index([phoneNumber])
   @@index([email])
-  @@index([faydaId])
 }
 
 model RefreshToken {

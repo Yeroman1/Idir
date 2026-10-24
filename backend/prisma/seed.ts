@@ -33,7 +33,6 @@ async function main() {
       email: 'abebe.tadesse@example.com',
       passwordHash,
       preferredLanguage: 'am',
-      faydaId: '100020003001',
       status: 'ACTIVE',
     },
   });
@@ -47,7 +46,6 @@ async function main() {
       email: 'chaltu.bekele@example.com',
       passwordHash,
       preferredLanguage: 'om',
-      faydaId: '100020003002',
       status: 'ACTIVE',
     },
   });
@@ -64,7 +62,6 @@ async function main() {
       email: 'dawit.abdi@example.com',
       passwordHash,
       preferredLanguage: 'am',
-      faydaId: '100020003003',
       status: 'ACTIVE',
     },
   });
@@ -78,7 +75,6 @@ async function main() {
       email: 'fatima.mohammed@example.com',
       passwordHash,
       preferredLanguage: 'am',
-      faydaId: '100020003004',
       status: 'ACTIVE',
     },
   });

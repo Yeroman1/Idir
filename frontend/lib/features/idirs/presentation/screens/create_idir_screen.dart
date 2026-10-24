@@ -69,7 +69,6 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final user = ref.watch(currentUserProvider);
-    final isFaydaVerified = user?.isFaydaVerified ?? false;
     final state = ref.watch(createIdirNotifierProvider);
 
     return Scaffold(
@@ -88,7 +87,7 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
     );
   }
 
-  /// Shown when user is NOT Fayda-verified
+  /// Shown when user is not authenticated
   Widget _buildUnverifiedNotice(BuildContext context, ThemeData theme) {
     return Center(
       child: SingleChildScrollView(
@@ -111,7 +110,7 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              'Fayda Verification Required',
+              'Authentication Required',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: theme.colorScheme.onSurface,
@@ -120,8 +119,7 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Only Ethiopian National ID (Fayda) verified users can establish and register a new community Idir. '
-              'Please complete your Fayda ID verification to proceed.',
+              'Please sign in or create an account to establish and register a new community Idir.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
                 height: 1.5,
@@ -144,7 +142,7 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
                   const Icon(Icons.info_outline, size: 20, color: AppColors.warning),
                   const SizedBox(width: 10),
                   Text(
-                    'Status: Unverified Account',
+                    'Status: Not Signed In',
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.onSurface,
@@ -158,15 +156,15 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
               width: double.infinity,
               height: 48,
               child: FilledButton.icon(
-                onPressed: () => context.push(AppRoutes.account),
+                onPressed: () => context.push(AppRoutes.login),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                icon: const Icon(Icons.verified_user_outlined),
-                label: const Text('Verify Fayda ID'),
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Sign In to Continue'),
               ),
             ),
             const SizedBox(height: 12),
@@ -189,7 +187,7 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
     );
   }
 
-  /// Shown when user IS Fayda-verified
+  /// Shown when user is authenticated
   Widget _buildCreateForm(
     BuildContext context,
     ThemeData theme,
@@ -217,7 +215,7 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Fayda Verified (ID: ${user?.faydaId ?? "Verified"})',
+                      'Verified Account (${user?.name.isNotEmpty == true ? user!.name : "Authenticated Member"})',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.success,

@@ -4,10 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/account_screen.dart';
-import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/supabase_auth/screens/login_screen.dart';
 import '../../features/supabase_auth/screens/create_password_screen.dart';
 import '../../features/supabase_auth/screens/home_screen.dart' as supabase_auth;
-import '../../features/supabase_auth/screens/login_screen.dart' as supabase_auth;
 import '../../features/supabase_auth/screens/otp_verification_screen.dart';
 import '../../features/supabase_auth/screens/registration_screen.dart';
 import '../../features/auth/presentation/screens/pin_screen.dart';
@@ -46,7 +45,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
-    initialLocation: AppRoutes.supabaseLogin,
+    initialLocation: AppRoutes.login,
     debugLogDiagnostics: false,
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
@@ -64,14 +63,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (!isAuthenticated) {
         if (loc == AppRoutes.login ||
             loc.startsWith(AppRoutes.invitation) ||
-            _isSupabaseEmailAuthRoute(loc)) {
+            _isAuthRoute(loc)) {
           return null;
         }
-        return AppRoutes.supabaseLogin;
+        return AppRoutes.login;
       }
 
       // ── 2. Authenticated user attempting to visit Login ────────────────
-      if (loc == AppRoutes.login || loc == AppRoutes.supabaseLogin) {
+      if (loc == AppRoutes.login || loc == '/supabase-login') {
         if (pin.isSet && !pin.isUnlocked) {
           return AppRoutes.pin;
         }
@@ -88,7 +87,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return AppRoutes.home;
       }
 
-      // ── 4. Role-Based Route Guards ─────────────────────────────────────
+      // ── 4. Role-Based Role Guards ─────────────────────────────────────
       final user = auth.user!;
       if (loc == AppRoutes.auditLog && !user.role.canViewAuditLog) {
         return AppRoutes.accessDenied;
@@ -117,6 +116,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.login,
         name: 'login',
         builder: (_, __) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/supabase-login',
+        redirect: (_, __) => AppRoutes.login,
       ),
       GoRoute(
         path: AppRoutes.pin,
@@ -217,11 +220,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── Supabase Email Auth Routes ──────────────────────────────────────
       GoRoute(
-        path: AppRoutes.supabaseLogin,
-        name: 'supabaseLogin',
-        builder: (_, __) => const supabase_auth.LoginScreen(),
-      ),
-      GoRoute(
         path: AppRoutes.supabaseRegister,
         name: 'supabaseRegister',
         builder: (_, __) => const RegistrationScreen(),
@@ -256,8 +254,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-bool _isSupabaseEmailAuthRoute(String loc) {
-  return loc == AppRoutes.supabaseLogin ||
+bool _isAuthRoute(String loc) {
+  return loc == AppRoutes.login ||
+      loc == '/supabase-login' ||
       loc == AppRoutes.supabaseRegister ||
       loc.startsWith(AppRoutes.supabaseVerifyOtp) ||
       loc.startsWith(AppRoutes.supabaseCreatePassword) ||
@@ -293,7 +292,7 @@ abstract final class AppRoutes {
   static const account = '/account';
 
   // Supabase Auth routes
-  static const supabaseLogin = '/supabase-login';
+  static const supabaseLogin = '/login';
   static const supabaseRegister = '/supabase-register';
   static const supabaseVerifyOtp = '/supabase-verify-otp';
   static const supabaseCreatePassword = '/supabase-create-password';

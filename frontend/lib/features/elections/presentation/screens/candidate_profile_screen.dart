@@ -384,8 +384,6 @@ class _CandidateProfileScreenState
                   ),
                   if (nomination.nomineeMemberNumber != null)
                     _buildDetailRow('Member Number', nomination.nomineeMemberNumber!),
-                  if (nomination.nomineeFaydaId != null)
-                    _buildDetailRow('Fayda Verified', nomination.nomineeFaydaId!),
                   if (nomination.acceptedAt != null)
                     _buildDetailRow(
                       'Accepted Date',

@@ -151,7 +151,7 @@ router.get(
   votingController.getMemberVotingStatus
 );
 
-// Cast a vote for a role (Fayda verified, one vote per role)
+// Cast a vote for a role (one vote per role)
 router.post(
   '/:electionId/vote',
   validate({ body: castVoteSchema }),

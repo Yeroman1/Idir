@@ -393,7 +393,6 @@ void main() {
       expect(model.nomineeName, equals('Abebe Bikila'));
       expect(model.nomineeMemberNumber, equals('MBR-100'));
       expect(model.nomineePhone, equals('+251911111111'));
-      expect(model.nomineeFaydaId, equals('FAYDA-12345'));
       expect(model.nominatedByName, equals('Chala Committee'));
       expect(model.isAccepted, isTrue);
       expect(model.isPending, isFalse);

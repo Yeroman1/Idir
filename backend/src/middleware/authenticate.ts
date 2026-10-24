@@ -32,7 +32,6 @@ export async function authenticate(
         phoneNumber: true,
         fullName: true,
         email: true,
-        faydaId: true,
         status: true,
         isPlatformAdmin: true,
         preferredLanguage: true,
@@ -48,7 +47,6 @@ export async function authenticate(
       phoneNumber: user.phoneNumber,
       fullName: user.fullName,
       email: user.email,
-      faydaId: user.faydaId,
       isPlatformAdmin: user.isPlatformAdmin,
       preferredLanguage: user.preferredLanguage,
     };

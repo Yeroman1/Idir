@@ -9,9 +9,9 @@ import { smsService } from '../src/modules/invitations/sms.service.js';
 vi.mock('../src/config/database.js', () => ({
   prisma: {
     user: { findUnique: vi.fn(), findFirst: vi.fn() },
-    idir: { findUnique: vi.fn(), create: vi.fn() },
+    idir: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
     membership: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), count: vi.fn(), update: vi.fn() },
-    invitation: { count: vi.fn(), upsert: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    invitation: { count: vi.fn(), create: vi.fn(), upsert: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     $transaction: vi.fn((callback) => callback(prisma)),
   } as any,
 }));
@@ -56,7 +56,6 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
         fullName: 'Test User',
         phoneNumber: '+251911000000',
         email: null,
-        faydaId: 'FAYDA-12345',
         status: 'ACTIVE',
         isPlatformAdmin: false,
         preferredLanguage: 'am',
@@ -85,11 +84,18 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
       } as any;
     }) as any);
 
-    // Default mock for upsert
+    // Default mock for upsert and create
     vi.mocked(prisma.invitation.upsert).mockImplementation((async ({ create }: any) => {
       return {
         id: `invite-${Math.random().toString(36).substring(7)}`,
         ...create,
+      } as any;
+    }) as any);
+
+    vi.mocked(prisma.invitation.create).mockImplementation((async ({ data }: any) => {
+      return {
+        id: `invite-${Math.random().toString(36).substring(7)}`,
+        ...data,
       } as any;
     }) as any);
   });
@@ -234,6 +240,10 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
   describe('4. Token Security & Storage', () => {
     it('never stores the rawToken in the database, only stores tokenHash', async () => {
       let savedTokenHash: string | undefined;
+      vi.mocked(prisma.invitation.create).mockImplementation((async ({ data }: any) => {
+        savedTokenHash = data.tokenHash;
+        return { id: 'invite-1', ...data } as any;
+      }) as any);
       vi.mocked(prisma.invitation.upsert).mockImplementation((async ({ create }: any) => {
         savedTokenHash = create.tokenHash;
         return { id: 'invite-1', ...create } as any;

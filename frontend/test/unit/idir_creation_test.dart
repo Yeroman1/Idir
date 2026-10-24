@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'package:idir_app/core/models/app_user.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:idir_app/features/idirs/data/idirs_repository.dart';
 import 'package:idir_app/features/idirs/domain/models/idir_model.dart';
 import 'package:idir_app/features/idirs/presentation/providers/idir_creation_provider.dart';
@@ -46,27 +45,13 @@ class MockIdirsRepository implements IdirsRepository {
 }
 
 void main() {
-  group('IdirModel and Fayda Verification Unit Tests', () {
-    test('AppUser isFaydaVerified returns true only when faydaId is set and non-empty', () {
-      final unverifiedUser = AppUser(
-        uid: 'user-1',
-        name: 'Abebe Bikila',
-        phone: '+251911223344',
-        role: UserRole.member,
-        memberId: 'IDIR-001',
-        isActive: true,
-        createdAt: DateTime.now(),
-        faydaId: null,
-      );
-      expect(unverifiedUser.isFaydaVerified, isFalse);
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-      final emptyFaydaUser = unverifiedUser.copyWith(faydaId: '   ');
-      expect(emptyFaydaUser.isFaydaVerified, isFalse);
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
-      final verifiedUser = unverifiedUser.copyWith(faydaId: '100020003001');
-      expect(verifiedUser.isFaydaVerified, isTrue);
-    });
-
+  group('IdirModel Unit Tests', () {
     test('IdirModel correctly deserializes and identifies DRAFT status', () {
       final map = {
         'id': 'idir-101',

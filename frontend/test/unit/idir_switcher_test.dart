@@ -175,7 +175,6 @@ void main() {
         memberId: 'MEM-001',
         isActive: true,
         createdAt: DateTime(2025, 1, 1),
-        faydaId: 'ET-1234-5678-9012',
       );
 
       await tester.pumpWidget(
@@ -198,7 +197,6 @@ void main() {
       // Check account header
       expect(find.text('Dawit Getachew'), findsOneWidget);
       expect(find.text('+251912345678'), findsOneWidget);
-      expect(find.textContaining('Fayda FAN: ET-1234-5678-9012'), findsOneWidget);
 
       // Check Idir memberships title
       expect(find.text('IDIR MEMBERSHIPS'), findsOneWidget);

@@ -10,7 +10,6 @@ export const logger = pino({
       'passwordHash',
       'refreshToken',
       'token',
-      'faydaId'
     ],
     censor: '[REDACTED]'
   },

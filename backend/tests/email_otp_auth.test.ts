@@ -93,7 +93,6 @@ describe('Backend Native Email OTP Authentication Flow', () => {
       phoneNumber: '+251911223344',
       email: testEmail,
       preferredLanguage: 'am',
-      faydaId: null,
       status: 'ACTIVE',
       isPlatformAdmin: false,
       createdAt: new Date(),

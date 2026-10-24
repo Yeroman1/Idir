@@ -16,8 +16,7 @@ export class VotingService {
    *
    * Enforces:
    * 1. Idir is ACTIVE.
-   * 2. Fayda authentication verification (Fayda login required for voting).
-   * 3. Voter has an ACTIVE membership in this Idir with tenure requirements met.
+   * 2. Voter has an ACTIVE membership in this Idir with tenure requirements met.
    * 4. Election status is active for voting and within the official voting window.
    * 5. Contested role is part of the election configuration.
    * 6. Candidate is on the official ballot with status ACCEPTED.
@@ -35,26 +34,19 @@ export class VotingService {
   ) {
     await assertIdirActive(idirId);
 
-    // 1. Fetch actor user & verify Fayda Digital ID
+    // 1. Fetch actor user
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: {
         id: true,
         fullName: true,
         phoneNumber: true,
-        faydaId: true,
         status: true,
       },
     });
 
     if (!user || user.status !== 'ACTIVE') {
       throw new ForbiddenError('Active user account is required to participate in voting');
-    }
-
-    if (!user.faydaId || user.faydaId.trim().length === 0) {
-      throw new ForbiddenError(
-        'Fayda National Digital ID verification is mandatory to cast a ballot in this election. Please link and verify your Fayda identity first.'
-      );
     }
 
     // 2. Fetch voter membership
@@ -219,7 +211,6 @@ export class VotingService {
             electionId,
             role: targetRole,
             ballotType: election.ballotType,
-            faydaVerified: true,
             isSecret: !isOpenBallot,
             ...(isOpenBallot
               ? { candidateNominationId: candidate.id }
@@ -271,13 +262,6 @@ export class VotingService {
     actorUserId: string
   ) {
     await assertIdirActive(idirId);
-
-    const user = await prisma.user.findUnique({
-      where: { id: actorUserId },
-      select: { id: true, faydaId: true },
-    });
-
-    const isFaydaVerified = Boolean(user?.faydaId && user.faydaId.trim().length > 0);
 
     const membership = await prisma.membership.findUnique({
       where: {
@@ -342,9 +326,8 @@ export class VotingService {
       ballotType: election.ballotType,
       votingMethod: election.votingMethod,
       isWindowOpen,
-      isFaydaVerified,
       isTenureEligible,
-      canVote: isWindowOpen && isFaydaVerified && isTenureEligible,
+      canVote: isWindowOpen && isTenureEligible,
       roles: election.roles,
       votedRoles,
       pendingRoles,
@@ -417,7 +400,6 @@ export class VotingService {
               select: {
                 id: true,
                 fullName: true,
-                faydaId: true,
               },
             },
           },
