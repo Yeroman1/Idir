@@ -71,19 +71,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── 2. Authenticated user attempting to visit Login ────────────────
       if (loc == AppRoutes.login || loc == '/supabase-login') {
-        if (pin.isSet && !pin.isUnlocked) {
+        if (pin.isPinEnabled && pin.isSet && !pin.isUnlocked) {
           return AppRoutes.pin;
         }
         return AppRoutes.home;
       }
 
-      // ── 3. PIN Lock enforcement ────────────────────────────────────────
-      if (pin.isSet && !pin.isUnlocked) {
+      // ── 3. PIN Lock enforcement (Only if user explicitly enabled PIN in settings) ──
+      if (pin.isPinEnabled && pin.isSet && !pin.isUnlocked) {
         return loc == AppRoutes.pin ? null : AppRoutes.pin;
       }
 
-      // If unlocked, don't stay on lock screen
-      if (loc == AppRoutes.pin && pin.isUnlocked) {
+      // If unlocked or PIN not enabled, don't stay on lock screen
+      if (loc == AppRoutes.pin && (!pin.isPinEnabled || pin.isUnlocked)) {
         return AppRoutes.home;
       }
 

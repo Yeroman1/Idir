@@ -172,8 +172,8 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       if (active == null &&
           user?.idirId != null &&
           user!.idirId!.isNotEmpty &&
-          user!.idirId != '00000000-0000-0000-0000-000000000001') {
-        active = list.where((m) => m.idirId == user!.idirId).firstOrNull;
+          user.idirId != '00000000-0000-0000-0000-000000000001') {
+        active = list.where((m) => m.idirId == user.idirId).firstOrNull;
       }
       active ??= list.where((m) => m.idirId != '00000000-0000-0000-0000-000000000001').firstOrNull;
       active ??= list.isNotEmpty ? list.first : null;
