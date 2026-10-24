@@ -6,16 +6,19 @@ import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../utils/auth_error_messages.dart';
 import 'create_password_screen.dart';
+import 'reset_password_screen.dart';
 
 /// Screen for entering and validating the 6-digit OTP verification code.
-/// Upon successful verification, immediately directs to CreatePasswordScreen.
+/// Upon successful verification, directs to CreatePasswordScreen or ResetPasswordScreen.
 class OtpVerificationScreen extends StatefulWidget {
   const OtpVerificationScreen({
     super.key,
     required this.email,
+    this.isPasswordReset = false,
   });
 
   final String email;
+  final bool isPasswordReset;
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -117,28 +120,52 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final registrationToken = await _authService.verifyEmailOtp(
-        widget.email,
-        code,
-      );
+      if (widget.isPasswordReset) {
+        await _authService.verifyPasswordResetOtp(
+          widget.email,
+          code,
+        );
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      showAuthSnackBar(
-        context,
-        'Email verified! Now set a strong password.',
-        isError: false,
-      );
+        showAuthSnackBar(
+          context,
+          'Code verified! Please create your new password.',
+          isError: false,
+        );
 
-      // Navigate directly to the password creation screen
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => CreatePasswordScreen(
-            email: widget.email,
-            registrationToken: registrationToken,
+        // Navigate directly to the password reset screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => ResetPasswordScreen(
+              email: widget.email,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        final registrationToken = await _authService.verifyEmailOtp(
+          widget.email,
+          code,
+        );
+
+        if (!mounted) return;
+
+        showAuthSnackBar(
+          context,
+          'Email verified! Now set a strong password.',
+          isError: false,
+        );
+
+        // Navigate directly to the password creation screen
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => CreatePasswordScreen(
+              email: widget.email,
+              registrationToken: registrationToken,
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().replaceFirst('Exception: ', '');
@@ -158,15 +185,26 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
 
     try {
-      final res = await _authService.sendEmailOtp(widget.email);
-      if (!mounted) return;
+      if (widget.isPasswordReset) {
+        await _authService.sendPasswordResetOtp(widget.email);
+        if (!mounted) return;
 
-      final devOtp = res['devOtp'];
-      final message = devOtp != null
-          ? 'New code: $devOtp (Logged in backend console)'
-          : 'A new verification code was sent to ${widget.email}';
+        showAuthSnackBar(
+          context,
+          'A new verification code was sent to ${widget.email}',
+          isError: false,
+        );
+      } else {
+        final res = await _authService.sendEmailOtp(widget.email);
+        if (!mounted) return;
 
-      showAuthSnackBar(context, message, isError: false);
+        final devOtp = res['devOtp'];
+        final message = devOtp != null
+            ? 'New code: $devOtp (Logged in backend console)'
+            : 'A new verification code was sent to ${widget.email}';
+
+        showAuthSnackBar(context, message, isError: false);
+      }
       _startCountdown();
     } catch (e) {
       if (!mounted) return;
