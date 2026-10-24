@@ -54,13 +54,18 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      await _authService.sendPasswordResetOtp(email);
+      final res = await _authService.sendPasswordResetOtp(email);
 
       if (!mounted) return;
 
+      final devOtp = res['devOtp'];
+      final message = devOtp != null
+          ? 'Verification code sent to $email (Code: $devOtp)'
+          : 'Verification code sent to $email';
+
       showAuthSnackBar(
         context,
-        'Verification code sent to $email',
+        message,
         isError: false,
       );
 

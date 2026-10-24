@@ -2,19 +2,27 @@ import nodemailer from 'nodemailer';
 import { env } from '../../config/env.js';
 import { logger } from '../../shared/utils/logger.js';
 
-function getOtpHtml(otp: string, email: string): string {
+function getOtpHtml(otp: string, email: string, isPasswordReset = false): string {
+  const title = isPasswordReset ? 'Reset Your Password' : 'Verify Your Email';
+  const description = isPasswordReset
+    ? `We received a request to reset the password for your account (<strong>${email}</strong>). Enter the verification code below to set a new password.`
+    : `Thank you for registering. Enter the verification code below to activate your account for <strong>${email}</strong>.`;
+  const footerNote = isPasswordReset
+    ? `This code is valid for <strong>10 minutes</strong>. If you did not request a password reset, you can safely ignore this email.`
+    : `This code is valid for <strong>10 minutes</strong>. If you did not request this verification, you can safely ignore this email.`;
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Your Verification Code</title>
+  <title>${title}</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f9fafb; margin: 0; padding: 24px;">
   <div style="max-width: 480px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; padding: 32px; border: 1px solid #e5e7eb; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
     <div style="text-align: center; margin-bottom: 24px;">
-      <h2 style="color: #111827; font-size: 24px; margin: 0 0 8px 0; font-weight: bold;">Verify Your Email</h2>
-      <p style="color: #6b7280; font-size: 14px; margin: 0;">Thank you for registering. Enter the verification code below to activate your account for <strong>${email}</strong>.</p>
+      <h2 style="color: #111827; font-size: 24px; margin: 0 0 8px 0; font-weight: bold;">${title}</h2>
+      <p style="color: #6b7280; font-size: 14px; margin: 0;">${description}</p>
     </div>
 
     <div style="background-color: #eff6ff; border: 2px dashed #3b82f6; border-radius: 12px; padding: 20px; text-align: center; margin: 28px 0;">
@@ -24,7 +32,7 @@ function getOtpHtml(otp: string, email: string): string {
     </div>
 
     <p style="color: #6b7280; font-size: 13px; text-align: center; margin-bottom: 24px;">
-      This code is valid for <strong>10 minutes</strong>. If you did not request this verification, you can safely ignore this email.
+      ${footerNote}
     </p>
 
     <hr style="border: none; border-top: 1px solid #f3f4f6; margin: 24px 0;" />
@@ -41,7 +49,15 @@ function getOtpHtml(otp: string, email: string): string {
  * Dispatches the 6-digit OTP email to the user's destination email address.
  * Automatically selects Resend API, configured SMTP, or Ethereal/Test Mailer.
  */
-export async function sendOtpEmail(to: string, otp: string): Promise<{ success: boolean; provider: string; previewUrl?: string }> {
+export async function sendOtpEmail(
+  to: string,
+  otp: string,
+  isPasswordReset = false
+): Promise<{ success: boolean; provider: string; previewUrl?: string }> {
+  const subject = isPasswordReset
+    ? `Your password reset verification code: ${otp}`
+    : `Your 6-digit verification code: ${otp}`;
+
   // ── 1. Resend REST API (if RESEND_API_KEY is configured in .env) ───────────
   if (env.RESEND_API_KEY) {
     try {
@@ -54,8 +70,8 @@ export async function sendOtpEmail(to: string, otp: string): Promise<{ success: 
         body: JSON.stringify({
           from: env.EMAIL_FROM || 'Idir App <onboarding@resend.dev>',
           to: [to],
-          subject: `Your 6-digit verification code: ${otp}`,
-          html: getOtpHtml(otp, to),
+          subject,
+          html: getOtpHtml(otp, to, isPasswordReset),
         }),
       });
 
@@ -93,8 +109,8 @@ export async function sendOtpEmail(to: string, otp: string): Promise<{ success: 
       const info = await transporter.sendMail({
         from: senderAddress,
         to,
-        subject: `Your 6-digit verification code: ${otp}`,
-        html: getOtpHtml(otp, to),
+        subject,
+        html: getOtpHtml(otp, to, isPasswordReset),
       });
 
       console.log(`[MAILER: SMTP] Verification email sent to ${to} (MessageId: ${info.messageId})`);
@@ -121,8 +137,8 @@ export async function sendOtpEmail(to: string, otp: string): Promise<{ success: 
     const info = await transporter.sendMail({
       from: '"Idir App" <verify@idir.org>',
       to,
-      subject: `Your 6-digit verification code: ${otp}`,
-      html: getOtpHtml(otp, to),
+      subject,
+      html: getOtpHtml(otp, to, isPasswordReset),
     });
 
     const previewUrl = nodemailer.getTestMessageUrl(info) || undefined;

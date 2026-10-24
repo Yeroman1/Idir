@@ -90,6 +90,33 @@ export class AuthController {
       next(error);
     }
   }
+
+  async sendForgotPasswordOtp(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await emailOtpService.sendForgotPasswordOtp(req.body);
+      return sendSuccess(res, result, 200, result.message);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async verifyForgotPasswordOtp(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await emailOtpService.verifyForgotPasswordOtp(req.body);
+      return sendSuccess(res, result, 200, result.message);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await emailOtpService.resetPassword(req.body);
+      return sendSuccess(res, result, 200, result.message);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const authController = new AuthController();
