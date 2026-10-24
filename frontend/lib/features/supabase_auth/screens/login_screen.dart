@@ -7,6 +7,7 @@ import '../../../core/router/app_router.dart';
 import '../../auth/presentation/providers/auth_provider.dart';
 import '../services/auth_service.dart';
 import '../utils/auth_error_messages.dart';
+import 'forgot_password_screen.dart';
 import 'registration_screen.dart';
 
 /// Screen for authenticating existing verified users via Email and Password.
@@ -183,7 +184,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 8),
+
+                    // Forgot Password link
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const ForgotPasswordScreen(),
+                                  ),
+                                );
+                              },
+                        style: TextButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(50, 30),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            color: colorScheme.primary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
                     // Submit Login Button with Loading Indicator
                     SizedBox(

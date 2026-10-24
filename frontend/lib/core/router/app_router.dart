@@ -6,9 +6,11 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/account_screen.dart';
 import '../../features/supabase_auth/screens/login_screen.dart';
 import '../../features/supabase_auth/screens/create_password_screen.dart';
+import '../../features/supabase_auth/screens/forgot_password_screen.dart';
 import '../../features/supabase_auth/screens/home_screen.dart' as supabase_auth;
 import '../../features/supabase_auth/screens/otp_verification_screen.dart';
 import '../../features/supabase_auth/screens/registration_screen.dart';
+import '../../features/supabase_auth/screens/reset_password_screen.dart';
 import '../../features/auth/presentation/screens/pin_screen.dart';
 import '../../features/audit/presentation/screens/audit_log_screen.dart';
 import '../../features/announcements/presentation/screens/announcements_screen.dart';
@@ -246,6 +248,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'supabaseHome',
         builder: (_, __) => const supabase_auth.HomeScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        name: 'forgotPassword',
+        builder: (_, __) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.resetPassword,
+        name: 'resetPassword',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return ResetPasswordScreen(email: email);
+        },
+      ),
 
       // ── Shell (Bottom Navigation Tabs) ──────────────────────────────────
       mainShellRoute,
@@ -260,7 +275,9 @@ bool _isAuthRoute(String loc) {
       loc == AppRoutes.supabaseRegister ||
       loc.startsWith(AppRoutes.supabaseVerifyOtp) ||
       loc.startsWith(AppRoutes.supabaseCreatePassword) ||
-      loc == AppRoutes.supabaseHome;
+      loc == AppRoutes.supabaseHome ||
+      loc == AppRoutes.forgotPassword ||
+      loc.startsWith(AppRoutes.resetPassword);
 }
 
 // ─── Error screen ─────────────────────────────────────────────────────────────
@@ -297,6 +314,8 @@ abstract final class AppRoutes {
   static const supabaseVerifyOtp = '/supabase-verify-otp';
   static const supabaseCreatePassword = '/supabase-create-password';
   static const supabaseHome = '/supabase-home';
+  static const forgotPassword = '/forgot-password';
+  static const resetPassword = '/reset-password';
 
   // Bottom navigation tabs
   static const home = '/home';

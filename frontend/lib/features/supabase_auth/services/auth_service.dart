@@ -301,6 +301,118 @@ class AuthService {
     };
   }
 
+  /// Checks whether an email address belongs to an actual registered user.
+  Future<bool> isEmailRegistered(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final supabase = _getSupabaseClient();
+    try {
+      final res = await supabase.rpc(
+        'check_user_email_registered',
+        params: {'check_email': cleanEmail},
+      );
+      return res == true;
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('socket') ||
+          msg.contains('network') ||
+          msg.contains('connection refused') ||
+          msg.contains('failed host lookup') ||
+          msg.contains('clientexception')) {
+        _handleNetworkError(e);
+      }
+      rethrow;
+    }
+  }
+
+  /// Sends a 6-digit password recovery OTP to the user's email via live Supabase.
+  /// Checks first if the email is an actual registered user.
+  Future<void> sendPasswordResetOtp(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final supabase = _getSupabaseClient();
+
+    // 1. Check first if the email is an actual registered user
+    final registered = await isEmailRegistered(cleanEmail);
+    if (!registered) {
+      throw Exception(
+        'This email is not registered. Please check the email or sign up first.',
+      );
+    }
+
+    // 2. Dispatch OTP recovery email via Supabase
+    try {
+      await supabase.auth.resetPasswordForEmail(cleanEmail);
+    } on AuthException catch (e) {
+      throw Exception(humanReadableAuthError(e));
+    } catch (e) {
+      _handleNetworkError(e);
+    }
+  }
+
+  /// Validates the 6-digit recovery OTP for password reset.
+  Future<void> verifyPasswordResetOtp(String email, String otp) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final supabase = _getSupabaseClient();
+    try {
+      await supabase.auth.verifyOTP(
+        email: cleanEmail,
+        token: otp.trim(),
+        type: OtpType.recovery,
+      );
+    } on AuthException catch (e) {
+      throw Exception(humanReadableAuthError(e));
+    } catch (e) {
+      _handleNetworkError(e);
+    }
+  }
+
+  /// Updates the user's password with confirmation upon successful OTP verification.
+  Future<void> resetPassword({
+    required String newPassword,
+    String? email,
+  }) async {
+    final supabase = _getSupabaseClient();
+    try {
+      await supabase.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
+      // Cleanly sign out of recovery session so user can log in with new credentials
+      await supabase.auth.signOut();
+    } on AuthException catch (e) {
+      throw Exception(humanReadableAuthError(e));
+    } catch (e) {
+      _handleNetworkError(e);
+    }
+  }
+
+  SupabaseClient _getSupabaseClient() {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      if (SupabaseConfig.isConfigured) {
+        Supabase.initialize(
+          url: SupabaseConfig.supabaseUrl,
+          anonKey: SupabaseConfig.supabaseAnonKey,
+        );
+        return Supabase.instance.client;
+      }
+      throw Exception(
+        'Supabase is not configured. Please verify SUPABASE_URL and SUPABASE_ANON_KEY.',
+      );
+    }
+  }
+
+  Never _handleNetworkError(dynamic e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('socket') ||
+        msg.contains('network') ||
+        msg.contains('connection refused') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('clientexception')) {
+      throw Exception('Network connection error: please verify your internet connection.');
+    }
+    throw Exception(e.toString().replaceFirst('Exception: ', ''));
+  }
+
   /// Clear active session
   void signOut() {
     accessToken = null;
