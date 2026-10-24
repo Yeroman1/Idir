@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Service connecting directly to your Express backend for Email OTP authentication.
-/// Zero external cloud APIs, zero Resend or Supabase dashboard dependencies required.
+import '../config/supabase_config.dart';
+import '../utils/auth_error_messages.dart';
+
+/// Authentication service checking live Supabase Email and Password.
 class AuthService {
   AuthService({String? baseUrl, http.Client? client})
       : _client = client ?? http.Client(),
@@ -171,32 +174,131 @@ class AuthService {
     return responseData;
   }
 
-  /// Step 4: Login with verified Email and Password.
+  /// Step 4: Login with verified Email and Password checking live Supabase.
   Future<Map<String, dynamic>> emailLogin(String email, String password) async {
-    final response = await _client.post(
-      Uri.parse('$_baseUrl/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email.trim().toLowerCase(),
-        'password': password,
-      }),
-    );
+    final cleanEmail = email.trim().toLowerCase();
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-    if (response.statusCode >= 400) {
-      throw Exception(_extractErrorMessage(data, 'Invalid email or password'));
+    // 1. Ensure Supabase client is initialized
+    SupabaseClient supabase;
+    try {
+      supabase = Supabase.instance.client;
+    } catch (_) {
+      if (SupabaseConfig.isConfigured) {
+        await Supabase.initialize(
+          url: SupabaseConfig.supabaseUrl,
+          anonKey: SupabaseConfig.supabaseAnonKey,
+        );
+        supabase = Supabase.instance.client;
+      } else {
+        throw Exception(
+          'Supabase is not configured. Please verify SUPABASE_URL and SUPABASE_ANON_KEY.',
+        );
+      }
     }
 
-    final responseData = (data['data'] as Map<String, dynamic>?) ?? data;
-    final tokens = responseData['tokens'] as Map<String, dynamic>?;
-    if (tokens != null) {
-      accessToken = tokens['accessToken'] as String?;
-      refreshToken = tokens['refreshToken'] as String?;
+    // 2. Perform live authentication against Supabase GoTrue Auth
+    final AuthResponse authResponse;
+    try {
+      authResponse = await supabase.auth.signInWithPassword(
+        email: cleanEmail,
+        password: password,
+      );
+    } on AuthException catch (e) {
+      throw Exception(humanReadableAuthError(e));
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('socket') ||
+          msg.contains('network') ||
+          msg.contains('connection refused') ||
+          msg.contains('failed host lookup') ||
+          msg.contains('clientexception')) {
+        throw Exception('Network connection error: please verify your internet connection.');
+      }
+      rethrow;
     }
-    currentUser = responseData['user'] as Map<String, dynamic>?;
 
-    return responseData;
+    final user = authResponse.user;
+    final session = authResponse.session;
+
+    if (user == null) {
+      throw Exception('Authentication failed: no user returned from Supabase.');
+    }
+
+    accessToken = session?.accessToken;
+    refreshToken = session?.refreshToken;
+
+    // 3. Extract user metadata or enrich with Supabase database profile
+    String fullName = user.userMetadata?['fullName'] as String? ??
+        user.userMetadata?['name'] as String? ??
+        user.userMetadata?['full_name'] as String? ??
+        '';
+    if (fullName.isEmpty) {
+      final localPart = cleanEmail.split('@').first;
+      fullName = localPart
+          .split(RegExp(r'[._-]'))
+          .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+          .join(' ');
+      if (fullName.trim().isEmpty) fullName = 'Idir Member';
+    }
+
+    String phone = user.userMetadata?['phoneNumber'] as String? ??
+        user.userMetadata?['phone'] as String? ??
+        user.phone ??
+        '';
+
+    String role = (user.userMetadata?['role'] as String? ?? 'MEMBER').toUpperCase();
+    List<dynamic> memberships = [];
+
+    // Attempt to enrich with live Supabase database record (if User table exists)
+    try {
+      final profile = await supabase
+          .from('User')
+          .select('id, fullName, phoneNumber, role, status, memberships:Membership(*, idir:Idir(*))')
+          .or('id.eq.${user.id},email.eq.$cleanEmail')
+          .maybeSingle();
+
+      if (profile != null) {
+        if (profile['fullName'] != null && (profile['fullName'] as String).isNotEmpty) {
+          fullName = profile['fullName'] as String;
+        }
+        if (profile['phoneNumber'] != null && (profile['phoneNumber'] as String).isNotEmpty) {
+          phone = profile['phoneNumber'] as String;
+        }
+        if (profile['role'] != null) {
+          role = (profile['role'] as String).toUpperCase();
+        }
+        if (profile['memberships'] is List) {
+          memberships = profile['memberships'] as List;
+        }
+      }
+    } catch (e) {
+      debugPrint('[AuthService] Supabase DB profile query notice: $e');
+    }
+
+    final userData = <String, dynamic>{
+      'id': user.id,
+      'uid': user.id,
+      'email': user.email ?? cleanEmail,
+      'fullName': fullName,
+      'name': fullName,
+      'phoneNumber': phone,
+      'phone': phone,
+      'status': 'ACTIVE',
+      'isActive': true,
+      'role': role,
+      'createdAt': user.createdAt,
+      'memberships': memberships,
+    };
+
+    currentUser = userData;
+
+    return {
+      'tokens': {
+        'accessToken': session?.accessToken ?? 'sb-access-token',
+        'refreshToken': session?.refreshToken ?? 'sb-refresh-token',
+      },
+      'user': userData,
+    };
   }
 
   /// Clear active session
@@ -204,6 +306,9 @@ class AuthService {
     accessToken = null;
     refreshToken = null;
     currentUser = null;
+    try {
+      Supabase.instance.client.auth.signOut();
+    } catch (_) {}
   }
 
   bool get isAuthenticated => accessToken != null;

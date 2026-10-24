@@ -524,31 +524,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _SettingsCard(
             children: [
-              ListTile(
-                leading: _iconBox(Icons.lock_outline, AppColors.info),
-                title: Text(
-                  pinState.isSet ? l10n.changePin : l10n.pinSetupTitle,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w600),
+              SwitchListTile(
+                secondary: _iconBox(Icons.lock_outline, AppColors.info),
+                title: const Text(
+                  'Security PIN Lock',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 subtitle: Text(
-                  pinState.isSet
-                      ? '4-Digit PIN lock is active'
-                      : 'PIN lock is disabled — tap to enable',
+                  pinState.isPinEnabled && pinState.isSet
+                      ? 'PIN lock is enabled (tap Change PIN below to modify)'
+                      : 'PIN lock is optional (disabled by default)',
                   style: TextStyle(
                     fontSize: 12,
-                    color: pinState.isSet
+                    color: pinState.isPinEnabled && pinState.isSet
                         ? AppColors.success
                         : theme.colorScheme.onSurface.withValues(alpha: 0.5),
                   ),
                 ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  context.push(
-                    pinState.isSet ? AppRoutes.pinChange : AppRoutes.pinSetup,
-                  );
+                value: pinState.isPinEnabled && pinState.isSet,
+                onChanged: (bool value) async {
+                  if (value) {
+                    if (pinState.isSet) {
+                      await ref.read(pinNotifierProvider.notifier).setPinEnabled(true);
+                    } else {
+                      context.push(AppRoutes.pinSetup);
+                    }
+                  } else {
+                    await ref.read(pinNotifierProvider.notifier).setPinEnabled(false);
+                  }
                 },
               ),
+              if (pinState.isSet) ...[
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: _iconBox(Icons.pin_outlined, AppColors.info),
+                  title: Text(
+                    l10n.changePin,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: const Text(
+                    'Update your 4-digit security PIN',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    context.push(AppRoutes.pinChange);
+                  },
+                ),
+              ],
               const Divider(height: 1, indent: 56),
               const _InfoTile(
                 label: 'Session Inactivity Lock',

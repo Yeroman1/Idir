@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers/pin_provider.dart';
 import '../../../core/router/app_router.dart';
 import '../../auth/presentation/providers/auth_provider.dart';
 import '../services/auth_service.dart';
@@ -51,12 +52,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (!mounted) return;
 
+      // Ensure PIN lock does not block navigation after successful login
+      ref.read(pinNotifierProvider.notifier).unlockSession();
+
       // Save session in Riverpod auth provider and API client
       await ref.read(authNotifierProvider.notifier).setSessionFromAuthResponse(res);
 
       if (!mounted) return;
 
-      // Navigate to verified home dashboard
+      // Navigate directly to verified home dashboard
       context.go(AppRoutes.home);
     } catch (e) {
       if (!mounted) return;
