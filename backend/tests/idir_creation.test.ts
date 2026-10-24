@@ -16,11 +16,9 @@ vi.mock('../src/config/database.js', () => ({
   },
 }));
 
-describe('Idir Creation & Fayda Verification Tests', () => {
+describe('Idir Creation Tests', () => {
   const verifiedUserId = 'verified-user-uuid';
-  const unverifiedUserId = 'unverified-user-uuid';
   let verifiedToken: string;
-  let unverifiedToken: string;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -30,42 +28,6 @@ describe('Idir Creation & Fayda Verification Tests', () => {
       phoneNumber: '+251911111111',
       isPlatformAdmin: false,
     });
-
-    unverifiedToken = generateAccessToken({
-      userId: unverifiedUserId,
-      phoneNumber: '+251922222222',
-      isPlatformAdmin: false,
-    });
-  });
-
-  it('rejects unverified user (lacks Fayda ID) with 403 Forbidden', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({
-      id: unverifiedUserId,
-      phoneNumber: '+251922222222',
-      fullName: 'Unverified User',
-      email: null,
-      faydaId: null,
-      status: 'ACTIVE',
-      isPlatformAdmin: false,
-      preferredLanguage: 'am',
-    } as any);
-
-    const res = await request(app)
-      .post('/api/v1/idirs')
-      .set('Authorization', `Bearer ${unverifiedToken}`)
-      .send({
-        name: 'Bole Medhanealem Idir',
-        community: 'Bole Subcity',
-        location: 'Addis Ababa',
-        purpose: 'Community funeral and mutual aid fund',
-        contributionAmount: 250,
-        contributionFrequency: 'MONTHLY',
-      });
-
-    expect(res.status).toBe(403);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error.code).toBe('FORBIDDEN');
-    expect(res.body.error.message).toContain('Fayda verification is required');
   });
 
   it('rejects unauthenticated user with 401 Unauthorized', async () => {
@@ -91,7 +53,6 @@ describe('Idir Creation & Fayda Verification Tests', () => {
       phoneNumber: '+251911111111',
       fullName: 'Verified Chairperson',
       email: 'chair@example.com',
-      faydaId: '100020003001',
       status: 'ACTIVE',
       isPlatformAdmin: false,
       preferredLanguage: 'am',
@@ -125,7 +86,6 @@ describe('Idir Creation & Fayda Verification Tests', () => {
       phoneNumber: '+251911111111',
       fullName: 'Verified Chairperson',
       email: 'chair@example.com',
-      faydaId: '100020003001',
       status: 'ACTIVE',
       isPlatformAdmin: false,
       preferredLanguage: 'am',
@@ -151,13 +111,12 @@ describe('Idir Creation & Fayda Verification Tests', () => {
     expect(amountError?.message).toContain('greater than 0');
   });
 
-  it('saves valid request as DRAFT even if client sends status ACTIVE', async () => {
+  it('creates valid Idir with status ACTIVE and assigns chairperson membership', async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: verifiedUserId,
       phoneNumber: '+251911111111',
       fullName: 'Verified Chairperson',
       email: 'chair@example.com',
-      faydaId: '100020003001',
       status: 'ACTIVE',
       isPlatformAdmin: false,
       preferredLanguage: 'am',
@@ -171,7 +130,7 @@ describe('Idir Creation & Fayda Verification Tests', () => {
       purpose: 'Neighborhood mutual assistance and funeral cover',
       contributionAmount: 200,
       contributionFrequency: 'MONTHLY',
-      status: 'DRAFT',
+      status: 'ACTIVE',
       createdById: verifiedUserId,
       currency: 'ETB',
       createdAt: new Date().toISOString(),
@@ -180,7 +139,6 @@ describe('Idir Creation & Fayda Verification Tests', () => {
         id: verifiedUserId,
         fullName: 'Verified Chairperson',
         phoneNumber: '+251911111111',
-        faydaId: '100020003001',
       },
     };
 
@@ -206,19 +164,18 @@ describe('Idir Creation & Fayda Verification Tests', () => {
         purpose: 'Neighborhood mutual assistance and funeral cover',
         contributionAmount: 200,
         contributionFrequency: 'MONTHLY',
-        status: 'ACTIVE', // Client attempts to force ACTIVE
+        status: 'ACTIVE',
       });
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('DRAFT');
+    expect(res.body.data.status).toBe('ACTIVE');
 
-    // Verify prisma.idir.create was called with status: 'DRAFT'
     expect(prisma.idir.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           name: 'Yeka Karalo Idir',
-          status: 'DRAFT',
+          status: 'ACTIVE',
           createdById: verifiedUserId,
         }),
       })

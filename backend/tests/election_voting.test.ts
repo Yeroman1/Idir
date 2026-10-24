@@ -33,18 +33,14 @@ vi.mock('../src/config/database.js', () => ({
   },
 }));
 
-describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () => {
+describe('Task 3: Voting - One Vote Per Role and Anonymity', () => {
   const idirId = '33333333-3333-3333-3333-333333333333';
   const electionId = 'election-voting-uuid-001';
 
-  const faydaVerifiedUserId = 'fayda-user-uuid';
-  const faydaVerifiedMembershipId = 'membership-fayda-uuid';
+  const voterUserId = 'voter-user-uuid';
+  const voterMembershipId = 'membership-voter-uuid';
 
-  const nonFaydaUserId = 'non-fayda-user-uuid';
-  const nonFaydaMembershipId = 'membership-non-fayda-uuid';
-
-  let faydaVerifiedToken: string;
-  let nonFaydaToken: string;
+  let voterToken: string;
 
   const candidateChairpersonId = 'cand-chair-001';
   const candidateTreasurerId = 'cand-treas-001';
@@ -74,37 +70,20 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
   beforeEach(() => {
     vi.clearAllMocks();
 
-    faydaVerifiedToken = generateAccessToken({
-      userId: faydaVerifiedUserId,
+    voterToken = generateAccessToken({
+      userId: voterUserId,
       phoneNumber: '+251911888888',
-      isPlatformAdmin: false,
-    });
-
-    nonFaydaToken = generateAccessToken({
-      userId: nonFaydaUserId,
-      phoneNumber: '+251922999999',
       isPlatformAdmin: false,
     });
 
     // Default mock user lookup for authenticate middleware
     vi.mocked(prisma.user.findUnique).mockImplementation(async ({ where }: any) => {
       const id = where.id;
-      if (id === faydaVerifiedUserId) {
+      if (id === voterUserId) {
         return {
-          id: faydaVerifiedUserId,
+          id: voterUserId,
           fullName: 'Almaz Ayana',
           phoneNumber: '+251911888888',
-          faydaId: 'FAYDA-ETH-1234567890',
-          status: 'ACTIVE',
-          isPlatformAdmin: false,
-        } as any;
-      }
-      if (id === nonFaydaUserId) {
-        return {
-          id: nonFaydaUserId,
-          fullName: 'No Fayda User',
-          phoneNumber: '+251922999999',
-          faydaId: null, // Missing Fayda ID
           status: 'ACTIVE',
           isPlatformAdmin: false,
         } as any;
@@ -126,22 +105,6 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
     (prisma.auditLog.create as any).mockResolvedValue({ id: 'audit-log-uuid' });
   });
 
-  describe('Fayda Digital Identity Requirement', () => {
-    it('rejects voting if member has not verified their Fayda Digital ID', async () => {
-      const res = await request(app)
-        .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${nonFaydaToken}`)
-        .send({
-          role: 'CHAIRPERSON',
-          candidateNominationId: candidateChairpersonId,
-        });
-
-      expect(res.status).toBe(403);
-      expect(res.body.success).toBe(false);
-      expect(res.body.error.message).toContain('Fayda National Digital ID verification is mandatory');
-    });
-  });
-
   describe('Voting Window and Eligibility Enforcement', () => {
     it('rejects vote if voting window has not opened yet', async () => {
       // Election startDate is in future
@@ -152,16 +115,16 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
       });
 
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
       });
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'CHAIRPERSON',
           candidateNominationId: candidateChairpersonId,
@@ -180,16 +143,16 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
       });
 
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000),
       });
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'CHAIRPERSON',
           candidateNominationId: candidateChairpersonId,
@@ -202,16 +165,16 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
     it('rejects vote if member has not met the minimum tenure requirement', async () => {
       // Member joined 5 days ago; election requires 30 days
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
       });
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'CHAIRPERSON',
           candidateNominationId: candidateChairpersonId,
@@ -223,9 +186,9 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
     it('rejects vote for a candidate whose nomination status is not ACCEPTED (Done when rule)', async () => {
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -241,7 +204,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'CHAIRPERSON',
           candidateNominationId: candidateChairpersonId,
@@ -255,9 +218,9 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
   describe('One Vote Per Role & Double-Voting Prevention', () => {
     it('casts vote successfully and stores VoteReceipt separately from Ballot', async () => {
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -277,7 +240,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
       (prisma.voteReceipt.create as any).mockResolvedValue({
         id: 'receipt-uuid-001',
         electionId,
-        membershipId: faydaVerifiedMembershipId,
+        membershipId: voterMembershipId,
         role: 'CHAIRPERSON',
         votedAt: new Date(),
         receiptTokenHash: 'mock-sha256-hash-abc123xyz',
@@ -294,7 +257,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'CHAIRPERSON',
           candidateNominationId: candidateChairpersonId,
@@ -310,7 +273,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
         expect.objectContaining({
           data: expect.objectContaining({
             electionId,
-            membershipId: faydaVerifiedMembershipId,
+            membershipId: voterMembershipId,
             role: 'CHAIRPERSON',
           }),
         })
@@ -331,9 +294,9 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
     it('strictly prevents double-voting for the same role', async () => {
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -350,12 +313,12 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
         id: 'previous-receipt-uuid',
         electionId,
         role: 'CHAIRPERSON',
-        membershipId: faydaVerifiedMembershipId,
+        membershipId: voterMembershipId,
       });
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'CHAIRPERSON',
           candidateNominationId: candidateChairpersonId,
@@ -368,9 +331,9 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
     it('permits voting for a different role even if another role has already been voted for', async () => {
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -389,7 +352,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
       (prisma.voteReceipt.create as any).mockResolvedValue({
         id: 'receipt-uuid-treasurer',
         electionId,
-        membershipId: faydaVerifiedMembershipId,
+        membershipId: voterMembershipId,
         role: 'TREASURER',
         votedAt: new Date(),
         receiptTokenHash: 'mock-hash-treasurer',
@@ -405,7 +368,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'TREASURER',
           candidateNominationId: candidateTreasurerId,
@@ -422,9 +385,9 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
       (prisma.election.findFirst as any).mockResolvedValue(mockOpenElection);
 
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -441,7 +404,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
       (prisma.voteReceipt.create as any).mockResolvedValue({
         id: 'receipt-open-001',
         electionId,
-        membershipId: faydaVerifiedMembershipId,
+        membershipId: voterMembershipId,
         role: 'CHAIRPERSON',
         votedAt: new Date(),
       });
@@ -451,12 +414,12 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
         electionId,
         role: 'CHAIRPERSON',
         candidateNominationId: candidateChairpersonId,
-        voterMembershipId: faydaVerifiedMembershipId, // Recorded for OPEN ballots
+        voterMembershipId: voterMembershipId, // Recorded for OPEN ballots
       });
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/${electionId}/vote`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`)
+        .set('Authorization', `Bearer ${voterToken}`)
         .send({
           role: 'CHAIRPERSON',
           candidateNominationId: candidateChairpersonId,
@@ -466,7 +429,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
       expect(prisma.ballot.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            voterMembershipId: faydaVerifiedMembershipId,
+            voterMembershipId: voterMembershipId,
           }),
         })
       );
@@ -476,9 +439,9 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
   describe('GET /api/v1/idirs/:idirId/elections/:electionId/voting-status', () => {
     it('returns member voted roles and pending roles', async () => {
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
         joinedAt: new Date('2024-01-01T00:00:00Z'),
       });
@@ -495,13 +458,12 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
       const res = await request(app)
         .get(`/api/v1/idirs/${idirId}/elections/${electionId}/voting-status`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`);
+        .set('Authorization', `Bearer ${voterToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.votedRoles).toEqual(['CHAIRPERSON']);
       expect(res.body.data.pendingRoles).toEqual(['TREASURER', 'SECRETARY']);
-      expect(res.body.data.isFaydaVerified).toBe(true);
       expect(res.body.data.canVote).toBe(true);
     });
   });
@@ -509,9 +471,9 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
   describe('GET /api/v1/idirs/:idirId/elections/:electionId/ballot', () => {
     it('returns official ballot with accepted candidates and voter receipts', async () => {
       (prisma.membership.findUnique as any).mockResolvedValue({
-        id: faydaVerifiedMembershipId,
+        id: voterMembershipId,
         idirId,
-        userId: faydaVerifiedUserId,
+        userId: voterUserId,
         status: 'ACTIVE',
       });
 
@@ -532,7 +494,7 @@ describe('Task 3: Voting - Fayda Login, One Vote Per Role, and Anonymity', () =>
 
       const res = await request(app)
         .get(`/api/v1/idirs/${idirId}/elections/${electionId}/ballot`)
-        .set('Authorization', `Bearer ${faydaVerifiedToken}`);
+        .set('Authorization', `Bearer ${voterToken}`);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

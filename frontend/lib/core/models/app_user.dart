@@ -175,12 +175,10 @@ class AppUser extends Equatable {
     required this.memberId,
     required this.isActive,
     required this.createdAt,
-    this.faydaId,
     this.idirId,
     this.idirName,
     this.memberships = const [],
-    bool? isFaydaVerified,
-  }) : _isFaydaVerified = isFaydaVerified;
+  });
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> map) {
     final membershipsList = (map['memberships'] as List<dynamic>?)
@@ -200,13 +198,9 @@ class AppUser extends Equatable {
         Object obj => DateTime.tryParse(obj.toString()) ?? DateTime.now(),
         _ => DateTime.now(),
       },
-      faydaId: map['faydaId'] as String?,
       idirId: map['idirId'] as String?,
       idirName: map['idirName'] as String?,
       memberships: membershipsList,
-      isFaydaVerified: map['isFaydaVerified'] as bool? ??
-          (map['faydaId'] is String &&
-              (map['faydaId'] as String).trim().isNotEmpty),
     );
   }
 
@@ -217,14 +211,12 @@ class AppUser extends Equatable {
   final String memberId;
   final bool isActive;
   final DateTime createdAt;
-  final String? faydaId;
   final String? idirId;
   final String? idirName;
   final List<UserMembership> memberships;
-  final bool? _isFaydaVerified;
 
-  bool get isFaydaVerified =>
-      _isFaydaVerified ?? (faydaId != null && faydaId!.trim().isNotEmpty);
+  String? get faydaId => null;
+  bool get isFaydaVerified => true;
 
   bool get hasIdir => idirId != null && idirId!.trim().isNotEmpty;
 
@@ -235,11 +227,9 @@ class AppUser extends Equatable {
         'memberId': memberId,
         'isActive': isActive,
         'createdAt': createdAt,
-        if (faydaId != null) 'faydaId': faydaId,
         if (idirId != null) 'idirId': idirId,
         if (idirName != null) 'idirName': idirName,
         'memberships': memberships.map((m) => m.toMap()).toList(),
-        'isFaydaVerified': isFaydaVerified,
       };
 
   AppUser copyWith({
@@ -250,11 +240,9 @@ class AppUser extends Equatable {
     String? memberId,
     bool? isActive,
     DateTime? createdAt,
-    String? faydaId,
     String? idirId,
     String? idirName,
     List<UserMembership>? memberships,
-    bool? isFaydaVerified,
   }) {
     return AppUser(
       uid: uid ?? this.uid,
@@ -264,12 +252,9 @@ class AppUser extends Equatable {
       memberId: memberId ?? this.memberId,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
-      faydaId: faydaId ?? this.faydaId,
       idirId: idirId ?? this.idirId,
       idirName: idirName ?? this.idirName,
       memberships: memberships ?? this.memberships,
-      isFaydaVerified: isFaydaVerified ??
-          (faydaId != null ? faydaId.trim().isNotEmpty : this.isFaydaVerified),
     );
   }
 
@@ -282,10 +267,8 @@ class AppUser extends Equatable {
         memberId,
         isActive,
         createdAt,
-        faydaId,
         idirId,
         idirName,
         memberships,
-        isFaydaVerified,
       ];
 }

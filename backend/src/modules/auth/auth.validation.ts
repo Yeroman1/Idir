@@ -8,10 +8,6 @@ export const registerSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   email: z.string().email('Invalid email address').optional(),
   preferredLanguage: z.enum(['am', 'en', 'om']).default('am'),
-  faydaId: z
-    .string()
-    .regex(/^\d{12}$/, 'Fayda ID must be exactly 12 digits')
-    .optional(),
 });
 
 export const loginSchema = z.object({

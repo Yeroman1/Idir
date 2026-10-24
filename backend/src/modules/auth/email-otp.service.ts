@@ -270,7 +270,6 @@ export class EmailOtpService {
         address: true,
         dateOfBirth: true,
         preferredLanguage: true,
-        faydaId: true,
         status: true,
         isPlatformAdmin: true,
         createdAt: true,

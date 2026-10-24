@@ -12,7 +12,6 @@ export class UsersService {
         phoneNumber: true,
         email: true,
         preferredLanguage: true,
-        faydaId: true,
         status: true,
         isPlatformAdmin: true,
         createdAt: true,
@@ -54,15 +53,6 @@ export class UsersService {
       }
     }
 
-    if (input.faydaId) {
-      const existingFayda = await prisma.user.findFirst({
-        where: { faydaId: input.faydaId, NOT: { id: userId } },
-      });
-      if (existingFayda) {
-        throw new ConflictError('Fayda ID is already linked to another account');
-      }
-    }
-
     const updated = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -71,7 +61,6 @@ export class UsersService {
         ...(input.preferredLanguage !== undefined && {
           preferredLanguage: input.preferredLanguage,
         }),
-        ...(input.faydaId !== undefined && { faydaId: input.faydaId }),
       },
       select: {
         id: true,
@@ -79,7 +68,6 @@ export class UsersService {
         phoneNumber: true,
         email: true,
         preferredLanguage: true,
-        faydaId: true,
         status: true,
         isPlatformAdmin: true,
         updatedAt: true,

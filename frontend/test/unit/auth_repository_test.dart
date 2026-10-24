@@ -1,117 +1,78 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idir_app/core/models/app_user.dart';
-import 'package:idir_app/features/auth/data/auth_repository.dart';
-import 'package:idir_app/features/auth/data/fayda_service.dart';
+import 'package:idir_app/core/network/api_client.dart';
+import 'package:idir_app/core/storage/offline_cache_service.dart';
+import 'package:idir_app/features/auth/data/rest_auth_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 void main() {
-  group('FirebaseAuthRepository Fayda National ID unit tests', () {
-    late FirebaseAuthRepository repository;
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('RestAuthRepository Unit Tests', () {
+    late ProviderContainer container;
+    late RestAuthRepository repository;
 
     setUp(() {
       SharedPreferences.setMockInitialValues({});
-      repository = FirebaseAuthRepository();
+      container = ProviderContainer();
+      repository = RestAuthRepository(
+        apiClient: container.read(apiClientProvider),
+        cacheService: OfflineCacheService(),
+      );
     });
 
-    test('Fayda OTP request and verification signs in successfully with assigned roles', () async {
-      // 1. Chairperson: 1000 2000 3001
-      final chairOtpResp = await repository.requestFaydaOtp('1000 2000 3001');
-      expect(chairOtpResp.isSuccess, isTrue);
-      expect(chairOtpResp.maskedPhone, contains('+251'));
-      expect(chairOtpResp.mockOtpCode, '123456');
-
-      final chair = await repository.verifyFaydaOtp(
-        faydaId: '1000 2000 3001',
-        otp: chairOtpResp.mockOtpCode!,
-        txnId: chairOtpResp.txnId,
-      );
-      expect(chair.role, UserRole.chairperson);
-      expect(chair.faydaId, '100020003001');
-      expect(chair.name, contains('Abebe'));
-
-      // 2. Treasurer: 1000 2000 3002
-      final treasurerOtp = await repository.requestFaydaOtp('1000 2000 3002');
-      final treasurer = await repository.verifyFaydaOtp(
-        faydaId: '1000 2000 3002',
-        otp: treasurerOtp.mockOtpCode!,
-        txnId: treasurerOtp.txnId,
-      );
-      expect(treasurer.role, UserRole.treasurer);
-      expect(treasurer.faydaId, '100020003002');
-
-      // 3. Auditor: 1000 2000 3003
-      final auditorOtp = await repository.requestFaydaOtp('1000 2000 3003');
-      final auditor = await repository.verifyFaydaOtp(
-        faydaId: '1000 2000 3003',
-        otp: auditorOtp.mockOtpCode!,
-        txnId: auditorOtp.txnId,
-      );
-      expect(auditor.role, UserRole.auditor);
-      expect(auditor.faydaId, '100020003003');
-
-      // 4. Member: 1000 2000 3004
-      final memberOtp = await repository.requestFaydaOtp('1000 2000 3004');
-      final member = await repository.verifyFaydaOtp(
-        faydaId: '1000 2000 3004',
-        otp: memberOtp.mockOtpCode!,
-        txnId: memberOtp.txnId,
-      );
-      expect(member.role, UserRole.member);
-      expect(member.faydaId, '100020003004');
+    tearDown(() {
+      container.dispose();
     });
 
-    test('Current user persists with Fayda ID after verification and clears on sign-out', () async {
-      final otp = await repository.requestFaydaOtp('1000 2000 3002');
-      await repository.verifyFaydaOtp(
-        faydaId: '1000 2000 3002',
-        otp: otp.mockOtpCode!,
-        txnId: otp.txnId,
-      );
-
-      final current = await repository.getCurrentUser();
-      expect(current, isNotNull);
-      expect(current!.role, UserRole.treasurer);
-      expect(current.faydaId, '100020003002');
-
-      await repository.signOut();
-      final afterSignOut = await repository.getCurrentUser();
-      expect(afterSignOut, isNull);
+    test('Initial cached user is null when unauthenticated', () async {
+      final user = await repository.getCurrentUser();
+      expect(user, isNull);
     });
 
-    test('updateProfile updates and persists modified profile fields with Fayda ID preserved', () async {
-      final otp = await repository.requestFaydaOtp('1000 2000 3004');
-      final user = await repository.verifyFaydaOtp(
-        faydaId: '1000 2000 3004',
-        otp: otp.mockOtpCode!,
-        txnId: otp.txnId,
-      );
+    test('setSessionFromAuthResponse parses verified user correctly', () async {
+      final mockResponse = {
+        'tokens': {
+          'accessToken': 'mock-access-token',
+          'refreshToken': 'mock-refresh-token',
+        },
+        'user': {
+          'id': 'user-123',
+          'fullName': 'Abebe Tadesse',
+          'phoneNumber': '+251911223344',
+          'role': 'CHAIRPERSON',
+          'status': 'ACTIVE',
+          'createdAt': '2026-01-01T00:00:00.000Z',
+          'memberships': [
+            {
+              'id': 'membership-1',
+              'idirId': 'idir-1',
+              'idirName': 'Tinsae Idir',
+              'role': 'CHAIRPERSON',
+              'memberNumber': 'IDIR-001',
+              'status': 'ACTIVE',
+            }
+          ],
+        },
+      };
 
-      final updated = user.copyWith(name: 'Fatima Updated', phone: '+251 99 999 9999');
-      await repository.updateProfile(updated);
+      final appUser = await repository.setSessionFromAuthResponse(mockResponse);
+      expect(appUser.uid, 'user-123');
+      expect(appUser.name, 'Abebe Tadesse');
+      expect(appUser.role, UserRole.chairperson);
+      expect(appUser.memberId, 'IDIR-001');
 
       final cached = await repository.getCurrentUser();
       expect(cached, isNotNull);
-      expect(cached!.name, 'Fatima Updated');
-      expect(cached.phone, '+251 99 999 9999');
-      expect(cached.faydaId, '100020003004');
-      expect(cached.role, UserRole.member);
+      expect(cached!.uid, 'user-123');
     });
 
-    test('Legacy email login is rejected with Fayda requirement error', () async {
-      expect(
-        () => repository.signIn(email: 'user@example.com', password: 'password123'),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(),
-          'message',
-          contains('restricted to Ethiopian National ID (Fayda)'),
-        )),
-      );
-    });
-
-    test('FaydaService normalizes and formats 12-digit FIN correctly', () {
-      expect(FaydaService.normalizeFin('1000 2000 3001'), '100020003001');
-      expect(FaydaService.normalizeFin('1000-2000-3001'), '100020003001');
-      expect(FaydaService.formatFin('100020003001'), '1000 2000 3001');
+    test('signOut clears cached user profile', () async {
+      await repository.signOut();
+      final user = await repository.getCurrentUser();
+      expect(user, isNull);
     });
   });
 }

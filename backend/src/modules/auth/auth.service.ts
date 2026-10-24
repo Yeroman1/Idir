@@ -16,21 +16,9 @@ import { RegisterInput, LoginInput, RefreshTokenInput } from './auth.validation.
 
 export class AuthService {
   async register(input: RegisterInput, ipAddress?: string) {
-    let existingUser = null;
-    if (input.faydaId) {
-      existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [
-            { faydaId: input.faydaId },
-            { phoneNumber: input.phoneNumber },
-          ],
-        },
-      });
-    } else {
-      existingUser = await prisma.user.findUnique({
-        where: { phoneNumber: input.phoneNumber },
-      });
-    }
+    const existingUser = await prisma.user.findUnique({
+      where: { phoneNumber: input.phoneNumber },
+    });
 
     const passwordHash = await hashPassword(input.password);
 
@@ -44,7 +32,6 @@ export class AuthService {
           email: input.email ?? existingUser.email,
           passwordHash,
           preferredLanguage: input.preferredLanguage || existingUser.preferredLanguage,
-          faydaId: input.faydaId ?? existingUser.faydaId,
           status: 'ACTIVE',
         },
         select: {
@@ -53,7 +40,6 @@ export class AuthService {
           phoneNumber: true,
           email: true,
           preferredLanguage: true,
-          faydaId: true,
           status: true,
           isPlatformAdmin: true,
           createdAt: true,
@@ -79,7 +65,6 @@ export class AuthService {
           email: input.email,
           passwordHash,
           preferredLanguage: input.preferredLanguage || 'am',
-          faydaId: input.faydaId,
           status: 'ACTIVE',
         },
         select: {
@@ -88,7 +73,6 @@ export class AuthService {
           phoneNumber: true,
           email: true,
           preferredLanguage: true,
-          faydaId: true,
           status: true,
           isPlatformAdmin: true,
           createdAt: true,
@@ -162,7 +146,6 @@ export class AuthService {
         where: {
           OR: [
             { phoneNumber: normalizedPhone },
-            { faydaId: raw },
             { email: raw.toLowerCase() },
           ],
         },
@@ -183,7 +166,7 @@ export class AuthService {
     }
 
     if (!user) {
-      throw new UnauthorizedError('Invalid phone number, Fayda ID, or password');
+      throw new UnauthorizedError('Invalid phone number, email, or password');
     }
 
     if (user.status !== 'ACTIVE') {
@@ -223,7 +206,6 @@ export class AuthService {
         phoneNumber: user.phoneNumber,
         email: user.email,
         preferredLanguage: user.preferredLanguage,
-        faydaId: user.faydaId,
         status: user.status,
         isPlatformAdmin: user.isPlatformAdmin,
         createdAt: user.createdAt,
@@ -311,7 +293,6 @@ export class AuthService {
         phoneNumber: true,
         email: true,
         preferredLanguage: true,
-        faydaId: true,
         status: true,
         isPlatformAdmin: true,
         createdAt: true,

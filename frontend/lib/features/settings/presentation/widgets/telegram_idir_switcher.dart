@@ -305,14 +305,6 @@ class TelegramIdirSwitcherSection extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (user.isFaydaVerified) ...[
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.verified_rounded,
-                              color: AppColors.success,
-                              size: 16,
-                            ),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 2),
@@ -322,15 +314,6 @@ class TelegramIdirSwitcherSection extends ConsumerWidget {
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
                         ),
                       ),
-                      if (user.faydaId != null && user.faydaId!.isNotEmpty)
-                        Text(
-                          'Fayda FAN: ${user.faydaId}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary.withValues(alpha: 0.8),
-                          ),
-                        ),
                     ],
                   ),
                 ),

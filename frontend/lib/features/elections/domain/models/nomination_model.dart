@@ -12,7 +12,6 @@ class NominationModel extends Equatable {
     this.nomineeName,
     this.nomineeMemberNumber,
     this.nomineePhone,
-    this.nomineeFaydaId,
     this.nomineeJoinedAt,
     this.nominatedByName,
     this.acceptedAt,
@@ -48,8 +47,6 @@ class NominationModel extends Equatable {
           map['nomineeMemberNumber'] as String?,
       nomineePhone: nomineeUser?['phoneNumber'] as String? ??
           map['nomineePhone'] as String?,
-      nomineeFaydaId: nomineeUser?['faydaId'] as String? ??
-          map['nomineeFaydaId'] as String?,
       nomineeJoinedAt: nomineeMembership?['joinedAt'] != null
           ? DateTime.tryParse(nomineeMembership!['joinedAt'].toString())
           : null,
@@ -80,7 +77,6 @@ class NominationModel extends Equatable {
   final String? nomineeName;
   final String? nomineeMemberNumber;
   final String? nomineePhone;
-  final String? nomineeFaydaId;
   final DateTime? nomineeJoinedAt;
   final String? nominatedByName;
   final DateTime? acceptedAt;
@@ -106,7 +102,6 @@ class NominationModel extends Equatable {
         if (nomineeMemberNumber != null)
           'nomineeMemberNumber': nomineeMemberNumber,
         if (nomineePhone != null) 'nomineePhone': nomineePhone,
-        if (nomineeFaydaId != null) 'nomineeFaydaId': nomineeFaydaId,
         if (nomineeJoinedAt != null)
           'nomineeJoinedAt': nomineeJoinedAt!.toIso8601String(),
         if (nominatedByName != null) 'nominatedByName': nominatedByName,
@@ -127,7 +122,6 @@ class NominationModel extends Equatable {
     String? nomineeName,
     String? nomineeMemberNumber,
     String? nomineePhone,
-    String? nomineeFaydaId,
     DateTime? nomineeJoinedAt,
     String? nominatedByName,
     DateTime? acceptedAt,
@@ -147,7 +141,6 @@ class NominationModel extends Equatable {
       nomineeName: nomineeName ?? this.nomineeName,
       nomineeMemberNumber: nomineeMemberNumber ?? this.nomineeMemberNumber,
       nomineePhone: nomineePhone ?? this.nomineePhone,
-      nomineeFaydaId: nomineeFaydaId ?? this.nomineeFaydaId,
       nomineeJoinedAt: nomineeJoinedAt ?? this.nomineeJoinedAt,
       nominatedByName: nominatedByName ?? this.nominatedByName,
       acceptedAt: acceptedAt ?? this.acceptedAt,
@@ -169,7 +162,6 @@ class NominationModel extends Equatable {
         nomineeName,
         nomineeMemberNumber,
         nomineePhone,
-        nomineeFaydaId,
         nomineeJoinedAt,
         nominatedByName,
         acceptedAt,

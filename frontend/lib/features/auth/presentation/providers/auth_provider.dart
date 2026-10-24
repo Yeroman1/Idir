@@ -5,7 +5,7 @@ import '../../../../core/models/app_user.dart';
 import '../../../../core/providers/pin_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
 import '../../data/auth_repository.dart';
-import '../../data/fayda_service.dart';
+import '../../../supabase_auth/services/auth_service.dart';
 
 class AuthState extends Equatable {
   const AuthState({
@@ -13,30 +13,12 @@ class AuthState extends Equatable {
     this.isLoading = false,
     this.errorMessage,
     this.isInitialized = false,
-    this.faydaId,
-    this.txnId,
-    this.maskedPhone,
-    this.isOtpSent = false,
-    this.mockOtpHint,
-    this.verifiedCitizen,
-    this.isFaydaOtpVerified = false,
   });
 
   final AppUser? user;
   final bool isLoading;
   final String? errorMessage;
   final bool isInitialized;
-
-  // Fayda 2-step verification states
-  final String? faydaId;
-  final String? txnId;
-  final String? maskedPhone;
-  final bool isOtpSent;
-  final String? mockOtpHint;
-
-  // Verified Fayda citizen profile awaiting password creation
-  final FaydaCitizenProfile? verifiedCitizen;
-  final bool isFaydaOtpVerified;
 
   bool get isAuthenticated => user != null;
   UserRole? get role => user?.role;
@@ -46,13 +28,6 @@ class AuthState extends Equatable {
     bool? isLoading,
     String? Function()? errorMessage,
     bool? isInitialized,
-    String? Function()? faydaId,
-    String? Function()? txnId,
-    String? Function()? maskedPhone,
-    bool? isOtpSent,
-    String? Function()? mockOtpHint,
-    FaydaCitizenProfile? Function()? verifiedCitizen,
-    bool? isFaydaOtpVerified,
   }) {
     return AuthState(
       user: user != null ? user() : this.user,
@@ -60,14 +35,6 @@ class AuthState extends Equatable {
       errorMessage:
           errorMessage != null ? errorMessage() : this.errorMessage,
       isInitialized: isInitialized ?? this.isInitialized,
-      faydaId: faydaId != null ? faydaId() : this.faydaId,
-      txnId: txnId != null ? txnId() : this.txnId,
-      maskedPhone: maskedPhone != null ? maskedPhone() : this.maskedPhone,
-      isOtpSent: isOtpSent ?? this.isOtpSent,
-      mockOtpHint: mockOtpHint != null ? mockOtpHint() : this.mockOtpHint,
-      verifiedCitizen:
-          verifiedCitizen != null ? verifiedCitizen() : this.verifiedCitizen,
-      isFaydaOtpVerified: isFaydaOtpVerified ?? this.isFaydaOtpVerified,
     );
   }
 
@@ -77,13 +44,6 @@ class AuthState extends Equatable {
         isLoading,
         errorMessage,
         isInitialized,
-        faydaId,
-        txnId,
-        maskedPhone,
-        isOtpSent,
-        mockOtpHint,
-        verifiedCitizen,
-        isFaydaOtpVerified,
       ];
 }
 
@@ -118,120 +78,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {}
   }
 
-  /// Step 1: Send OTP to citizen's phone via Ethiopian National ID (Fayda)
-  Future<bool> requestFaydaOtp(String faydaId) async {
-    final cleanFin = FaydaService.normalizeFin(faydaId);
-    state = state.copyWith(isLoading: true, errorMessage: () => null);
-
-    try {
-      final response = await _repository.requestFaydaOtp(cleanFin);
-      state = state.copyWith(
-        isLoading: false,
-        isOtpSent: true,
-        faydaId: () => cleanFin,
-        txnId: () => response.txnId,
-        maskedPhone: () => response.maskedPhone,
-        mockOtpHint: () => response.mockOtpCode,
-        isFaydaOtpVerified: false,
-        verifiedCitizen: () => null,
-        errorMessage: () => null,
-      );
-      return true;
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        isOtpSent: false,
-        errorMessage: () => e.toString().replaceFirst('Exception: ', ''),
-      );
-      return false;
-    }
-  }
-
-  /// Step 2: Verify Fayda OTP to prove real citizen identity (one-time e-KYC verification)
-  Future<bool> verifyFaydaCitizenOtp(String otp) async {
-    final fin = state.faydaId;
-    final txnId = state.txnId ?? '';
-
-    if (fin == null || fin.isEmpty) {
-      state = state.copyWith(
-        errorMessage: () => 'Missing Fayda National ID. Please request OTP again.',
-      );
-      return false;
-    }
-
-    state = state.copyWith(isLoading: true, errorMessage: () => null);
-
-    try {
-      final citizen = await _repository.verifyFaydaCitizenOtp(
-        faydaId: fin,
-        otp: otp,
-        txnId: txnId,
-      );
-
-      state = state.copyWith(
-        isLoading: false,
-        isOtpSent: false,
-        isFaydaOtpVerified: true,
-        verifiedCitizen: () => citizen,
-        errorMessage: () => null,
-      );
-      return true;
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: () => e.toString().replaceFirst('Exception: ', ''),
-      );
-      return false;
-    }
-  }
-
-  /// Step 3: Password Creation (Local Database)
-  /// Saves verified Fayda profile details and hashed password directly into database
-  Future<bool> registerWithPassword(String password) async {
-    final citizen = state.verifiedCitizen;
-    final fin = state.faydaId ?? citizen?.fin;
-
-    if (fin == null || fin.isEmpty) {
-      state = state.copyWith(
-        errorMessage: () => 'Fayda verification expired. Please verify your National ID again.',
-      );
-      return false;
-    }
-
-    state = state.copyWith(isLoading: true, errorMessage: () => null);
-
-    try {
-      final user = await _repository.registerWithPassword(
-        fullName: citizen?.fullName ?? 'Ethiopian Citizen',
-        phoneNumber: citizen?.phone ?? '+251911000000',
-        faydaId: fin,
-        password: password,
-      );
-
-      state = state.copyWith(
-        user: () => user,
-        isLoading: false,
-        isOtpSent: false,
-        isFaydaOtpVerified: false,
-        verifiedCitizen: () => null,
-        faydaId: () => null,
-        txnId: () => null,
-        maskedPhone: () => null,
-        mockOtpHint: () => null,
-        errorMessage: () => null,
-      );
-      return true;
-    } catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: () => e.toString().replaceFirst('Exception: ', ''),
-      );
-      return false;
-    }
-  }
-
-  /// Subsequent Logins: Password-based authentication against application database
-  /// Requires internet connection when entering password
+  /// Log in with identifier (email or phone) and password
   Future<bool> signInWithPassword({
     required String identifier,
     required String password,
@@ -257,26 +104,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Reset OTP and Registration flow back to entering Fayda ID
-  void resetOtpFlow() {
-    state = state.copyWith(
-      isOtpSent: false,
-      isFaydaOtpVerified: false,
-      verifiedCitizen: () => null,
-      txnId: () => null,
-      maskedPhone: () => null,
-      mockOtpHint: () => null,
-      errorMessage: () => null,
-    );
-  }
-
-  /// Sets authenticated session from email login or registration completion response.
+  /// Sets user session from authenticated backend API / Supabase response
   Future<void> setSessionFromAuthResponse(Map<String, dynamic> responseData) async {
     state = state.copyWith(isLoading: true, errorMessage: () => null);
     try {
-      final user = await _repository.setSessionFromAuthResponse(responseData);
+      final appUser = await _repository.setSessionFromAuthResponse(responseData);
       state = state.copyWith(
-        user: () => user,
+        user: () => appUser,
         isLoading: false,
         errorMessage: () => null,
       );
@@ -299,6 +133,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> signOut() async {
     state = state.copyWith(isLoading: true);
+    AuthService().signOut();
     await _repository.signOut();
     _ref.read(pinNotifierProvider.notifier).lock();
     state = const AuthState(

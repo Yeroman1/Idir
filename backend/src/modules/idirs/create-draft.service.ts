@@ -26,7 +26,6 @@ export class CreateDraftIdirService {
               id: true,
               fullName: true,
               phoneNumber: true,
-              faydaId: true,
             },
           },
         },

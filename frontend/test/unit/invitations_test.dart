@@ -14,7 +14,8 @@ class MockInvitationsRepository implements InvitationsRepository {
   @override
   Future<BatchInvitationResult> sendBatchInvitations({
     required String idirId,
-    required List<String> phoneNumbers,
+    List<String> phoneNumbers = const [],
+    List<String> emails = const [],
     int expiresInDays = 7,
   }) async {
     if (shouldThrow) {
@@ -40,7 +41,7 @@ class MockInvitationsRepository implements InvitationsRepository {
     }
 
     return BatchInvitationResult(
-      totalRequested: phoneNumbers.length,
+      totalRequested: phoneNumbers.length + emails.length,
       sentCount: sent.length,
       invitations: sent,
       skipped: skipped,
@@ -50,18 +51,20 @@ class MockInvitationsRepository implements InvitationsRepository {
   @override
   Future<Map<String, dynamic>> checkUserRegistration({
     required String idirId,
-    required String phone,
+    String? phone,
+    String? email,
   }) async {
     if (shouldThrow) {
       throw Exception(errorMessage);
     }
-    if (phone.contains('notfound') || phone.contains('unregistered')) {
+    final target = phone ?? email ?? '';
+    if (target.contains('notfound') || target.contains('unregistered')) {
       return {'exists': false, 'message': 'No registered user found'};
     }
     return {
       'exists': true,
       'user': {'id': 'mock-u-1', 'fullName': 'Mock User', 'phoneNumber': phone},
-      'isAlreadyMember': phone.contains('existing'),
+      'isAlreadyMember': target.contains('existing'),
       'message': 'User found',
     };
   }

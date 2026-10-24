@@ -9,7 +9,6 @@ export const castVoteSchema = z.object({
   candidateNominationId: z
     .string({ required_error: 'Candidate nomination ID is required' })
     .min(1, 'Candidate nomination ID cannot be empty'),
-  faydaConsentVerified: z.boolean().optional(),
 });
 
 export const castBatchVotesSchema = z.object({
