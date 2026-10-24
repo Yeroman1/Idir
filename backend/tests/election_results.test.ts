@@ -140,7 +140,7 @@ describe('Task 4: Count, Results, Quorum, Disputes, and Certification', () => {
     });
 
     // Mock authenticate user lookup
-    vi.mocked(prisma.user.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => {
       const id = where.id;
       if (id === chairpersonUserId) {
         return {
@@ -159,7 +159,7 @@ describe('Task 4: Count, Results, Quorum, Disputes, and Certification', () => {
         } as any;
       }
       return null;
-    });
+    }) as any);
 
     // Mock Idir active
     vi.mocked(prisma.idir.findUnique).mockResolvedValue({
@@ -169,7 +169,7 @@ describe('Task 4: Count, Results, Quorum, Disputes, and Certification', () => {
     } as any);
 
     // Mock memberships
-    vi.mocked(prisma.membership.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.membership.findUnique).mockImplementation((async ({ where }: any) => {
       const idirIdUserId = where.idirId_userId;
       if (idirIdUserId) {
         if (idirIdUserId.userId === chairpersonUserId) {
@@ -194,7 +194,7 @@ describe('Task 4: Count, Results, Quorum, Disputes, and Certification', () => {
         }
       }
       return null;
-    });
+    }) as any);
   });
 
   describe('1. Automatic Tallying & Quorum Enforcement', () => {
