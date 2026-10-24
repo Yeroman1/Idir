@@ -77,7 +77,7 @@ describe('Task 3: Voting - One Vote Per Role and Anonymity', () => {
     });
 
     // Default mock user lookup for authenticate middleware
-    vi.mocked(prisma.user.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => {
       const id = where.id;
       if (id === voterUserId) {
         return {
@@ -89,7 +89,7 @@ describe('Task 3: Voting - One Vote Per Role and Anonymity', () => {
         } as any;
       }
       return null;
-    });
+    }) as any);
 
     // Default mock Idir is ACTIVE
     (prisma.idir.findUnique as any).mockResolvedValue({

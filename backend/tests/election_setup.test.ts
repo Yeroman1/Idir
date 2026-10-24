@@ -108,7 +108,7 @@ describe('Task 1: Leadership Election Setup & Governance Authorization', () => {
     });
 
     // Default mock user lookup for authenticate middleware
-    vi.mocked(prisma.user.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => {
       const id = where.id;
       return {
         id,
@@ -120,7 +120,7 @@ describe('Task 1: Leadership Election Setup & Governance Authorization', () => {
         isPlatformAdmin: false,
         preferredLanguage: 'am',
       } as any;
-    });
+    }) as any);
 
     // Default mock Idir is ACTIVE
     vi.mocked(prisma.idir.findUnique).mockResolvedValue({
@@ -130,7 +130,7 @@ describe('Task 1: Leadership Election Setup & Governance Authorization', () => {
     } as any);
 
     // Default neutral committee members exist and are active members of this Idir
-    vi.mocked(prisma.membership.findMany).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.membership.findMany).mockImplementation((async ({ where }: any) => {
       if (where.id && where.id.in) {
         const ids: string[] = where.id.in;
         return ids.map((id, index) => ({
@@ -148,7 +148,7 @@ describe('Task 1: Leadership Election Setup & Governance Authorization', () => {
         })) as any;
       }
       return [];
-    });
+    }) as any);
   });
 
   describe('1. Role Authorization Gates: Only Allowed Officers Can Create an Election', () => {

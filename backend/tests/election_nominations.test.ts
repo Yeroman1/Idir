@@ -83,7 +83,7 @@ describe('Task 2: Nominations and Candidate Pages', () => {
     });
 
     // Default mock user lookup for authenticate middleware
-    vi.mocked(prisma.user.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => {
       const id = where.id;
       return {
         id,
@@ -95,7 +95,7 @@ describe('Task 2: Nominations and Candidate Pages', () => {
         isPlatformAdmin: false,
         preferredLanguage: 'am',
       } as any;
-    });
+    }) as any);
 
     // Default mock: Idir is ACTIVE
     (prisma.idir.findUnique as any).mockResolvedValue({

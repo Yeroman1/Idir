@@ -75,7 +75,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
     } as any);
 
     // Mock default user with ACTIVE status
-    vi.mocked(prisma.user.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => {
       const id = where.id;
       return {
         id,
@@ -83,10 +83,10 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
         fullName: id === chairUserId ? 'Abebe Chairperson' : 'Chala Member',
         status: 'ACTIVE',
       } as any;
-    });
+    }) as any);
 
     // Mock requireIdirRole middleware lookup
-    vi.mocked(prisma.membership.findUnique).mockImplementation(async ({ where }: any) => {
+    vi.mocked(prisma.membership.findUnique).mockImplementation((async ({ where }: any) => {
       if (where?.idirId_userId) {
         const { userId } = where.idirId_userId;
         if (userId === chairUserId) {
@@ -109,12 +109,12 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
         }
       }
       return null;
-    });
+    }) as any);
   });
 
   describe('POST /api/v1/idirs/:idirId/elections/no-confidence (Initiate)', () => {
     it('initiates a no-confidence motion against an active officer with configurable threshold', async () => {
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.userId === memberUserId) {
           return {
             id: memberMembershipId,
@@ -135,7 +135,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
           } as any;
         }
         return null;
-      });
+      }) as any);
 
       vi.mocked(prisma.noConfidenceVote.findFirst).mockResolvedValue(null);
       vi.mocked(prisma.membership.count).mockResolvedValue(50);
@@ -183,7 +183,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
     });
 
     it('rejects no-confidence motion if target does not hold the contested role', async () => {
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.userId === memberUserId) {
           return {
             id: memberMembershipId,
@@ -204,7 +204,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
           } as any;
         }
         return null;
-      });
+      }) as any);
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/no-confidence`)
@@ -220,7 +220,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
     });
 
     it('rejects if an officer files no-confidence against themselves', async () => {
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.userId === chairUserId) {
           return {
             id: chairMembershipId,
@@ -231,7 +231,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
           } as any;
         }
         return null;
-      });
+      }) as any);
 
       const res = await request(app)
         .post(`/api/v1/idirs/${idirId}/elections/no-confidence`)
@@ -247,7 +247,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
     });
 
     it('rejects if another active no-confidence vote is already underway for that role', async () => {
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.userId === memberUserId) {
           return {
             id: memberMembershipId,
@@ -268,7 +268,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
           } as any;
         }
         return null;
-      });
+      }) as any);
 
       vi.mocked(prisma.noConfidenceVote.findFirst).mockResolvedValue({
         id: 'existing-vote-id',
@@ -513,7 +513,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
 
   describe('GET /api/v1/idirs/:idirId/elections/vacancies/status', () => {
     it('accurately lists institutional roles and flags VACANT, INTERIM, or OCCUPIED', async () => {
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.userId === memberUserId) {
           return {
             id: memberMembershipId,
@@ -541,9 +541,9 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
           } as any;
         }
         return null; // TREASURER and AUDITOR vacant
-      });
+      }) as any);
 
-      vi.mocked(prisma.roleTerm.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.roleTerm.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.role === 'CHAIRPERSON') {
           return {
             startDate: new Date('2025-01-01'),
@@ -559,7 +559,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
           } as any;
         }
         return null;
-      });
+      }) as any);
 
       vi.mocked(prisma.noConfidenceVote.findFirst).mockResolvedValue(null);
 
@@ -592,7 +592,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
 
   describe('POST /api/v1/idirs/:idirId/elections/vacancies/appoint (Temporary Appointment)', () => {
     it('allows chairperson to appoint an active member to an interim role', async () => {
-      vi.mocked(prisma.membership.findFirst).mockImplementation(async ({ where }: any) => {
+      vi.mocked(prisma.membership.findFirst).mockImplementation((async ({ where }: any) => {
         if (where?.userId === chairUserId) {
           return {
             id: chairMembershipId,
@@ -613,7 +613,7 @@ describe('Task 5: Other Leadership Events - No-Confidence & Vacancy Flow', () =>
           } as any;
         }
         return null;
-      });
+      }) as any);
 
       vi.mocked(prisma.membership.update).mockResolvedValue({
         id: otherMembershipId,
