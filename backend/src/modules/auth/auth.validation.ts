@@ -104,6 +104,23 @@ export const emailLoginSchema = z.object({
   deviceInfo: z.string().optional(),
 });
 
+export const forgotPasswordResetSchema = z
+  .object({
+    email: z.string().email('Invalid email address'),
+    resetToken: z.string().min(1, 'Reset token is required'),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .regex(/[A-Z]/, 'Password must contain at least 1 uppercase letter')
+      .regex(/[a-z]/, 'Password must contain at least 1 lowercase letter')
+      .regex(/[0-9]/, 'Password must contain at least 1 number'),
+    confirmPassword: z.string().optional(),
+  })
+  .refine((data) => !data.confirmPassword || data.password === data.confirmPassword, {
+    message: 'Confirm password must match password',
+    path: ['confirmPassword'],
+  });
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>;
@@ -111,3 +128,4 @@ export type SendEmailOtpInput = z.infer<typeof sendEmailOtpSchema>;
 export type VerifyEmailOtpInput = z.infer<typeof verifyEmailOtpSchema>;
 export type CompleteEmailRegistrationInput = z.infer<typeof completeEmailRegistrationSchema>;
 export type EmailLoginInput = z.infer<typeof emailLoginSchema>;
+export type ForgotPasswordResetInput = z.infer<typeof forgotPasswordResetSchema>;

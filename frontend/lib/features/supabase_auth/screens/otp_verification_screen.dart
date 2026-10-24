@@ -186,12 +186,17 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     try {
       if (widget.isPasswordReset) {
-        await _authService.sendPasswordResetOtp(widget.email);
+        final res = await _authService.sendPasswordResetOtp(widget.email);
         if (!mounted) return;
+
+        final devOtp = res['devOtp'];
+        final message = devOtp != null
+            ? 'New code: $devOtp (Sent to ${widget.email})'
+            : 'A new verification code was sent to ${widget.email}';
 
         showAuthSnackBar(
           context,
-          'A new verification code was sent to ${widget.email}',
+          message,
           isError: false,
         );
       } else {

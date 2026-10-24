@@ -13,12 +13,14 @@ import {
   ConflictError,
   UnauthorizedError,
   RateLimitError,
+  NotFoundError,
 } from '../../shared/errors/AppError.js';
 import {
   SendEmailOtpInput,
   VerifyEmailOtpInput,
   CompleteEmailRegistrationInput,
   EmailLoginInput,
+  ForgotPasswordResetInput,
 } from './auth.validation.js';
 import { sendOtpEmail } from './email.mailer.js';
 
@@ -387,6 +389,187 @@ export class EmailOtpService {
         memberships: user.memberships,
       },
       tokens: { accessToken, refreshToken },
+    };
+  }
+
+  /**
+   * Step 1 (Forgot Password): User enters email. Backend checks if user is registered,
+   * generates 6-digit OTP, stores it with cooldown, dispatches email via SMTP,
+   * and prints to console.
+   */
+  async sendForgotPasswordOtp(input: SendEmailOtpInput) {
+    const email = input.email.trim().toLowerCase();
+
+    // 1. Check first if the email is an actual registered user
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      // Also check if user exists in auth.users
+      const authUser = await prisma.$queryRawUnsafe<any[]>(
+        'SELECT id FROM auth.users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+        email
+      ).catch(() => []);
+
+      if (!authUser || authUser.length === 0) {
+        throw new NotFoundError(
+          'This email is not registered. Please check the email or sign up first.'
+        );
+      }
+    }
+
+    // Rate-limiting check: enforce a 60-second cooldown between requests
+    const storeKey = `pwd_reset_${email}`;
+    const current = this.otpStore.get(storeKey);
+    if (current && Date.now() < current.resendAfter) {
+      const waitSeconds = Math.ceil((current.resendAfter - Date.now()) / 1000);
+      throw new RateLimitError(
+        `Please wait ${waitSeconds}s before requesting a new verification code.`
+      );
+    }
+
+    // Generate secure 6-digit OTP code
+    const rawCode = crypto.randomInt(100000, 999999).toString();
+    const hash = this.hashOtp(rawCode);
+
+    // Save record with 10-minute validity and 60-second cooldown
+    this.otpStore.set(storeKey, {
+      hash,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+      resendAfter: Date.now() + 60 * 1000,
+    });
+
+    console.log(`\n================================================================`);
+    console.log(`  [PASSWORD RESET OTP]`);
+    console.log(`  Email: ${email}`);
+    console.log(`  Code:  [ ${rawCode} ]`);
+    console.log(`================================================================\n`);
+
+    // ── Dispatch real password reset email via configured mailer ───────────
+    const mailResult = await sendOtpEmail(email, rawCode, true);
+
+    return {
+      success: true,
+      email,
+      message: `Password reset verification code sent to ${email}`,
+      mailProvider: mailResult.provider,
+      ...(mailResult.previewUrl && { previewUrl: mailResult.previewUrl }),
+      ...(env.NODE_ENV !== 'production' && { devOtp: rawCode }),
+    };
+  }
+
+  /**
+   * Step 2 (Forgot Password): Validate the 6-digit OTP code for password reset.
+   * If correct, issue a short-lived signed resetToken to allow new password creation.
+   */
+  async verifyForgotPasswordOtp(input: VerifyEmailOtpInput) {
+    const email = input.email.trim().toLowerCase();
+    const otp = input.otp.trim();
+    const storeKey = `pwd_reset_${email}`;
+
+    const record = this.otpStore.get(storeKey);
+    if (!record) {
+      throw new BadRequestError(
+        'No active password reset verification code found. Please request a new code.'
+      );
+    }
+
+    if (Date.now() > record.expiresAt) {
+      this.otpStore.delete(storeKey);
+      throw new BadRequestError(
+        'Verification code has expired. Please request a new code.'
+      );
+    }
+
+    if (record.attempts >= 5) {
+      this.otpStore.delete(storeKey);
+      throw new BadRequestError(
+        'Too many invalid attempts. For security, please request a new verification code.'
+      );
+    }
+
+    record.attempts += 1;
+
+    const providedHash = this.hashOtp(otp);
+    if (providedHash !== record.hash) {
+      throw new BadRequestError(
+        'Incorrect 6-digit verification code. Please check and try again.'
+      );
+    }
+
+    // Code is correct: consume the OTP
+    this.otpStore.delete(storeKey);
+
+    // Issue short-lived reset token (valid for 15 minutes)
+    const resetToken = jwt.sign(
+      { email, purpose: 'password_reset_verified' },
+      env.JWT_ACCESS_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    return {
+      success: true,
+      email,
+      resetToken,
+      message: 'Code verified successfully. Please enter your new password.',
+    };
+  }
+
+  /**
+   * Step 3 (Forgot Password): Set new password using verified resetToken.
+   * Updates password in Prisma PostgreSQL AND live Supabase auth.users.
+   */
+  async resetPassword(input: ForgotPasswordResetInput) {
+    const email = input.email.trim().toLowerCase();
+
+    // 1. Validate JWT reset token
+    try {
+      const decoded = jwt.verify(
+        input.resetToken,
+        env.JWT_ACCESS_SECRET
+      ) as { email: string; purpose: string };
+
+      if (
+        decoded.email !== email ||
+        decoded.purpose !== 'password_reset_verified'
+      ) {
+        throw new UnauthorizedError(
+          'Invalid or mismatched password reset token.'
+        );
+      }
+    } catch {
+      throw new UnauthorizedError(
+        'Password reset session has expired or is invalid. Please request a new verification code.'
+      );
+    }
+
+    // 2. Hash new password
+    const passwordHash = await hashPassword(input.password);
+
+    // 3. Update password in Prisma PostgreSQL User table
+    await prisma.user.updateMany({
+      where: { email },
+      data: { passwordHash },
+    });
+
+    // 4. Update password in Supabase Auth (auth.users)
+    try {
+      await prisma.$executeRawUnsafe(
+        `UPDATE auth.users SET encrypted_password = crypt($1, gen_salt('bf')) WHERE LOWER(email) = LOWER($2)`,
+        input.password,
+        email
+      );
+      console.log(`[AUTH: PASSWORD RESET] Synced updated password to auth.users for ${email}`);
+    } catch (sbErr) {
+      console.warn('[AUTH: PASSWORD RESET] Notice updating auth.users password:', sbErr);
+    }
+
+    return {
+      success: true,
+      email,
+      message: 'Password reset successfully. You can now log in with your new password.',
     };
   }
 }

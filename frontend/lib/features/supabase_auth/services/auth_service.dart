@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,21 +17,87 @@ class AuthService {
   final http.Client _client;
   final String _baseUrl;
 
+  static String? _resolvedWorkingBaseUrl;
+
+  static List<String> get _candidateBaseUrls {
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) return [envUrl];
+
+    if (_resolvedWorkingBaseUrl != null) {
+      return [_resolvedWorkingBaseUrl!];
+    }
+
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return [
+        'http://127.0.0.1:5000/api/v1/auth/email', // physical device with adb reverse
+        'http://10.42.0.39:5000/api/v1/auth/email', // physical device over Wi-Fi
+        'http://10.0.2.2:5000/api/v1/auth/email',  // android emulator
+        'http://localhost:5000/api/v1/auth/email',
+      ];
+    }
+    return [
+      'http://localhost:5000/api/v1/auth/email',
+      'http://127.0.0.1:5000/api/v1/auth/email',
+      'http://10.42.0.39:5000/api/v1/auth/email',
+    ];
+  }
+
   /// Automatically resolves localhost for Android Emulator (10.0.2.2) vs Desktop/iOS/Web (localhost)
   static String get _defaultBaseUrl {
     const envUrl = String.fromEnvironment('API_BASE_URL');
     if (envUrl.isNotEmpty) return envUrl;
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:5000/api/v1/auth/email';
+      return 'http://127.0.0.1:5000/api/v1/auth/email';
     }
     return 'http://localhost:5000/api/v1/auth/email';
+  }
+
+  Future<Map<String, dynamic>> _postToCandidateBaseUrls(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    final urls = _candidateBaseUrls;
+    Exception? lastError;
+
+    for (final base in urls) {
+      try {
+        final url = Uri.parse('$base$endpoint');
+        final response = await _client
+            .post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+            .timeout(const Duration(seconds: 8));
+
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+        if (response.statusCode >= 400) {
+          throw Exception(_extractErrorMessage(data, 'Request failed'));
+        }
+
+        _resolvedWorkingBaseUrl = base;
+        return (data['data'] as Map<String, dynamic>?) ?? data;
+      } on SocketException catch (e) {
+        lastError = Exception('Failed to connect to backend server: ${e.message}');
+      } on http.ClientException catch (e) {
+        lastError = Exception('Network client error: ${e.message}');
+      } on TimeoutException {
+        lastError = Exception('Connection timed out');
+      } catch (e) {
+        rethrow;
+      }
+    }
+
+    throw lastError ?? Exception('Failed to connect to backend server');
   }
 
   // Session state in memory
   static String? accessToken;
   static String? refreshToken;
   static Map<String, dynamic>? currentUser;
+  static String? passwordResetToken;
 
   static final RegExp _uppercaseRegex = RegExp(r'[A-Z]');
   static final RegExp _lowercaseRegex = RegExp(r'[a-z]');
@@ -324,11 +392,10 @@ class AuthService {
     }
   }
 
-  /// Sends a 6-digit password recovery OTP to the user's email via live Supabase.
-  /// Checks first if the email is an actual registered user.
-  Future<void> sendPasswordResetOtp(String email) async {
+  /// Sends a 6-digit password recovery OTP to the user's email via the backend.
+  /// Checks first if the email is an actual registered user before sending.
+  Future<Map<String, dynamic>> sendPasswordResetOtp(String email) async {
     final cleanEmail = email.trim().toLowerCase();
-    final supabase = _getSupabaseClient();
 
     // 1. Check first if the email is an actual registered user
     final registered = await isEmailRegistered(cleanEmail);
@@ -338,30 +405,69 @@ class AuthService {
       );
     }
 
-    // 2. Dispatch OTP recovery email via Supabase
+    // 2. Dispatch OTP recovery email via backend
     try {
-      await supabase.auth.resetPasswordForEmail(cleanEmail);
-    } on AuthException catch (e) {
-      throw Exception(humanReadableAuthError(e));
-    } catch (e) {
-      _handleNetworkError(e);
+      final res = await _postToCandidateBaseUrls(
+        '/forgot-password/send-otp',
+        {'email': cleanEmail},
+      );
+      return res;
+    } catch (backendError) {
+      final errStr = backendError.toString();
+      if (!errStr.contains('Network connection error') &&
+          !errStr.contains('SocketException') &&
+          !errStr.contains('Failed to connect') &&
+          !errStr.contains('Connection timed out')) {
+        rethrow;
+      }
+
+      // If backend was unreachable, fallback to Supabase
+      final supabase = _getSupabaseClient();
+      try {
+        await supabase.auth.resetPasswordForEmail(cleanEmail);
+        return {'success': true, 'message': 'Verification code sent to $cleanEmail'};
+      } on AuthException catch (e) {
+        throw Exception(humanReadableAuthError(e));
+      } catch (e) {
+        _handleNetworkError(e);
+      }
     }
   }
 
   /// Validates the 6-digit recovery OTP for password reset.
-  Future<void> verifyPasswordResetOtp(String email, String otp) async {
+  Future<String> verifyPasswordResetOtp(String email, String otp) async {
     final cleanEmail = email.trim().toLowerCase();
-    final supabase = _getSupabaseClient();
+
     try {
-      await supabase.auth.verifyOTP(
-        email: cleanEmail,
-        token: otp.trim(),
-        type: OtpType.recovery,
+      final res = await _postToCandidateBaseUrls(
+        '/forgot-password/verify-otp',
+        {'email': cleanEmail, 'otp': otp.trim()},
       );
-    } on AuthException catch (e) {
-      throw Exception(humanReadableAuthError(e));
-    } catch (e) {
-      _handleNetworkError(e);
+      final token = res['resetToken'] as String? ?? '';
+      passwordResetToken = token;
+      return token;
+    } catch (backendError) {
+      final errStr = backendError.toString();
+      if (!errStr.contains('Network connection error') &&
+          !errStr.contains('SocketException') &&
+          !errStr.contains('Failed to connect') &&
+          !errStr.contains('Connection timed out')) {
+        rethrow;
+      }
+
+      final supabase = _getSupabaseClient();
+      try {
+        await supabase.auth.verifyOTP(
+          email: cleanEmail,
+          token: otp.trim(),
+          type: OtpType.recovery,
+        );
+        return 'supabase_recovery_verified';
+      } on AuthException catch (e) {
+        throw Exception(humanReadableAuthError(e));
+      } catch (e) {
+        _handleNetworkError(e);
+      }
     }
   }
 
@@ -370,18 +476,45 @@ class AuthService {
     required String newPassword,
     String? email,
   }) async {
-    final supabase = _getSupabaseClient();
+    final cleanEmail = (email ?? '').trim().toLowerCase();
+
+    // 1. Update in backend if resetToken is present
+    if (passwordResetToken != null &&
+        passwordResetToken!.isNotEmpty &&
+        passwordResetToken != 'supabase_recovery_verified') {
+      try {
+        await _postToCandidateBaseUrls(
+          '/forgot-password/reset-password',
+          {
+            'email': cleanEmail,
+            'resetToken': passwordResetToken,
+            'password': newPassword,
+            'confirmPassword': newPassword,
+          },
+        );
+      } catch (e) {
+        final errStr = e.toString();
+        if (!errStr.contains('Network connection error') &&
+            !errStr.contains('SocketException') &&
+            !errStr.contains('Failed to connect') &&
+            !errStr.contains('Connection timed out')) {
+          rethrow;
+        }
+      }
+    }
+
+    // 2. Also update in Supabase if session exists
     try {
+      final supabase = _getSupabaseClient();
       await supabase.auth.updateUser(
         UserAttributes(password: newPassword),
       );
-      // Cleanly sign out of recovery session so user can log in with new credentials
       await supabase.auth.signOut();
-    } on AuthException catch (e) {
-      throw Exception(humanReadableAuthError(e));
-    } catch (e) {
-      _handleNetworkError(e);
+    } catch (_) {
+      // Ignored if user has no direct Supabase recovery session
     }
+
+    passwordResetToken = null;
   }
 
   SupabaseClient _getSupabaseClient() {

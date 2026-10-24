@@ -11,6 +11,7 @@ import {
   verifyEmailOtpSchema,
   completeEmailRegistrationSchema,
   emailLoginSchema,
+  forgotPasswordResetSchema,
 } from './auth.validation.js';
 
 const router = Router();
@@ -76,6 +77,28 @@ router.post(
   authLimiter,
   validate({ body: emailLoginSchema }),
   authController.emailLogin
+);
+
+// ── Forgot Password Flow (Email OTP with SMTP + Registration Check) ──────────
+router.post(
+  '/email/forgot-password/send-otp',
+  authLimiter,
+  validate({ body: sendEmailOtpSchema }),
+  authController.sendForgotPasswordOtp
+);
+
+router.post(
+  '/email/forgot-password/verify-otp',
+  authLimiter,
+  validate({ body: verifyEmailOtpSchema }),
+  authController.verifyForgotPasswordOtp
+);
+
+router.post(
+  '/email/forgot-password/reset-password',
+  authLimiter,
+  validate({ body: forgotPasswordResetSchema }),
+  authController.resetPassword
 );
 
 export const authRoutes = router;
