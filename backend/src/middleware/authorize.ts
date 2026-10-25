@@ -3,6 +3,7 @@ import { MembershipRole } from '@prisma/client';
 import { AuthenticatedRequest } from '../shared/types/index.js';
 import { ForbiddenError, NotFoundError } from '../shared/errors/AppError.js';
 import { prisma } from '../config/database.js';
+import { logger } from '../shared/utils/logger.js';
 
 export function requirePlatformAdmin(
   req: AuthenticatedRequest,
@@ -10,6 +11,10 @@ export function requirePlatformAdmin(
   next: NextFunction
 ): void {
   if (!req.user || !req.user.isPlatformAdmin) {
+    logger.warn(
+      { event: 'ACCESS_DENIED', reason: 'NOT_PLATFORM_ADMIN', userId: req.user?.id, path: req.originalUrl },
+      'Security Event: Platform admin access denied'
+    );
     return next(new ForbiddenError('Platform administrator access required'));
   }
   next();
@@ -53,12 +58,28 @@ export function requireIdirRole(allowedRoles: MembershipRole[]) {
     });
 
     if (!membership || membership.status !== 'ACTIVE') {
+      logger.warn(
+        { event: 'ACCESS_DENIED', reason: 'INACTIVE_OR_NON_MEMBER', userId: req.user.id, idirId, path: req.originalUrl },
+        'Security Event: User is not an active member of the requested Idir'
+      );
       return next(
         new ForbiddenError('You are not an active member of this Idir')
       );
     }
 
     if (!allowedRoles.includes(membership.role)) {
+      logger.warn(
+        {
+          event: 'ACCESS_DENIED',
+          reason: 'INSUFFICIENT_ROLE',
+          userId: req.user.id,
+          idirId,
+          currentRole: membership.role,
+          requiredRoles: allowedRoles,
+          path: req.originalUrl,
+        },
+        'Security Event: Access denied due to insufficient role permissions'
+      );
       return next(
         new ForbiddenError(
           `Insufficient permissions: Required role [${allowedRoles.join(', ')}], current role is [${membership.role}]`

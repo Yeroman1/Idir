@@ -19,24 +19,21 @@ service cloud.firestore {
     function isChairperson() {
       return isAuthenticated() && (
         userRole() == 'chairperson' ||
-        request.auth.token.role == 'chairperson' ||
-        request.auth.uid == 'demo_chair'
+        request.auth.token.role == 'chairperson'
       );
     }
 
     function isTreasurer() {
       return isAuthenticated() && (
         userRole() == 'treasurer' ||
-        request.auth.token.role == 'treasurer' ||
-        request.auth.uid == 'demo_treasurer'
+        request.auth.token.role == 'treasurer'
       );
     }
 
     function isAuditor() {
       return isAuthenticated() && (
         userRole() == 'auditor' ||
-        request.auth.token.role == 'auditor' ||
-        request.auth.uid == 'demo_auditor'
+        request.auth.token.role == 'auditor'
       );
     }
 

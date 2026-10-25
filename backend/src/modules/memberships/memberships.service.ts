@@ -4,6 +4,7 @@ import {
   NotFoundError,
   ConflictError,
   BadRequestError,
+  ForbiddenError,
 } from '../../shared/errors/AppError.js';
 import { AddMemberInput, UpdateMemberInput } from './memberships.validation.js';
 
@@ -208,6 +209,18 @@ export class MembershipsService {
 
     if (!membership) {
       throw new NotFoundError('Membership record not found');
+    }
+
+    // INSECURE DESIGN FIX: Prevent self-role modification (Privilege Escalation Prevention)
+    if (
+      actorId &&
+      membership.userId === actorId &&
+      input.role &&
+      input.role !== membership.role
+    ) {
+      throw new ForbiddenError(
+        'Self-elevation or modifying your own institutional role is forbidden'
+      );
     }
 
     if (input.memberNumber && input.memberNumber !== membership.memberNumber) {

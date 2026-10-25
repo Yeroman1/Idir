@@ -36,7 +36,11 @@ class ApiClient {
     String? baseUrl,
   })  : _ref = ref,
         _client = httpClient ?? http.Client(),
-        _secureStorage = secureStorage ?? const FlutterSecureStorage(),
+        _secureStorage = secureStorage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(encryptedSharedPreferences: true),
+              iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
+            ),
         _configuredBaseUrl = baseUrl;
 
   final Ref _ref;
@@ -113,6 +117,10 @@ class ApiClient {
         key: AppConstants.secureKeyRefreshToken,
         value: refreshToken,
       );
+      // Clean up plaintext SharedPreferences fallback if secure storage succeeds
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(AppConstants.secureKeyAuthToken);
+      await prefs.remove(AppConstants.secureKeyRefreshToken);
     } catch (_) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(AppConstants.secureKeyAuthToken, accessToken);

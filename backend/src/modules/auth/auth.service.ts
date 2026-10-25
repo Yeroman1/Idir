@@ -13,6 +13,7 @@ import {
   NotFoundError,
 } from '../../shared/errors/AppError.js';
 import { RegisterInput, LoginInput, RefreshTokenInput } from './auth.validation.js';
+import { logger } from '../../shared/utils/logger.js';
 
 export class AuthService {
   async register(input: RegisterInput, ipAddress?: string) {
@@ -20,77 +21,57 @@ export class AuthService {
       where: { phoneNumber: input.phoneNumber },
     });
 
+    if (existingUser) {
+      throw new ConflictError(
+        'An account with this phone number already exists. Please log in.'
+      );
+    }
+
+    if (input.email) {
+      const existingEmail = await prisma.user.findUnique({
+        where: { email: input.email.trim().toLowerCase() },
+      });
+      if (existingEmail) {
+        throw new ConflictError(
+          'An account with this email address already exists. Please log in.'
+        );
+      }
+    }
+
     const passwordHash = await hashPassword(input.password);
 
-    let user;
-    if (existingUser) {
-      user = await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          fullName: input.fullName,
-          phoneNumber: input.phoneNumber,
-          email: input.email ?? existingUser.email,
-          passwordHash,
-          preferredLanguage: input.preferredLanguage || existingUser.preferredLanguage,
-          status: 'ACTIVE',
-        },
-        select: {
-          id: true,
-          fullName: true,
-          phoneNumber: true,
-          email: true,
-          preferredLanguage: true,
-          status: true,
-          isPlatformAdmin: true,
-          createdAt: true,
-          memberships: {
-            include: {
-              idir: {
-                select: {
-                  id: true,
-                  name: true,
-                  currency: true,
-                  status: true,
-                },
+    const user = await prisma.user.create({
+      data: {
+        fullName: input.fullName,
+        phoneNumber: input.phoneNumber,
+        email: input.email ? input.email.trim().toLowerCase() : null,
+        passwordHash,
+        preferredLanguage: input.preferredLanguage || 'am',
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        fullName: true,
+        phoneNumber: true,
+        email: true,
+        preferredLanguage: true,
+        status: true,
+        isPlatformAdmin: true,
+        createdAt: true,
+        memberships: {
+          include: {
+            idir: {
+              select: {
+                id: true,
+                name: true,
+                currency: true,
+                status: true,
               },
             },
           },
         },
-      });
-    } else {
-      user = await prisma.user.create({
-        data: {
-          fullName: input.fullName,
-          phoneNumber: input.phoneNumber,
-          email: input.email,
-          passwordHash,
-          preferredLanguage: input.preferredLanguage || 'am',
-          status: 'ACTIVE',
-        },
-        select: {
-          id: true,
-          fullName: true,
-          phoneNumber: true,
-          email: true,
-          preferredLanguage: true,
-          status: true,
-          isPlatformAdmin: true,
-          createdAt: true,
-          memberships: {
-            include: {
-              idir: {
-                select: {
-                  id: true,
-                  name: true,
-                  currency: true,
-                  status: true,
-                },
-              },
-            },
-          },
-        },
-      });
-    }
+      },
+    });
 
     const tokenPayload = {
       userId: user.id,
@@ -166,15 +147,27 @@ export class AuthService {
     }
 
     if (!user) {
+      logger.warn(
+        { event: 'AUTH_FAILED', reason: 'USER_NOT_FOUND', ip: ipAddress },
+        'Security Event: Login failed for non-existent user identifier'
+      );
       throw new UnauthorizedError('Invalid phone number, email, or password');
     }
 
     if (user.status !== 'ACTIVE') {
+      logger.warn(
+        { event: 'AUTH_FAILED', reason: 'ACCOUNT_INACTIVE', userId: user.id, ip: ipAddress },
+        'Security Event: Login attempted on inactive/suspended account'
+      );
       throw new UnauthorizedError('User account is suspended or inactive');
     }
 
     const isMatch = await comparePassword(input.password, user.passwordHash);
     if (!isMatch) {
+      logger.warn(
+        { event: 'AUTH_FAILED', reason: 'BAD_PASSWORD', userId: user.id, ip: ipAddress },
+        'Security Event: Login failed with incorrect password'
+      );
       throw new UnauthorizedError('Invalid phone number or password');
     }
 

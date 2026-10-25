@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { contributionsService } from './contributions.service.js';
 import { sendSuccess, sendCreated } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
+import { ForbiddenError } from '../../shared/errors/AppError.js';
 
 export class ContributionsController {
   async createType(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -70,10 +71,17 @@ export class ContributionsController {
     try {
       const { page, limit, membershipId, contributionTypeId, status, startDate, endDate } =
         req.query;
+
+      // BROKEN ACCESS CONTROL FIX (IDOR): Ordinary members can only view their own contributions
+      let targetMembershipId = membershipId as string | undefined;
+      if (req.membership?.role === 'MEMBER') {
+        targetMembershipId = req.membership.id;
+      }
+
       const result = await contributionsService.listContributions(req.params.idirId, {
         page: page ? Number(page) : undefined,
         limit: limit ? Number(limit) : undefined,
-        membershipId: membershipId as string,
+        membershipId: targetMembershipId,
         contributionTypeId: contributionTypeId as string,
         status: status as any,
         startDate: startDate as string,
@@ -91,6 +99,12 @@ export class ContributionsController {
         req.params.idirId,
         req.params.contributionId
       );
+
+      // BROKEN ACCESS CONTROL FIX (IDOR): Ordinary members can only view their own contribution
+      if (req.membership?.role === 'MEMBER' && contribution.membershipId !== req.membership.id) {
+        throw new ForbiddenError('You are not authorized to view this contribution record');
+      }
+
       return sendSuccess(res, contribution);
     } catch (error) {
       next(error);

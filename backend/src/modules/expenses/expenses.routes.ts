@@ -30,7 +30,6 @@ router.get(
     'SECRETARY',
     'COMMITTEE',
     'AUDITOR',
-    'MEMBER',
   ]),
   validate({ query: queryExpensesSchema }),
   expensesController.listExpenses
@@ -44,7 +43,6 @@ router.get(
     'SECRETARY',
     'COMMITTEE',
     'AUDITOR',
-    'MEMBER',
   ]),
   expensesController.getExpenseById
 );

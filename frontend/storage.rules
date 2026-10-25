@@ -9,15 +9,13 @@ service firebase.storage {
     function isOfficer() {
       return isAuthenticated() && (
         request.auth.token.role == 'chairperson' ||
-        request.auth.token.role == 'treasurer' ||
-        request.auth.uid == 'demo_chair' ||
-        request.auth.uid == 'demo_treasurer'
+        request.auth.token.role == 'treasurer'
       );
     }
 
     // Death certificates and hospital documentation attached to claims
     match /claims/{claimId}/{fileName} {
-      allow read: if isAuthenticated();
+      allow read: if isOfficer() || isAuthenticated();
       allow write: if isAuthenticated() &&
         request.resource.size < 5 * 1024 * 1024 && // Max 5MB
         request.resource.contentType.matches('image/.*|application/pdf');
@@ -25,7 +23,7 @@ service firebase.storage {
 
     // Expense receipts and invoices
     match /receipts/{receiptId}/{fileName} {
-      allow read: if isAuthenticated();
+      allow read: if isOfficer();
       allow write: if isOfficer() &&
         request.resource.size < 5 * 1024 * 1024 &&
         request.resource.contentType.matches('image/.*|application/pdf');

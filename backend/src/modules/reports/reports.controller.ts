@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { reportsService } from './reports.service.js';
 import { sendSuccess } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
+import { ForbiddenError } from '../../shared/errors/AppError.js';
 
 export class ReportsController {
   async getIdirFinancialReport(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -23,6 +24,16 @@ export class ReportsController {
     next: NextFunction
   ) {
     try {
+      // BROKEN ACCESS CONTROL FIX (IDOR): Ordinary members can only view their own contribution report
+      if (
+        req.membership?.role === 'MEMBER' &&
+        req.params.membershipId !== req.membership.id
+      ) {
+        throw new ForbiddenError(
+          'You are not authorized to view another member\'s financial contribution report'
+        );
+      }
+
       const report = await reportsService.getMemberContributionReport(
         req.params.idirId,
         req.params.membershipId

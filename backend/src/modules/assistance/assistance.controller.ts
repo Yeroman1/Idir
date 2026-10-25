@@ -79,7 +79,8 @@ export class AssistanceController {
         req.params.caseId,
         req.params.requestId,
         req.body,
-        req.user!.id
+        req.user!.id,
+        req.membership?.id
       );
       return sendSuccess(res, request, 200, `Request ${request.status.toLowerCase()}`);
     } catch (error) {
