@@ -27,7 +27,23 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_SECURE: z.coerce.boolean().optional(),
-});
+}).refine(
+  (data) => {
+    if (data.NODE_ENV === 'production') {
+      const isDefaultAccess = data.JWT_ACCESS_SECRET.includes('idir-connect-super-secure');
+      const isDefaultRefresh = data.JWT_REFRESH_SECRET.includes('idir-connect-super-secure');
+      if (isDefaultAccess || isDefaultRefresh) {
+        return false;
+      }
+    }
+    return true;
+  },
+  {
+    message:
+      'Production deployment cannot use default example JWT secrets. Set a unique, cryptographically random secret in production.',
+    path: ['JWT_ACCESS_SECRET'],
+  }
+);
 
 const parsedEnv = envSchema.safeParse(process.env);
 

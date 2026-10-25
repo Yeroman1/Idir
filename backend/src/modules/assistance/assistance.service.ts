@@ -221,7 +221,8 @@ export class AssistanceService {
     caseId: string,
     requestId: string,
     input: ReviewRequestInput,
-    actorId: string
+    actorId: string,
+    actorMembershipId?: string
   ) {
     const request = await prisma.assistanceRequest.findFirst({
       where: { id: requestId, caseId, case: { idirId } },
@@ -234,6 +235,16 @@ export class AssistanceService {
 
     if (request.status !== 'PENDING') {
       throw new BadRequestError(`Cannot review a request that is already ${request.status}`);
+    }
+
+    // INSECURE DESIGN FIX: Strict Self-Approval Ban (Bylaws Rule & STRIDE E-02)
+    if (
+      request.submittedById === actorId ||
+      (actorMembershipId && request.case.membershipId === actorMembershipId)
+    ) {
+      throw new ForbiddenError(
+        'Self-approval is strictly forbidden: officers cannot review or approve their own assistance requests'
+      );
     }
 
     const newStatus = input.approved ? 'APPROVED' : 'REJECTED';
@@ -292,6 +303,13 @@ export class AssistanceService {
 
     if (request.status !== 'APPROVED') {
       throw new BadRequestError('Cannot disburse funds for an unapproved assistance request');
+    }
+
+    // INSECURE DESIGN FIX: Submitter cannot disburse funds to themselves
+    if (request.submittedById === actorId) {
+      throw new ForbiddenError(
+        'Self-disbursement is strictly forbidden: the submitter of this assistance request cannot disburse funds to themselves'
+      );
     }
 
     const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');

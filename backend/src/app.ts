@@ -32,10 +32,14 @@ import { electionRoutes } from './modules/elections/elections.routes.js';
 export const app = express();
 
 // Security & Parsing
+app.disable('x-powered-by');
 app.use(helmet());
 app.use(
   cors({
-    origin: env.CORS_ORIGIN === '*' ? '*' : env.CORS_ORIGIN.split(','),
+    origin:
+      env.CORS_ORIGIN === '*'
+        ? true
+        : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
     credentials: true,
   })
 );
