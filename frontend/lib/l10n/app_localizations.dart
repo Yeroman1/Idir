@@ -1083,6 +1083,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your dues are completely up to date. Thank you for supporting your community!'**
   String get youAreUpToDate;
+
+  /// No description provided for @groupChatTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Community Group Chat'**
+  String get groupChatTitle;
+
+  /// No description provided for @typeMessageHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message…'**
+  String get typeMessageHint;
+
+  /// No description provided for @chatEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet'**
+  String get chatEmptyTitle;
+
+  /// No description provided for @chatEmptyDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the conversation with your Idir community members!'**
+  String get chatEmptyDesc;
+
+  /// No description provided for @retrySend.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retrySend;
+
+  /// No description provided for @sendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Message failed to send. Tap to retry.'**
+  String get sendFailed;
+
+  /// No description provided for @chatMembersOnlyNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Private to verified Idir members only'**
+  String get chatMembersOnlyNotice;
 }
 
 class _AppLocalizationsDelegate

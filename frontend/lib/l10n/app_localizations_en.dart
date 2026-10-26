@@ -525,4 +525,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get youAreUpToDate =>
       'Your dues are completely up to date. Thank you for supporting your community!';
+
+  @override
+  String get groupChatTitle => 'Community Group Chat';
+
+  @override
+  String get typeMessageHint => 'Write a message…';
+
+  @override
+  String get chatEmptyTitle => 'No messages yet';
+
+  @override
+  String get chatEmptyDesc =>
+      'Start the conversation with your Idir community members!';
+
+  @override
+  String get retrySend => 'Retry';
+
+  @override
+  String get sendFailed => 'Message failed to send. Tap to retry.';
+
+  @override
+  String get chatMembersOnlyNotice => 'Private to verified Idir members only';
 }

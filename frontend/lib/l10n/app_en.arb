@@ -194,5 +194,12 @@
       "amount": { "type": "num" }
     }
   },
-  "youAreUpToDate": "Your dues are completely up to date. Thank you for supporting your community!"
+  "youAreUpToDate": "Your dues are completely up to date. Thank you for supporting your community!",
+  "groupChatTitle": "Community Group Chat",
+  "typeMessageHint": "Write a message…",
+  "chatEmptyTitle": "No messages yet",
+  "chatEmptyDesc": "Start the conversation with your Idir community members!",
+  "retrySend": "Retry",
+  "sendFailed": "Message failed to send. Tap to retry.",
+  "chatMembersOnlyNotice": "Private to verified Idir members only"
 }

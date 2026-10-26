@@ -510,4 +510,25 @@ class AppLocalizationsAm extends AppLocalizations {
 
   @override
   String get youAreUpToDate => 'ክፍያዎችዎ የተሟሉ ናቸው። ማህበሩን ስለደገፉ እናመሰግናለን!';
+
+  @override
+  String get groupChatTitle => 'የእድር የቡድን ውይይት';
+
+  @override
+  String get typeMessageHint => 'መልእክት ይጻፉ…';
+
+  @override
+  String get chatEmptyTitle => 'እስካሁን ምንም መልእክት የለም';
+
+  @override
+  String get chatEmptyDesc => 'ከእድር ማህበረሰብ አባላት ጋር ውይይት ይጀምሩ!';
+
+  @override
+  String get retrySend => 'እንደገና ሞክር';
+
+  @override
+  String get sendFailed => 'መልእክቱ አልተላከም። እንደገና ለመሞከር ይንኩ።';
+
+  @override
+  String get chatMembersOnlyNotice => 'ለተረጋገጡ የእድር አባላት ብቻ የተፈቀደ';
 }

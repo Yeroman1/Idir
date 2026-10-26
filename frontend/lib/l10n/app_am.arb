@@ -179,5 +179,12 @@
   "reviewClaims": "ጥያቄዎችን ይገምግሙ",
   "personalDuesRate": "ወርሃዊ መዋጮ: {rate} ብር",
   "youAreInArrears": "የ{months} ወራት ቀሪ ዕዳ አለብዎት ({amount} ብር)። እባክዎ ለገንዘብ ያዥ ይክፈሉ።",
-  "youAreUpToDate": "ክፍያዎችዎ የተሟሉ ናቸው። ማህበሩን ስለደገፉ እናመሰግናለን!"
+  "youAreUpToDate": "ክፍያዎችዎ የተሟሉ ናቸው። ማህበሩን ስለደገፉ እናመሰግናለን!",
+  "groupChatTitle": "የእድር የቡድን ውይይት",
+  "typeMessageHint": "መልእክት ይጻፉ…",
+  "chatEmptyTitle": "እስካሁን ምንም መልእክት የለም",
+  "chatEmptyDesc": "ከእድር ማህበረሰብ አባላት ጋር ውይይት ይጀምሩ!",
+  "retrySend": "እንደገና ሞክር",
+  "sendFailed": "መልእክቱ አልተላከም። እንደገና ለመሞከር ይንኩ።",
+  "chatMembersOnlyNotice": "ለተረጋገጡ የእድር አባላት ብቻ የተፈቀደ"
 }

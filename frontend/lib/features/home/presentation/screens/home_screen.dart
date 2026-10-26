@@ -75,6 +75,13 @@ class HomeScreen extends ConsumerWidget {
             child: _SyncStatusChip(syncStatus: syncStatus, l10n: l10n),
           ),
 
+          // ── Group Chat Action Button ─────────────────────────────────────
+          IconButton(
+            icon: const Icon(Icons.forum_outlined),
+            tooltip: l10n.groupChatTitle,
+            onPressed: () => context.push(AppRoutes.chat),
+          ),
+
           // ── Refresh Action Button ────────────────────────────────────────
           IconButton(
             icon: const Icon(Icons.refresh),

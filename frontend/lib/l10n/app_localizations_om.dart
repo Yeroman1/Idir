@@ -520,4 +520,26 @@ class AppLocalizationsOm extends AppLocalizations {
   @override
   String get youAreUpToDate =>
       'Kaffaltiin keessan guutuu dha. Hawaasa deeggaruu keessaniif galatoomaa!';
+
+  @override
+  String get groupChatTitle => 'Walgaree Marii Iddiraa';
+
+  @override
+  String get typeMessageHint => 'Ergaa barreessi…';
+
+  @override
+  String get chatEmptyTitle => 'Hanga ammaatti ergaan hin jiru';
+
+  @override
+  String get chatEmptyDesc =>
+      'Miseensota Iddiraa keessan wajjin marii eegalaa!';
+
+  @override
+  String get retrySend => 'Irra deebi\'i';
+
+  @override
+  String get sendFailed => 'Ergaan hin ergamne. Irra deebi\'uuf tuqi.';
+
+  @override
+  String get chatMembersOnlyNotice => 'Miseensota Iddiraa mirkanaa\'an qofaaf';
 }
