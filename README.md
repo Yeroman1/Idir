@@ -155,21 +155,6 @@ This builds and launches both the `idir_connect_postgres` database container and
 
 ---
 
-## 🔑 Pre-Seeded Test Credentials
-
-The database seed (`npm run prisma:seed`) pre-populates ready-to-test accounts representing all traditional institutional roles:
-
-| Role                    | Phone Number    | Password       | Cultural Responsibility                                             |
-| :---------------------- | :-------------- | :------------- | :------------------------------------------------------------------ |
-| **Platform Admin**      | `+251911000000` | `Password123!` | System-wide administrator                                           |
-| **Chairperson** (ሰብሳቢ)  | `+251911111111` | `Password123!` | Bole Medhanealem Idir Chairperson, claim approvals, elections       |
-| **Treasurer** (ገንዘብ ያዥ) | `+251911222222` | `Password123!` | Dues collections, payout disbursements, expense records             |
-| **Secretary** (ጸሐፊ)     | `+251911333333` | `Password123!` | Meeting minutes, announcements, attendance rosters                  |
-| **Auditor** (ኦዲተር)      | `+251911444444` | `Password123!` | Rule 3 solvency reconciliation & SHA-256 audit log inspection       |
-| **Member** (አባል)        | `+251911555555` | `Password123!` | Enrolled contributing member, Ikub participant, secret ballot voter |
-
----
-
 ## 🧪 Automated Testing & Verification
 
 Both backend and frontend feature rigorous automated test coverage:
