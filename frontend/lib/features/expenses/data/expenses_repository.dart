@@ -231,8 +231,7 @@ class FirestoreExpensesRepository implements ExpensesRepository {
 final expensesRepositoryProvider = Provider<ExpensesRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
-  final activeIdirId =
-      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
+  final activeIdirId = ref.watch(activeIdirIdProvider);
   return RestExpensesRepository(
     apiClient: apiClient,
     cacheService: cache,

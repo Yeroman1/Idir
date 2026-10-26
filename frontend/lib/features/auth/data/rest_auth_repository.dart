@@ -134,7 +134,7 @@ class RestAuthRepository implements AuthRepository {
     } catch (_) {}
 
     await _apiClient.clearTokens();
-    await _cache.remove(_cacheKey);
+    await _cache.clearAll();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(AppConstants.prefIsLoggedIn, false);
     await prefs.remove(AppConstants.prefActiveIdirId);
@@ -210,8 +210,11 @@ class RestAuthRepository implements AuthRepository {
       if (idirId.isNotEmpty && idirId != '00000000-0000-0000-0000-000000000001') {
         await prefs.setString(AppConstants.prefActiveIdirId, idirId);
       }
-    } else if (json['role'] != null) {
-      role = UserRoleX.fromString(json['role'] as String);
+    } else {
+      await prefs.remove(AppConstants.prefActiveIdirId);
+      if (json['role'] != null) {
+        role = UserRoleX.fromString(json['role'] as String);
+      }
     }
 
     return AppUser(

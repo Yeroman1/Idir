@@ -121,8 +121,9 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
         }
       }
 
-      // 2. Load custom / local cached Idirs
-      final customRaw = prefs.getString(_customIdirsCacheKey);
+      // 2. Load custom / local cached Idirs for this user
+      final userCacheKey = '${_customIdirsCacheKey}_${user?.uid ?? "anon"}';
+      final customRaw = prefs.getString(userCacheKey);
       if (customRaw != null && customRaw.isNotEmpty) {
         try {
           final decoded = jsonDecode(customRaw) as List<dynamic>;
@@ -163,7 +164,7 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
 
       // 4. No fake demo Idirs in real application
 
-      // 5. Select active Idir
+      // 5. Select active Idir strictly from user's available Idirs
       UserMembership? active;
       if (savedActiveIdirId != null &&
           savedActiveIdirId != '00000000-0000-0000-0000-000000000001') {
@@ -181,7 +182,7 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       if (active != null) {
         await prefs.setString(AppConstants.prefActiveIdirId, active.idirId);
       } else {
-        await prefs.setString(AppConstants.prefActiveIdirId, AppConstants.defaultIdirId);
+        await prefs.remove(AppConstants.prefActiveIdirId);
       }
 
       if (!mounted) return;
@@ -245,11 +246,13 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       updated.insert(0, membership);
     }
 
-    // Persist custom idir locally
+    // Persist custom idir locally for this user
     try {
       final prefs = await SharedPreferences.getInstance();
+      final user = _ref.read(currentUserProvider);
+      final userCacheKey = '${_customIdirsCacheKey}_${user?.uid ?? "anon"}';
       final customList = updated.map((m) => m.toMap()).toList();
-      await prefs.setString(_customIdirsCacheKey, jsonEncode(customList));
+      await prefs.setString(userCacheKey, jsonEncode(customList));
       await prefs.setString(AppConstants.prefActiveIdirId, membership.idirId);
     } catch (_) {}
 
@@ -317,12 +320,12 @@ final currentActiveIdirProvider = Provider<UserMembership?>((ref) {
   return ref.watch(activeIdirProvider).activeIdir;
 });
 
-/// Current active Idir ID string helper.
+/// Current active Idir ID string helper. Returns null if user is not in any Idir.
 final activeIdirIdProvider = Provider<String?>((ref) {
   final active = ref.watch(currentActiveIdirProvider)?.idirId ??
       ref.watch(currentUserProvider)?.idirId;
   if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') {
     return active;
   }
-  return AppConstants.defaultIdirId;
+  return null;
 });

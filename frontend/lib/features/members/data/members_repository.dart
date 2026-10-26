@@ -261,8 +261,7 @@ class FirestoreMembersRepository implements MembersRepository {
 final membersRepositoryProvider = Provider<MembersRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
-  final activeIdirId =
-      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
+  final activeIdirId = ref.watch(activeIdirIdProvider);
   return RestMembersRepository(
     apiClient: apiClient,
     cacheService: cache,

@@ -311,8 +311,7 @@ final contributionsRepositoryProvider =
   final cache = ref.watch(offlineCacheServiceProvider);
   final membersRepo = ref.watch(membersRepositoryProvider);
   final calc = ref.watch(balanceCalculatorServiceProvider);
-  final activeIdirId =
-      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
+  final activeIdirId = ref.watch(activeIdirIdProvider);
   return RestContributionsRepository(
     apiClient: apiClient,
     cacheService: cache,

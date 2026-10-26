@@ -215,8 +215,7 @@ final announcementsRepositoryProvider =
     Provider<AnnouncementsRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
-  final activeIdirId =
-      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
+  final activeIdirId = ref.watch(activeIdirIdProvider);
   return RestAnnouncementsRepository(
     apiClient: apiClient,
     cacheService: cache,

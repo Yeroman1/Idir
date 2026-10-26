@@ -340,8 +340,7 @@ class FirestoreClaimsRepository implements ClaimsRepository {
 final claimsRepositoryProvider = Provider<ClaimsRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
-  final activeIdirId =
-      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
+  final activeIdirId = ref.watch(activeIdirIdProvider);
   return RestClaimsRepository(
     apiClient: apiClient,
     cacheService: cache,
