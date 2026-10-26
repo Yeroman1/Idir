@@ -37,6 +37,11 @@ class MoreScreen extends ConsumerWidget {
 
           // ── Features ───────────────────────────────────────────────────
           _MoreItem(
+            Icons.forum_outlined,
+            l10n.groupChatTitle,
+            () => context.push(AppRoutes.chat),
+          ),
+          _MoreItem(
             Icons.campaign_outlined,
             l10n.announcements,
             () => context.push(AppRoutes.announcements),

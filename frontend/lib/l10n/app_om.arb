@@ -179,5 +179,12 @@
   "reviewClaims": "Gaaffiiwwan Sakatta'i",
   "personalDuesRate": "Buusii ji'aa: {rate} ETB",
   "youAreInArrears": "Idaa ji'a {months} qabdu ({amount} ETB). Maaloo kaffalaa.",
-  "youAreUpToDate": "Kaffaltiin keessan guutuu dha. Hawaasa deeggaruu keessaniif galatoomaa!"
+  "youAreUpToDate": "Kaffaltiin keessan guutuu dha. Hawaasa deeggaruu keessaniif galatoomaa!",
+  "groupChatTitle": "Walgaree Marii Iddiraa",
+  "typeMessageHint": "Ergaa barreessi…",
+  "chatEmptyTitle": "Hanga ammaatti ergaan hin jiru",
+  "chatEmptyDesc": "Miseensota Iddiraa keessan wajjin marii eegalaa!",
+  "retrySend": "Irra deebi'i",
+  "sendFailed": "Ergaan hin ergamne. Irra deebi'uuf tuqi.",
+  "chatMembersOnlyNotice": "Miseensota Iddiraa mirkanaa'an qofaaf"
 }

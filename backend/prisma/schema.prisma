@@ -212,6 +212,7 @@ model User {
   createdInvitations     Invitation[]           @relation("CreatedInvitations")
   revokedInvitations     Invitation[]           @relation("RevokedInvitations")
   createdElections       Election[]             @relation("CreatedElections")
+  chatMessages           ChatMessage[]
 
   @@index([phoneNumber])
   @@index([email])
@@ -275,6 +276,7 @@ model Idir {
   elections              Election[]
   roleTerms              RoleTerm[]
   noConfidenceVotes      NoConfidenceVote[]
+  chatMessages           ChatMessage[]
 
   @@index([name])
   @@index([region])
@@ -323,6 +325,7 @@ model Membership {
   noConfidenceTargets          NoConfidenceVote[]   @relation("NoConfidenceTarget")
   noConfidenceInitiated        NoConfidenceVote[]   @relation("NoConfidenceInitiator")
   noConfidenceBallots          NoConfidenceBallot[]
+  chatMessages                 ChatMessage[]
 
   @@unique([idirId, userId])
   @@unique([idirId, memberNumber])
@@ -974,5 +977,26 @@ model NoConfidenceBallot {
   @@unique([voteId, voterMembershipId])
   @@index([voteId])
   @@index([voterMembershipId])
+}
+
+// ─── REAL-TIME GROUP CHAT ───────────────────────────────────────────────────
+
+model ChatMessage {
+  id           String     @id @default(uuid())
+  idirId       String
+  idir         Idir       @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  senderId     String
+  sender       User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderName   String
+  senderRole   String     @default("MEMBER")
+  content      String     @db.Text
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([idirId, createdAt])
+  @@index([senderId])
+  @@index([membershipId])
 }
 

@@ -23,6 +23,7 @@ import '../../features/idirs/presentation/screens/create_idir_screen.dart';
 import '../../features/invitations/presentation/screens/public_invitation_screen.dart';
 import '../../features/elections/presentation/screens/create_election_screen.dart';
 import '../../features/elections/presentation/screens/elections_dashboard_screen.dart';
+import '../../features/chat/presentation/screens/group_chat_screen.dart';
 import '../models/app_user.dart';
 import '../providers/pin_provider.dart';
 import '../widgets/access_denied_screen.dart';
@@ -219,6 +220,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'createElection',
         builder: (_, __) => const CreateElectionScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.chat,
+        name: 'chat',
+        builder: (context, state) {
+          final idirId = state.uri.queryParameters['idirId'];
+          return GroupChatScreen(idirId: idirId);
+        },
+      ),
 
       // ── Supabase Email Auth Routes ──────────────────────────────────────
       GoRoute(
@@ -335,4 +344,5 @@ abstract final class AppRoutes {
   static const settings = '/settings';
   static const elections = '/elections';
   static const createElection = '/elections/create';
+  static const chat = '/chat';
 }
