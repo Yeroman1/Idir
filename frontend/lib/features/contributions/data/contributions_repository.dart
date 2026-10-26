@@ -59,6 +59,43 @@ class FirestoreContributionsRepository implements ContributionsRepository {
     // No mock demo data in production real application
   }
 
+  /// Isolated test helper strictly for offline unit tests
+  void seedForTest() {
+    final now = DateTime.now();
+    final year = now.year;
+    _localCache.clear();
+    _localCache.addAll([
+      Contribution(
+        id: 'c_001',
+        receiptNumber: 'REC-$year-001',
+        memberId: 'MEM-001',
+        memberName: 'Abebe Tadesse',
+        amount: 50.0,
+        date: now.subtract(const Duration(days: 5)),
+        recordedByUid: 'test_treasurer',
+        recordedByName: 'Test Treasurer',
+        paymentMethod: PaymentMethod.telebirr,
+        periodMonth: now.month,
+        periodYear: year,
+        createdAt: now.subtract(const Duration(days: 5)),
+      ),
+      Contribution(
+        id: 'c_002',
+        receiptNumber: 'REC-$year-002',
+        memberId: 'MEM-002',
+        memberName: 'Almaz Ayana',
+        amount: 100.0,
+        date: now.subtract(const Duration(days: 3)),
+        recordedByUid: 'test_treasurer',
+        recordedByName: 'Test Treasurer',
+        paymentMethod: PaymentMethod.cbeBirr,
+        periodMonth: now.month,
+        periodYear: year,
+        createdAt: now.subtract(const Duration(days: 3)),
+      ),
+    ]);
+  }
+
   @override
   Stream<List<Contribution>> watchContributions() async* {
     final fs = _fs;

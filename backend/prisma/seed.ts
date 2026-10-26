@@ -4,6 +4,15 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
+  const dbUrl = process.env.DATABASE_URL || '';
+  if (dbUrl.includes('supabase.co') || dbUrl.includes('pooler.supabase.com')) {
+    if (process.env.ALLOW_SUPABASE_SEED !== 'true') {
+      console.warn('⚠️  ABORTED: Seeding demo records into Supabase production/cloud database is blocked.');
+      console.warn('   Idir Connect requires real Supabase data. To bypass in isolated tests, set ALLOW_SUPABASE_SEED=true.');
+      return;
+    }
+  }
+
   console.log('🌱 Starting database seeding for Idir Connect...');
 
   const passwordHash = await bcrypt.hash('Password123!', 10);

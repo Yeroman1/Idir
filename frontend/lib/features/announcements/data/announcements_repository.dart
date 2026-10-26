@@ -34,6 +34,54 @@ class FirestoreAnnouncementsRepository implements AnnouncementsRepository {
     // No mock demo data in production real application
   }
 
+  /// Isolated test helper strictly for offline unit tests
+  void seedForTest() {
+    final now = DateTime.now();
+    _localCache.clear();
+    _localCache.addAll([
+      Announcement(
+        id: 'ann_001',
+        title: 'Annual General Assembly Meeting',
+        body: 'The annual general meeting will be held on the first Sunday of next month.',
+        category: AnnouncementCategory.meeting,
+        postedBy: 'user_chair',
+        postedByName: 'Chairperson',
+        createdAt: now.subtract(const Duration(days: 2)),
+        pinned: true,
+      ),
+      Announcement(
+        id: 'ann_002',
+        title: 'Monthly Dues Reminder',
+        body: 'Please ensure your monthly contribution is recorded by the 15th.',
+        category: AnnouncementCategory.reminder,
+        postedBy: 'user_treasurer',
+        postedByName: 'Treasurer',
+        createdAt: now.subtract(const Duration(days: 4)),
+        pinned: false,
+      ),
+      Announcement(
+        id: 'ann_003',
+        title: 'Condolence Notice: Family of Ato Kebede',
+        body: 'We extend our deepest condolences to the family of Ato Kebede.',
+        category: AnnouncementCategory.funeral,
+        postedBy: 'user_chair',
+        postedByName: 'Chairperson',
+        createdAt: now.subtract(const Duration(days: 6)),
+        pinned: false,
+      ),
+      Announcement(
+        id: 'ann_004',
+        title: 'Office Hours Update',
+        body: 'Idir secretariat office will be open on Saturdays from 9am to 12pm.',
+        category: AnnouncementCategory.general,
+        postedBy: 'user_chair',
+        postedByName: 'Chairperson',
+        createdAt: now.subtract(const Duration(days: 10)),
+        pinned: false,
+      ),
+    ]);
+  }
+
   List<Announcement> _sortedList(List<Announcement> list) {
     final copy = List<Announcement>.from(list);
     copy.sort((a, b) {

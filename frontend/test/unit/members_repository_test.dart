@@ -7,7 +7,7 @@ void main() {
     late FirestoreMembersRepository repository;
 
     setUp(() {
-      repository = FirestoreMembersRepository();
+      repository = FirestoreMembersRepository()..seedForTest();
     });
 
     test('Loads initial sample members', () async {

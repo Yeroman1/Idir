@@ -56,6 +56,7 @@ void main() {
     setUp(() {
       // Instantiated with null firestore to exercise local fallback cache
       repo = FirestoreAnnouncementsRepository(firestore: null);
+      repo.seedForTest();
     });
 
     test('loads default seed announcements with pinned item first', () async {

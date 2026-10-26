@@ -37,9 +37,14 @@ class FirestoreExpensesRepository implements ExpensesRepository {
   final _streamController = StreamController<List<Expense>>.broadcast();
 
   void _initLocalCache() {
+    // No mock demo data in production real application
+  }
+
+  /// Isolated test helper strictly for offline unit tests
+  void seedForTest() {
     final now = DateTime.now();
     final year = now.year;
-
+    _localCache.clear();
     _localCache.addAll([
       Expense(
         id: 'exp_001',
@@ -47,8 +52,8 @@ class FirestoreExpensesRepository implements ExpensesRepository {
         category: ExpenseCategory.funeralEquipment,
         amount: 850.0,
         description: 'Community tent and chairs repair & maintenance',
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
+        recordedByUid: 'test_treasurer',
+        recordedByName: 'Test Treasurer',
         createdAt: DateTime(year, now.month, 5),
       ),
       Expense(
@@ -57,8 +62,8 @@ class FirestoreExpensesRepository implements ExpensesRepository {
         category: ExpenseCategory.administrative,
         amount: 300.0,
         description: 'Ledger books, stationery & printed receipt stamps',
-        recordedByUid: 'demo_treasurer',
-        recordedByName: 'Chaltu Bekele (Treasurer)',
+        recordedByUid: 'test_treasurer',
+        recordedByName: 'Test Treasurer',
         createdAt: DateTime(year, now.month, 10),
       ),
     ]);

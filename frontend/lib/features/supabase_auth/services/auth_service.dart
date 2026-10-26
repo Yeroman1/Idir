@@ -265,28 +265,42 @@ class AuthService {
     }
 
     // 2. Perform live authentication against Supabase GoTrue Auth
-    final AuthResponse authResponse;
+    AuthResponse? authResponse;
     try {
       authResponse = await supabase.auth.signInWithPassword(
         email: cleanEmail,
         password: password,
       );
-    } on AuthException catch (e) {
-      throw Exception(humanReadableAuthError(e));
     } catch (e) {
-      final msg = e.toString().toLowerCase();
-      if (msg.contains('socket') ||
-          msg.contains('network') ||
-          msg.contains('connection refused') ||
-          msg.contains('failed host lookup') ||
-          msg.contains('clientexception')) {
-        throw Exception('Network connection error: please verify your internet connection.');
+      // If Supabase GoTrue fails or user registered directly in database, try backend database auth
+      try {
+        final backendRes = await _postToCandidateBaseUrls(
+          '/login',
+          {'email': cleanEmail, 'password': password},
+        );
+        final tokens = backendRes['tokens'] as Map<String, dynamic>?;
+        final u = backendRes['user'] as Map<String, dynamic>?;
+        if (tokens != null && u != null) {
+          accessToken = tokens['accessToken'] as String?;
+          refreshToken = tokens['refreshToken'] as String?;
+          currentUser = u;
+          return {
+            'tokens': tokens,
+            'user': u,
+          };
+        }
+      } catch (_) {
+        // If backend also fails, proceed to throw primary error
       }
-      rethrow;
+
+      if (e is AuthException) {
+        throw Exception(humanReadableAuthError(e));
+      }
+      _handleNetworkError(e);
     }
 
-    final user = authResponse.user;
-    final session = authResponse.session;
+    final user = authResponse?.user;
+    final session = authResponse?.session;
 
     if (user == null) {
       throw Exception('Authentication failed: no user returned from Supabase.');

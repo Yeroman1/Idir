@@ -270,7 +270,40 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
     }
   }
 
-
+  /// Isolated test helper strictly for offline unit tests
+  void seedForTest() {
+    const list = [
+      UserMembership(
+        id: 'idir_tinsae_001',
+        idirId: 'idir_tinsae_001',
+        idirName: 'Tinsae Mutual Aid Association',
+        role: UserRole.chairperson,
+        memberNumber: 'MEM-001',
+        status: 'ACTIVE',
+        community: 'Kirkos Community',
+        location: 'Meskel Flower, Addis Ababa',
+        contributionAmount: 50.0,
+        contributionFrequency: 'MONTHLY',
+      ),
+      UserMembership(
+        id: AppConstants.defaultIdirId,
+        idirId: AppConstants.defaultIdirId,
+        idirName: 'Bole Medhanealem Yebego Adragot Idir',
+        role: UserRole.member,
+        memberNumber: 'BM-042',
+        status: 'ACTIVE',
+        community: 'Bole Community',
+        location: 'Near Medhanealem Cathedral, Addis Ababa',
+        contributionAmount: 200.0,
+        contributionFrequency: 'MONTHLY',
+      ),
+    ];
+    state = ActiveIdirState(
+      availableIdirs: list,
+      activeIdir: list.first,
+      isLoading: false,
+    );
+  }
 }
 
 /// Provider managing active Idir and list of user memberships.
