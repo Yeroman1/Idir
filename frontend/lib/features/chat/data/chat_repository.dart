@@ -50,9 +50,15 @@ class SupabaseChatRepository implements ChatRepository {
         '/idirs/$idirId/chat?limit=$limit',
       );
 
-      if (res is Map<String, dynamic> && res['data'] is List) {
-        final list = res['data'] as List<dynamic>;
-        return list
+      List<dynamic>? rawList;
+      if (res is List) {
+        rawList = res;
+      } else if (res is Map<String, dynamic> && res['data'] is List) {
+        rawList = res['data'] as List<dynamic>;
+      }
+
+      if (rawList != null) {
+        return rawList
             .map((item) => ChatMessage.fromMap(item as Map<String, dynamic>))
             .toList();
       }
@@ -90,8 +96,17 @@ class SupabaseChatRepository implements ChatRepository {
         body: {'content': content.trim()},
       );
 
-      if (res is Map<String, dynamic> && res['data'] is Map<String, dynamic>) {
-        final created = ChatMessage.fromMap(res['data'] as Map<String, dynamic>);
+      Map<String, dynamic>? messageMap;
+      if (res is Map<String, dynamic>) {
+        if (res['data'] is Map<String, dynamic>) {
+          messageMap = res['data'] as Map<String, dynamic>;
+        } else if (res.containsKey('content') || res.containsKey('id')) {
+          messageMap = res;
+        }
+      }
+
+      if (messageMap != null) {
+        final created = ChatMessage.fromMap(messageMap);
 
         // Broadcast to channel for instant delivery
         final supabase = _getSupabaseClient();
@@ -110,17 +125,17 @@ class SupabaseChatRepository implements ChatRepository {
       throw Exception('Failed to send message: invalid server response');
     } catch (e) {
       debugPrint('[ChatRepository] Backend REST sendMessage notice: $e');
-      // Fallback: direct Supabase insert if direct authenticated session exists
+      // Fallback: direct Supabase insert if direct client exists
       final supabase = _getSupabaseClient();
-      if (supabase != null && supabase.auth.currentUser != null) {
-        final user = supabase.auth.currentUser!;
+      if (supabase != null) {
+        final user = supabase.auth.currentUser;
         final inserted = await supabase
             .from('ChatMessage')
             .insert({
               'id': uuidV4(),
               'idirId': idirId,
-              'senderId': user.id,
-              'senderName': user.userMetadata?['fullName'] ?? 'Idir Member',
+              'senderId': user?.id ?? 'web-user',
+              'senderName': user?.userMetadata?['fullName'] ?? 'Idir Member',
               'content': content.trim(),
             })
             .select()

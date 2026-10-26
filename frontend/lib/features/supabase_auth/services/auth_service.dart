@@ -278,8 +278,9 @@ class AuthService {
           '/login',
           {'email': cleanEmail, 'password': password},
         );
-        final tokens = backendRes['tokens'] as Map<String, dynamic>?;
-        final u = backendRes['user'] as Map<String, dynamic>?;
+        final data = (backendRes['data'] as Map<String, dynamic>?) ?? backendRes;
+        final tokens = (data['tokens'] ?? backendRes['tokens']) as Map<String, dynamic>?;
+        final u = (data['user'] ?? backendRes['user']) as Map<String, dynamic>?;
         if (tokens != null && u != null) {
           accessToken = tokens['accessToken'] as String?;
           refreshToken = tokens['refreshToken'] as String?;

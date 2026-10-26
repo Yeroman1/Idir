@@ -121,12 +121,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return;
     }
 
-    // Check if this incoming message matches a pending optimistic message by content and sender
+    // Check if this incoming message matches a pending optimistic message by content
     final pendingIndex = state.messages.indexWhere(
       (m) =>
-          m.deliveryStatus == MessageDeliveryStatus.sending &&
-          m.senderId == message.senderId &&
-          m.content == message.content,
+          (m.deliveryStatus == MessageDeliveryStatus.sending ||
+              m.deliveryStatus == MessageDeliveryStatus.failed ||
+              m.id.startsWith('temp-')) &&
+          (m.senderId == message.senderId ||
+              m.senderId.isEmpty ||
+              message.senderId.isEmpty) &&
+          m.content.trim() == message.content.trim(),
     );
 
     if (pendingIndex >= 0) {
@@ -177,10 +181,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       if (!mounted) return;
 
-      // Replace optimistic message with confirmed server message
-      final updated = state.messages.map((m) {
-        return m.id == tempId ? confirmed : m;
-      }).toList();
+      // Replace optimistic message with confirmed server message (if not already replaced by realtime)
+      final alreadyPresent = state.messages.any((m) => m.id == confirmed.id);
+      final updated = state.messages
+          .map((m) => m.id == tempId ? confirmed : m)
+          .where((m) => !alreadyPresent || m.id != tempId)
+          .toList();
 
       state = state.copyWith(
         messages: updated,
