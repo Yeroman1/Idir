@@ -44,6 +44,73 @@ class FirestoreMembersRepository implements MembersRepository {
     // No mock demo data in production real application
   }
 
+  /// Isolated test helper strictly for offline unit tests
+  void seedForTest() {
+    final now = DateTime.now();
+    _localCache.clear();
+    _localCache.addAll([
+      Member(
+        id: 'mem_1',
+        memberId: 'MEM-001',
+        fullName: 'Abebe Tadesse',
+        phone: '+251 91 123 4567',
+        registeredAt: now.subtract(const Duration(days: 365)),
+        monthlyDues: 50.0,
+        status: MemberStatus.active,
+        dependents: const [
+          Dependent(id: 'dep_1', name: 'Tigist Abebe', relationship: 'Spouse'),
+          Dependent(id: 'dep_2', name: 'Dawit Abebe', relationship: 'Child'),
+        ],
+        createdAt: now.subtract(const Duration(days: 365)),
+        updatedAt: now.subtract(const Duration(days: 365)),
+      ),
+      Member(
+        id: 'mem_2',
+        memberId: 'MEM-002',
+        fullName: 'Almaz Ayana',
+        phone: '+251 91 234 5678',
+        registeredAt: now.subtract(const Duration(days: 300)),
+        monthlyDues: 50.0,
+        status: MemberStatus.active,
+        createdAt: now.subtract(const Duration(days: 300)),
+        updatedAt: now.subtract(const Duration(days: 300)),
+      ),
+      Member(
+        id: 'mem_3',
+        memberId: 'MEM-003',
+        fullName: 'Haile Gebrselassie',
+        phone: '+251 91 345 6789',
+        registeredAt: now.subtract(const Duration(days: 200)),
+        monthlyDues: 50.0,
+        status: MemberStatus.active,
+        createdAt: now.subtract(const Duration(days: 200)),
+        updatedAt: now.subtract(const Duration(days: 200)),
+      ),
+      Member(
+        id: 'mem_4',
+        memberId: 'MEM-004',
+        fullName: 'Derartu Tulu',
+        phone: '+251 91 456 7890',
+        registeredAt: now.subtract(const Duration(days: 100)),
+        monthlyDues: 50.0,
+        status: MemberStatus.suspended,
+        createdAt: now.subtract(const Duration(days: 100)),
+        updatedAt: now.subtract(const Duration(days: 100)),
+      ),
+      Member(
+        id: 'mem_5',
+        memberId: 'MEM-005',
+        fullName: 'Tirunesh Dibaba',
+        phone: '+251 91 567 8901',
+        registeredAt: now.subtract(const Duration(days: 50)),
+        monthlyDues: 50.0,
+        status: MemberStatus.active,
+        createdAt: now.subtract(const Duration(days: 50)),
+        updatedAt: now.subtract(const Duration(days: 50)),
+      ),
+    ]);
+  }
+
   @override
   Stream<List<Member>> watchMembers() async* {
     final fs = _fs;
@@ -194,8 +261,7 @@ class FirestoreMembersRepository implements MembersRepository {
 final membersRepositoryProvider = Provider<MembersRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
-  final activeIdirId =
-      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
+  final activeIdirId = ref.watch(activeIdirIdProvider);
   return RestMembersRepository(
     apiClient: apiClient,
     cacheService: cache,

@@ -17,7 +17,7 @@ class RestMembersRepository implements MembersRepository {
     required ApiClient apiClient,
     required OfflineCacheService cacheService,
     required Ref ref,
-    String idirId = AppConstants.defaultIdirId,
+    String? idirId,
   })  : _api = apiClient,
         _cache = cacheService,
         _ref = ref,
@@ -36,21 +36,30 @@ class RestMembersRepository implements MembersRepository {
   final ApiClient _api;
   final OfflineCacheService _cache;
   final Ref _ref;
-  final String _idirId;
+  final String? _idirId;
 
-  String get _currentIdirId {
+  String? get _currentIdirId {
     final active = _ref.read(currentActiveIdirProvider)?.idirId ??
-        _ref.read(currentUserProvider)?.idirId;
-    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') return active;
-    if (_idirId.isNotEmpty && _idirId != '00000000-0000-0000-0000-000000000001') return _idirId;
-    return AppConstants.defaultIdirId;
+        _ref.read(currentUserProvider)?.idirId ??
+        _idirId;
+    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') {
+      return active;
+    }
+    return null;
   }
 
-  String get _cacheKey => 'cache_members_$_currentIdirId';
+  String get _cacheKey => 'cache_members_${_currentIdirId ?? "none"}';
   final List<Member> _inMemoryItems = [];
   late final StreamController<List<Member>> _streamController;
 
   Future<void> _init() async {
+    final activeId = _currentIdirId;
+    if (activeId == null) {
+      _inMemoryItems.clear();
+      _streamController.add(const []);
+      return;
+    }
+
     final cached = await _loadFromCache();
     if (cached.isNotEmpty) {
       _inMemoryItems.clear();
@@ -69,6 +78,12 @@ class RestMembersRepository implements MembersRepository {
   @override
   Future<List<Member>> getMembers() async {
     final activeId = _currentIdirId;
+    if (activeId == null) {
+      _inMemoryItems.clear();
+      _streamController.add(const []);
+      return const [];
+    }
+
     try {
       final res = await _api.get('/idirs/$activeId/members', queryParams: {'limit': 100});
       List<dynamic> rawItems = [];
@@ -86,7 +101,13 @@ class RestMembersRepository implements MembersRepository {
       _streamController.add(List.unmodifiable(_inMemoryItems));
       return List.unmodifiable(_inMemoryItems);
     } on ApiException catch (e) {
-      debugPrint('[RestMembersRepository] Fetching live members failed (offline=${e.isOffline}): $e');
+      debugPrint('[RestMembersRepository] Fetching live members failed (statusCode=${e.statusCode}, offline=${e.isOffline}): $e');
+      if (e.statusCode == 401 || e.statusCode == 403 || e.statusCode == 404) {
+        _inMemoryItems.clear();
+        await _cache.remove(_cacheKey);
+        _streamController.add(const []);
+        return const [];
+      }
     } catch (e) {
       debugPrint('[RestMembersRepository] Error: $e');
     }
@@ -100,7 +121,9 @@ class RestMembersRepository implements MembersRepository {
       return List.unmodifiable(_inMemoryItems);
     }
 
-    return List.unmodifiable(_inMemoryItems);
+    _inMemoryItems.clear();
+    _streamController.add(const []);
+    return const [];
   }
 
   @override
@@ -179,14 +202,14 @@ class RestMembersRepository implements MembersRepository {
         if (n > highest) highest = n;
       }
     }
-    return 'BM-${(highest + 1).toString().padLeft(3, '0')}';
+    return 'MEM-${(highest + 1).toString().padLeft(3, '0')}';
   }
 
   Member _fromBackendJson(Map<String, dynamic> json) {
     final user = json['user'] as Map<String, dynamic>?;
     final fullName = user?['fullName'] as String? ?? json['fullName'] as String? ?? 'Member';
     final phone = user?['phoneNumber'] as String? ?? json['phone'] as String? ?? '';
-    final memberId = json['memberNumber'] as String? ?? json['memberId'] as String? ?? 'BM-001';
+    final memberId = json['memberNumber'] as String? ?? json['memberId'] as String? ?? 'MEM-001';
     final createdAt = DateTime.tryParse(json['createdAt']?.toString() ?? '') ?? DateTime.now();
 
     final statusStr = (json['status'] as String? ?? '').toUpperCase();
@@ -209,7 +232,7 @@ class RestMembersRepository implements MembersRepository {
       totalPaid: 600.0,
       balance: 0.0,
       arrears: 0.0,
-      notes: 'Registered in Bole Medhanealem Idir',
+      notes: json['notes'] as String? ?? 'Active Community Member',
       createdAt: createdAt,
       updatedAt: createdAt,
     );

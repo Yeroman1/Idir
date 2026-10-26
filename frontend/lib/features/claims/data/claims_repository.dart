@@ -60,6 +60,42 @@ class FirestoreClaimsRepository implements ClaimsRepository {
     // No mock demo data in production real application
   }
 
+  /// Isolated test helper strictly for offline unit tests
+  void seedForTest() {
+    final now = DateTime.now();
+    _localCache.clear();
+    _localCache.addAll([
+      Claim(
+        id: 'clm_001',
+        claimNumber: 'CLM-2024-001',
+        memberId: 'MEM-001',
+        memberName: 'Test Member 1',
+        type: ClaimType.funeral,
+        description: 'Test Funeral support',
+        requestedAmount: 3000.0,
+        status: ClaimStatus.submitted,
+        submittedBy: 'test_member_1',
+        submittedByName: 'Test Member 1',
+        approvals: const [],
+        createdAt: now.subtract(const Duration(days: 3)),
+      ),
+      Claim(
+        id: 'clm_002',
+        claimNumber: 'CLM-2024-002',
+        memberId: 'MEM-002',
+        memberName: 'Test Member 2',
+        type: ClaimType.illness,
+        description: 'Test Hospital assistance',
+        requestedAmount: 1500.0,
+        status: ClaimStatus.submitted,
+        submittedBy: 'test_member_2',
+        submittedByName: 'Test Member 2',
+        approvals: const [],
+        createdAt: now.subtract(const Duration(days: 1)),
+      ),
+    ]);
+  }
+
   @override
   Stream<List<Claim>> watchClaims() async* {
     final fs = _fs;
@@ -304,8 +340,7 @@ class FirestoreClaimsRepository implements ClaimsRepository {
 final claimsRepositoryProvider = Provider<ClaimsRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   final cache = ref.watch(offlineCacheServiceProvider);
-  final activeIdirId =
-      ref.watch(activeIdirIdProvider) ?? AppConstants.defaultIdirId;
+  final activeIdirId = ref.watch(activeIdirIdProvider);
   return RestClaimsRepository(
     apiClient: apiClient,
     cacheService: cache,

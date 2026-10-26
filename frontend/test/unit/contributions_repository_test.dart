@@ -9,10 +9,10 @@ void main() {
     late FirestoreContributionsRepository contributionsRepo;
 
     setUp(() {
-      membersRepo = FirestoreMembersRepository();
+      membersRepo = FirestoreMembersRepository()..seedForTest();
       contributionsRepo = FirestoreContributionsRepository(
         membersRepository: membersRepo,
-      );
+      )..seedForTest();
     });
 
     test('Loads initial contributions', () async {

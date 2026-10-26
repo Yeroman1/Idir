@@ -17,7 +17,7 @@ class RestExpensesRepository implements ExpensesRepository {
     required ApiClient apiClient,
     required OfflineCacheService cacheService,
     required Ref ref,
-    String idirId = AppConstants.defaultIdirId,
+    String? idirId,
   })  : _api = apiClient,
         _cache = cacheService,
         _ref = ref,
@@ -35,21 +35,30 @@ class RestExpensesRepository implements ExpensesRepository {
   final ApiClient _api;
   final OfflineCacheService _cache;
   final Ref _ref;
-  final String _idirId;
+  final String? _idirId;
 
-  String get _currentIdirId {
+  String? get _currentIdirId {
     final active = _ref.read(currentActiveIdirProvider)?.idirId ??
-        _ref.read(currentUserProvider)?.idirId;
-    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') return active;
-    if (_idirId.isNotEmpty && _idirId != '00000000-0000-0000-0000-000000000001') return _idirId;
-    return AppConstants.defaultIdirId;
+        _ref.read(currentUserProvider)?.idirId ??
+        _idirId;
+    if (active != null && active.isNotEmpty && active != '00000000-0000-0000-0000-000000000001') {
+      return active;
+    }
+    return null;
   }
 
-  String get _cacheKey => 'cache_expenses_$_currentIdirId';
+  String get _cacheKey => 'cache_expenses_${_currentIdirId ?? "none"}';
   final List<Expense> _inMemoryItems = [];
   late final StreamController<List<Expense>> _streamController;
 
   Future<void> _init() async {
+    final activeId = _currentIdirId;
+    if (activeId == null) {
+      _inMemoryItems.clear();
+      _streamController.add(const []);
+      return;
+    }
+
     final cached = await _loadFromCache();
     if (cached.isNotEmpty) {
       _inMemoryItems.clear();
@@ -68,6 +77,11 @@ class RestExpensesRepository implements ExpensesRepository {
   @override
   Future<List<Expense>> getExpenses() async {
     final activeId = _currentIdirId;
+    if (activeId == null) {
+      _inMemoryItems.clear();
+      _streamController.add(const []);
+      return const [];
+    }
     try {
       final res = await _api.get('/idirs/$activeId/expenses', queryParams: {'limit': 100});
       List<dynamic> rawItems = [];
@@ -86,6 +100,12 @@ class RestExpensesRepository implements ExpensesRepository {
       return List.unmodifiable(_inMemoryItems);
     } on ApiException catch (e) {
       debugPrint('[RestExpensesRepository] Live fetch failed (offline=${e.isOffline}): $e');
+      if (e.statusCode == 401 || e.statusCode == 403 || e.statusCode == 404) {
+        _inMemoryItems.clear();
+        await _cache.remove(_cacheKey);
+        _streamController.add(const []);
+        return const [];
+      }
     } catch (e) {
       debugPrint('[RestExpensesRepository] Error: $e');
     }

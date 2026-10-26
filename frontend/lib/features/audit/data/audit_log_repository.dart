@@ -7,7 +7,11 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/firebase/firestore_provider.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/providers/active_idir_provider.dart';
+import '../../../core/storage/offline_cache_service.dart';
 import '../domain/models/audit_log_entry.dart';
+import 'rest_audit_log_repository.dart';
 
 abstract class AuditLogRepository {
   Stream<List<AuditLogEntry>> watchAuditLogs();
@@ -34,10 +38,13 @@ class FirestoreAuditLogRepository implements AuditLogRepository {
   final _streamController = StreamController<List<AuditLogEntry>>.broadcast();
 
   void _initLocalChain() {
+    // No mock demo data in production real application
+  }
+
+  /// Isolated test helper strictly for offline unit tests
+  void seedForTest() {
     final now = DateTime.now();
 
-    // 1. Block 1 (Genesis)
-    final time1 = now.subtract(const Duration(days: 10));
     final e1 = AuditLogEntry.create(
       id: 'log_001',
       actorUid: 'system',
@@ -47,70 +54,63 @@ class FirestoreAuditLogRepository implements AuditLogRepository {
       targetCollection: 'settings',
       targetId: 'main',
       summary: 'Association registry and cryptographic ledger initialized',
-      createdAt: time1,
+      createdAt: now.subtract(const Duration(days: 10)),
       prevHash: genesisHash,
     );
 
-    // 2. Block 2
-    final time2 = now.subtract(const Duration(days: 8));
     final e2 = AuditLogEntry.create(
       id: 'log_002',
-      actorUid: 'demo_chair',
-      actorName: 'Abebe Bikila (Chairperson)',
+      actorUid: 'test_chair',
+      actorName: 'Test Chair',
       actorRole: 'chairperson',
       action: 'member_created',
       targetCollection: 'members',
       targetId: 'MEM-001',
-      summary: 'Registered founding member Abebe Tadesse (MEM-001)',
-      createdAt: time2,
+      summary: 'Registered founding member',
+      createdAt: now.subtract(const Duration(days: 8)),
       prevHash: e1.hash,
     );
 
-    // 3. Block 3
-    final time3 = now.subtract(const Duration(days: 5));
     final e3 = AuditLogEntry.create(
       id: 'log_003',
-      actorUid: 'demo_treasurer',
-      actorName: 'Chaltu Bekele (Treasurer)',
+      actorUid: 'test_treasurer',
+      actorName: 'Test Treasurer',
       actorRole: 'treasurer',
       action: 'contribution_recorded',
       targetCollection: 'contributions',
       targetId: 'REC-2024-001',
-      summary: 'Recorded monthly dues contribution 50 ETB for Abebe Tadesse',
-      createdAt: time3,
+      summary: 'Recorded monthly dues contribution 50 ETB',
+      createdAt: now.subtract(const Duration(days: 5)),
       prevHash: e2.hash,
     );
 
-    // 4. Block 4
-    final time4 = now.subtract(const Duration(days: 3));
     final e4 = AuditLogEntry.create(
       id: 'log_004',
-      actorUid: 'demo_member_2',
-      actorName: 'Fatuma Mohammed',
+      actorUid: 'test_member',
+      actorName: 'Test Member',
       actorRole: 'member',
       action: 'claim_submitted',
       targetCollection: 'claims',
       targetId: 'CLM-2024-001',
       summary: 'Submitted funeral mutual-aid claim for 3,000 ETB',
-      createdAt: time4,
+      createdAt: now.subtract(const Duration(days: 3)),
       prevHash: e3.hash,
     );
 
-    // 5. Block 5
-    final time5 = now.subtract(const Duration(days: 1));
     final e5 = AuditLogEntry.create(
       id: 'log_005',
-      actorUid: 'demo_chair',
-      actorName: 'Abebe Bikila (Chairperson)',
+      actorUid: 'test_chair',
+      actorName: 'Test Chair',
       actorRole: 'chairperson',
       action: 'claim_approved',
       targetCollection: 'claims',
       targetId: 'CLM-2024-002',
-      summary: 'Approved hospitalization claim for Abebe Tadesse (1,500 ETB)',
-      createdAt: time5,
+      summary: 'Approved claim for 1,500 ETB',
+      createdAt: now.subtract(const Duration(days: 1)),
       prevHash: e4.hash,
     );
 
+    _localCache.clear();
     _localCache.addAll([e1, e2, e3, e4, e5]);
   }
 
@@ -280,8 +280,15 @@ class FirestoreAuditLogRepository implements AuditLogRepository {
 }
 
 final auditLogRepositoryProvider = Provider<AuditLogRepository>((ref) {
-  final firestore = ref.watch(firestoreProvider);
-  return FirestoreAuditLogRepository(firestore: firestore);
+  final apiClient = ref.watch(apiClientProvider);
+  final cache = ref.watch(offlineCacheServiceProvider);
+  final activeIdirId = ref.watch(activeIdirIdProvider);
+  return RestAuditLogRepository(
+    apiClient: apiClient,
+    cacheService: cache,
+    ref: ref,
+    idirId: activeIdirId,
+  );
 });
 
 final auditLogsStreamProvider = StreamProvider<List<AuditLogEntry>>((ref) {

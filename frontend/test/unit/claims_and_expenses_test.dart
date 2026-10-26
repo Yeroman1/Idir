@@ -13,12 +13,20 @@ void main() {
     late ClaimsRepository claimsRepo;
 
     setUp(() {
-      expensesRepo = FirestoreExpensesRepository();
-      membersRepo = FirestoreMembersRepository();
-      claimsRepo = FirestoreClaimsRepository(
+      final fExpenses = FirestoreExpensesRepository();
+      fExpenses.seedForTest();
+      expensesRepo = fExpenses;
+
+      final fMembers = FirestoreMembersRepository();
+      fMembers.seedForTest();
+      membersRepo = fMembers;
+
+      final fClaims = FirestoreClaimsRepository(
         expensesRepository: expensesRepo,
         membersRepository: membersRepo,
       );
+      fClaims.seedForTest();
+      claimsRepo = fClaims;
     });
 
     test('Loads initial sample claims and expenses', () async {

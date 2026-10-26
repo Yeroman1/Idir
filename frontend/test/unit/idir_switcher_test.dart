@@ -109,6 +109,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
+      container.read(activeIdirProvider.notifier).seedForTest();
       final state = container.read(activeIdirProvider);
       expect(state.availableIdirs, isNotEmpty);
       expect(state.activeIdir, isNotNull);
@@ -120,7 +121,7 @@ void main() {
       addTearDown(container.dispose);
 
       final notifier = container.read(activeIdirProvider.notifier);
-      await notifier.reloadIdirs();
+      notifier.seedForTest();
 
       final available = container.read(activeIdirProvider).availableIdirs;
       expect(available.length, greaterThanOrEqualTo(2));
@@ -175,13 +176,37 @@ void main() {
         memberId: 'MEM-001',
         isActive: true,
         createdAt: DateTime(2025, 1, 1),
+        memberships: const [
+          UserMembership(
+            id: 'idir_tinsae_001',
+            idirId: 'idir_tinsae_001',
+            idirName: 'Tinsae Mutual Aid Association',
+            role: UserRole.chairperson,
+            memberNumber: 'MEM-001',
+            status: 'ACTIVE',
+          ),
+          UserMembership(
+            id: AppConstants.defaultIdirId,
+            idirId: AppConstants.defaultIdirId,
+            idirName: 'Bole Medhanealem Yebego Adragot Idir',
+            role: UserRole.member,
+            memberNumber: 'BM-042',
+            status: 'ACTIVE',
+          ),
+        ],
       );
 
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWithValue(testUser),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(activeIdirProvider.notifier).seedForTest();
+
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            currentUserProvider.overrideWithValue(testUser),
-          ],
+        UncontrolledProviderScope(
+          container: container,
           child: const MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(
@@ -215,6 +240,7 @@ void main() {
     testWidgets('Tapping inactive Idir switches active state', (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
+      container.read(activeIdirProvider.notifier).seedForTest();
 
       await tester.pumpWidget(
         UncontrolledProviderScope(

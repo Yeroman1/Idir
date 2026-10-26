@@ -7,7 +7,9 @@ void main() {
     late AuditLogRepository auditRepo;
 
     setUp(() {
-      auditRepo = FirestoreAuditLogRepository();
+      final repo = FirestoreAuditLogRepository();
+      repo.seedForTest();
+      auditRepo = repo;
     });
 
     test('Initial sample chain is cryptographically intact and unbroken', () async {

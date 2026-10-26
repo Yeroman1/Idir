@@ -188,6 +188,8 @@ class MembersScreen extends ConsumerWidget {
               ),
               data: (_) {
                 if (members.isEmpty) {
+                  final activeIdirId = ref.watch(activeIdirIdProvider);
+                  final isNoIdir = activeIdirId == null;
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
@@ -195,22 +197,41 @@ class MembersScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.people_outline,
+                            isNoIdir ? Icons.lock_outline : Icons.people_outline,
                             size: 64,
                             color: theme.colorScheme.onSurface
                                 .withValues(alpha: 0.3),
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            ref.watch(memberSearchQueryProvider).isNotEmpty
-                                ? l10n.searchNoResults
-                                : l10n.emptyState,
+                            isNoIdir
+                                ? 'Membership is private'
+                                : (ref.watch(memberSearchQueryProvider).isNotEmpty
+                                    ? l10n.searchNoResults
+                                    : l10n.emptyState),
                             textAlign: TextAlign.center,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface
-                                  .withValues(alpha: 0.6),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSurface,
                             ),
                           ),
+                          if (isNoIdir) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Idir membership lists are restricted to registered members. You do not currently belong to an active Idir.',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.7),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              onPressed: () => context.go(AppRoutes.home),
+                              icon: const Icon(Icons.home_outlined),
+                              label: const Text('Go to Home Dashboard'),
+                            ),
+                          ],
                         ],
                       ),
                     ),
