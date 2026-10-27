@@ -2,8 +2,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:idir_app/core/models/app_user.dart';
+import 'package:idir_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:idir_app/features/invitations/data/invitations_repository.dart';
 import 'package:idir_app/features/invitations/domain/models/invitation_result.dart';
+import 'package:idir_app/features/invitations/domain/models/received_invitation.dart';
 import 'package:idir_app/features/invitations/presentation/providers/invitations_provider.dart';
 import 'package:idir_app/features/invitations/presentation/widgets/invite_members_dialog.dart';
 
@@ -112,6 +115,28 @@ class MockInvitationsRepository implements InvitationsRepository {
       'message': action == 'ACCEPT'
           ? 'You have successfully joined the Idir!'
           : 'Invitation declined.',
+    };
+  }
+
+  final List<ReceivedInvitation> mockReceived = [];
+
+  @override
+  Future<List<ReceivedInvitation>> getReceivedInvitations() async {
+    if (shouldThrow) throw Exception(errorMessage);
+    return mockReceived;
+  }
+
+  @override
+  Future<Map<String, dynamic>> respondToReceivedInvitation({
+    required String invitationId,
+    required String action,
+  }) async {
+    if (shouldThrow) throw Exception(errorMessage);
+    mockReceived.removeWhere((i) => i.id == invitationId);
+    return {
+      'success': true,
+      'action': action,
+      'message': action == 'ACCEPT' ? 'Joined successfully' : 'Declined',
     };
   }
 }
@@ -317,6 +342,65 @@ void main() {
         const TextEditingValue(text: '0', selection: TextSelection(baseOffset: 1, extentOffset: 1)),
       );
       expect(res.text, '');
+    });
+
+    test('ReceivedInvitation parses fromMap correctly and handles response actions', () async {
+      final map = {
+        'id': 'inv-123',
+        'idirId': 'idir-abc',
+        'idirName': 'Yeka Michael Idir',
+        'community': 'Yeka Subcity',
+        'location': 'Addis Ababa',
+        'description': 'Community idir',
+        'contributionAmount': 200,
+        'contributionFrequency': 'MONTHLY',
+        'invitedBy': 'Abebe Bikila',
+        'email': 'test@example.com',
+        'phoneNumber': '+251911223344',
+        'createdAt': DateTime.now().toIso8601String(),
+        'expiresAt': DateTime.now().add(const Duration(days: 7)).toIso8601String(),
+        'status': 'PENDING',
+      };
+
+      final parsed = ReceivedInvitation.fromMap(map);
+      expect(parsed.id, 'inv-123');
+      expect(parsed.idirName, 'Yeka Michael Idir');
+      expect(parsed.invitedBy, 'Abebe Bikila');
+      expect(parsed.contributionAmount, 200.0);
+
+      final repo = MockInvitationsRepository();
+      repo.mockReceived.add(parsed);
+
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWithValue(
+            AppUser(
+              uid: 'user-recipient-1',
+              name: 'Recipient',
+              phone: '+251911000000',
+              role: UserRole.member,
+              memberId: 'M-001',
+              isActive: true,
+              createdAt: DateTime(2026),
+            ),
+          ),
+          invitationsRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+
+      final notifier = container.read(receivedInvitationsProvider.notifier);
+      await notifier.loadReceivedInvitations();
+
+      final state = container.read(receivedInvitationsProvider);
+      expect(state.value?.length, 1);
+      expect(state.value?.first.id, 'inv-123');
+
+      // Respond DECLINE
+      final success = await notifier.respond('inv-123', 'DECLINE');
+      expect(success, isTrue);
+
+      final updatedState = container.read(receivedInvitationsProvider);
+      expect(updatedState.value?.isEmpty, isTrue);
     });
   });
 }
