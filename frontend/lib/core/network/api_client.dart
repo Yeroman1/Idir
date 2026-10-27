@@ -7,9 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../features/supabase_auth/services/auth_service.dart';
 import '../constants/app_constants.dart';
 import '../providers/sync_status_provider.dart';
+import '../storage/offline_cache_service.dart';
 
 class ApiException implements Exception {
   ApiException({
@@ -75,29 +78,114 @@ class ApiClient {
     return AppConstants.defaultApiBaseUrl;
   }
 
-  /// Read token from secure storage or SharedPreferences fallback
+  /// Read token from memory, secure storage, SharedPreferences fallback, AuthService, or Supabase
   Future<String?> getAccessToken() async {
-    if (_cachedAccessToken != null) return _cachedAccessToken;
-    try {
-      _cachedAccessToken =
-          await _secureStorage.read(key: AppConstants.secureKeyAuthToken);
-    } catch (_) {
-      final prefs = await SharedPreferences.getInstance();
-      _cachedAccessToken = prefs.getString(AppConstants.secureKeyAuthToken);
+    if (_cachedAccessToken != null && _cachedAccessToken!.isNotEmpty) {
+      return _cachedAccessToken;
     }
+
+    // 1. Try secure storage
+    try {
+      final token = await _secureStorage.read(key: AppConstants.secureKeyAuthToken);
+      if (token != null && token.isNotEmpty) {
+        _cachedAccessToken = token;
+        return _cachedAccessToken;
+      }
+    } catch (_) {}
+
+    // 2. Try SharedPreferences (essential for Web reloads and persistent auth)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.secureKeyAuthToken);
+      if (token != null && token.isNotEmpty) {
+        _cachedAccessToken = token;
+        return _cachedAccessToken;
+      }
+    } catch (_) {}
+
+    // 3. Try AuthService in-memory token
+    if (AuthService.accessToken != null && AuthService.accessToken!.isNotEmpty) {
+      _cachedAccessToken = AuthService.accessToken;
+      return _cachedAccessToken;
+    }
+
+    // 4. Try active Supabase session
+    try {
+      final sbToken = Supabase.instance.client.auth.currentSession?.accessToken;
+      if (sbToken != null && sbToken.isNotEmpty) {
+        _cachedAccessToken = sbToken;
+        return _cachedAccessToken;
+      }
+    } catch (_) {}
+
+    // 5. Try offline cache service for cached tokens
+    try {
+      final cache = _ref.read(offlineCacheServiceProvider);
+      final cachedTokens = await cache.read('cached_auth_tokens');
+      if (cachedTokens is Map<String, dynamic>) {
+        final token = cachedTokens['accessToken'] as String?;
+        if (token != null && token.isNotEmpty) {
+          _cachedAccessToken = token;
+          return _cachedAccessToken;
+        }
+      }
+    } catch (_) {}
+
     return _cachedAccessToken;
   }
 
   Future<String?> getRefreshToken() async {
-    if (_cachedRefreshToken != null) return _cachedRefreshToken;
-    try {
-      _cachedRefreshToken =
-          await _secureStorage.read(key: AppConstants.secureKeyRefreshToken);
-    } catch (_) {
-      final prefs = await SharedPreferences.getInstance();
-      _cachedRefreshToken =
-          prefs.getString(AppConstants.secureKeyRefreshToken);
+    if (_cachedRefreshToken != null && _cachedRefreshToken!.isNotEmpty) {
+      return _cachedRefreshToken;
     }
+
+    // 1. Try secure storage
+    try {
+      final token = await _secureStorage.read(key: AppConstants.secureKeyRefreshToken);
+      if (token != null && token.isNotEmpty) {
+        _cachedRefreshToken = token;
+        return _cachedRefreshToken;
+      }
+    } catch (_) {}
+
+    // 2. Try SharedPreferences
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(AppConstants.secureKeyRefreshToken);
+      if (token != null && token.isNotEmpty) {
+        _cachedRefreshToken = token;
+        return _cachedRefreshToken;
+      }
+    } catch (_) {}
+
+    // 3. Try AuthService in-memory refresh token
+    if (AuthService.refreshToken != null && AuthService.refreshToken!.isNotEmpty) {
+      _cachedRefreshToken = AuthService.refreshToken;
+      return _cachedRefreshToken;
+    }
+
+    // 4. Try active Supabase session
+    try {
+      final sbToken = Supabase.instance.client.auth.currentSession?.refreshToken;
+      if (sbToken != null && sbToken.isNotEmpty) {
+        _cachedRefreshToken = sbToken;
+        return _cachedRefreshToken;
+      }
+    } catch (_) {}
+
+    // 5. Try offline cache service
+    try {
+      final cache = _ref.read(offlineCacheServiceProvider);
+      final cachedTokens = await cache.read('cached_auth_tokens');
+      if (cachedTokens is Map<String, dynamic>) {
+        final token = cachedTokens['refreshToken'] as String?;
+        if (token != null && token.isNotEmpty) {
+          _cachedRefreshToken = token;
+          return _cachedRefreshToken;
+        }
+      }
+    } catch (_) {}
+
     return _cachedRefreshToken;
   }
 
@@ -107,7 +195,10 @@ class ApiClient {
   }) async {
     _cachedAccessToken = accessToken;
     _cachedRefreshToken = refreshToken;
+    AuthService.accessToken = accessToken;
+    AuthService.refreshToken = refreshToken;
 
+    // 1. Secure storage
     try {
       await _secureStorage.write(
         key: AppConstants.secureKeyAuthToken,
@@ -117,29 +208,46 @@ class ApiClient {
         key: AppConstants.secureKeyRefreshToken,
         value: refreshToken,
       );
-      // Clean up plaintext SharedPreferences fallback if secure storage succeeds
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(AppConstants.secureKeyAuthToken);
-      await prefs.remove(AppConstants.secureKeyRefreshToken);
-    } catch (_) {
+    } catch (_) {}
+
+    // 2. ALWAYS persist to SharedPreferences as well (ensures Web resilience)
+    try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(AppConstants.secureKeyAuthToken, accessToken);
       await prefs.setString(AppConstants.secureKeyRefreshToken, refreshToken);
-    }
+    } catch (_) {}
+
+    // 3. Cache in offline cache service
+    try {
+      final cache = _ref.read(offlineCacheServiceProvider);
+      await cache.save('cached_auth_tokens', {
+        'accessToken': accessToken,
+        'refreshToken': refreshToken,
+      });
+    } catch (_) {}
   }
 
   Future<void> clearTokens() async {
     _cachedAccessToken = null;
     _cachedRefreshToken = null;
+    AuthService.accessToken = null;
+    AuthService.refreshToken = null;
 
     try {
       await _secureStorage.delete(key: AppConstants.secureKeyAuthToken);
       await _secureStorage.delete(key: AppConstants.secureKeyRefreshToken);
     } catch (_) {}
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AppConstants.secureKeyAuthToken);
-    await prefs.remove(AppConstants.secureKeyRefreshToken);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(AppConstants.secureKeyAuthToken);
+      await prefs.remove(AppConstants.secureKeyRefreshToken);
+    } catch (_) {}
+
+    try {
+      final cache = _ref.read(offlineCacheServiceProvider);
+      await cache.remove('cached_auth_tokens');
+    } catch (_) {}
   }
 
   /// Core HTTP GET
@@ -258,9 +366,21 @@ class ApiClient {
     };
 
     if (requiresAuth) {
-      final token = await getAccessToken();
+      String? token = await getAccessToken();
+      if (token == null || token.isEmpty) {
+        final refreshed = await _attemptTokenRefresh();
+        if (refreshed) {
+          token = await getAccessToken();
+        }
+      }
+
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
+      } else {
+        throw ApiException(
+          message: 'Authentication required. Please sign in to continue.',
+          statusCode: 401,
+        );
       }
     }
 
