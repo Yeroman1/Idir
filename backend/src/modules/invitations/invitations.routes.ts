@@ -39,8 +39,16 @@ const publicRouter = Router();
 publicRouter.get('/verify', publicInvitationLimiter, invitationsController.verifyPublic);
 publicRouter.get('/verify/:token', publicInvitationLimiter, invitationsController.verifyPublic);
 
-// Authenticated respond (Accept / Decline)
+// Authenticated respond (Accept / Decline via raw token)
 // POST /api/v1/invitations/respond
 publicRouter.post('/respond', authenticate, invitationsController.respondPublic);
+
+// Authenticated list of pending invitations received by the current user
+// GET /api/v1/invitations/received
+publicRouter.get('/received', authenticate, invitationsController.getReceivedInvitations);
+
+// Authenticated respond to a received invitation by ID
+// POST /api/v1/invitations/:invitationId/respond
+publicRouter.post('/:invitationId/respond', authenticate, invitationsController.respondById);
 
 export const publicInvitationRoutes = publicRouter;
