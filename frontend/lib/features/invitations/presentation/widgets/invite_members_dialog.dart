@@ -689,7 +689,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
         ],
         const SizedBox(height: 16),
         DropdownButtonFormField<int>(
-          value: _expiresInDays,
+          initialValue: _expiresInDays,
           isExpanded: true,
           decoration: InputDecoration(
             labelText: 'Invitation Validity',
