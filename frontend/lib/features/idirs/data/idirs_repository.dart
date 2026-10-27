@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../../auth/presentation/providers/auth_provider.dart';
 import '../domain/models/idir_model.dart';
 
 abstract class IdirsRepository {
@@ -23,10 +24,15 @@ abstract class IdirsRepository {
 class RestIdirsRepository implements IdirsRepository {
   RestIdirsRepository({
     required ApiClient apiClient,
+    this.userId,
   }) : _api = apiClient;
 
   final ApiClient _api;
+  final String? userId;
   static const _cacheKey = 'cached_draft_idirs';
+
+  String get _userCacheKey =>
+      (userId != null && userId!.isNotEmpty) ? '${_cacheKey}_$userId' : _cacheKey;
 
   @override
   Future<IdirModel> createDraftIdir({
@@ -39,12 +45,15 @@ class RestIdirsRepository implements IdirsRepository {
     String? status,
   }) async {
     final payload = {
-      'name': name,
-      'community': community,
-      'location': location,
-      'purpose': purpose,
+      'name': name.trim(),
+      'community': community.trim(),
+      'location': location.trim(),
+      'purpose': purpose.trim(),
       'contributionAmount': contributionAmount,
       'contributionFrequency': contributionFrequency,
+      'region': location.trim().isNotEmpty ? location.trim() : 'Addis Ababa',
+      'address': location.trim(),
+      'description': purpose.trim(),
       if (status != null) 'status': status,
     };
 
@@ -74,6 +83,7 @@ class RestIdirsRepository implements IdirsRepository {
         contributionAmount: contributionAmount,
         contributionFrequency: contributionFrequency,
         status: 'DRAFT', // Always DRAFT
+        createdById: userId,
         createdAt: DateTime.now(),
       );
       await _cacheDraft(draft);
@@ -85,9 +95,21 @@ class RestIdirsRepository implements IdirsRepository {
   Future<List<IdirModel>> getUserIdirs() async {
     try {
       final res = await _api.get('/idirs');
-      if (res is Map<String, dynamic> && res['data'] is List) {
-        final list = res['data'] as List;
-        return list.map((item) => IdirModel.fromMap(item as Map<String, dynamic>)).toList();
+      List<dynamic>? list;
+      if (res is List) {
+        list = res;
+      } else if (res is Map<String, dynamic>) {
+        if (res['data'] is List) {
+          list = res['data'] as List;
+        } else if (res['items'] is List) {
+          list = res['items'] as List;
+        }
+      }
+      if (list != null && list.isNotEmpty) {
+        return list
+            .whereType<Map<String, dynamic>>()
+            .map((item) => IdirModel.fromMap(item))
+            .toList();
       }
     } catch (_) {}
 
@@ -112,18 +134,22 @@ class RestIdirsRepository implements IdirsRepository {
       final existing = await _loadCachedDrafts();
       final updated = [idir, ...existing.where((x) => x.id != idir.id)];
       final encoded = jsonEncode(updated.map((x) => x.toMap()).toList());
-      await prefs.setString(_cacheKey, encoded);
+      await prefs.setString(_userCacheKey, encoded);
     } catch (_) {}
   }
 
   Future<List<IdirModel>> _loadCachedDrafts() async {
+    if (userId == null || userId!.isEmpty) {
+      return [];
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_cacheKey);
+      final raw = prefs.getString(_userCacheKey);
       if (raw != null && raw.isNotEmpty) {
         final decoded = jsonDecode(raw) as List;
         return decoded
             .map((item) => IdirModel.fromMap(item as Map<String, dynamic>))
+            .where((item) => item.createdById == null || item.createdById == userId)
             .toList();
       }
     } catch (_) {}
@@ -133,5 +159,6 @@ class RestIdirsRepository implements IdirsRepository {
 
 final idirsRepositoryProvider = Provider<IdirsRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
-  return RestIdirsRepository(apiClient: apiClient);
+  final user = ref.watch(currentUserProvider);
+  return RestIdirsRepository(apiClient: apiClient, userId: user?.uid);
 });

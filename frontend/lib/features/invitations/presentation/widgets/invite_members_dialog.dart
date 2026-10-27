@@ -174,7 +174,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
     setState(() => _localError = null);
 
     if (_inviteMode == InviteMode.email) {
-      final email = _emailController.text.trim();
+      final email = _emailController.text.trim().toLowerCase();
       if (email.isEmpty) {
         setState(() {
           _localError = 'Please enter an email address.';
@@ -196,41 +196,90 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
         return;
       }
 
+      // Block sending if user is not registered
+      if (_userCheckResult != null && _userCheckResult!['exists'] == false) {
+        setState(() {
+          _localError = _userCheckResult!['message']?.toString() ??
+              'No registered user found with this email. They must register on Idir first.';
+        });
+        return;
+      }
+
+      // If user check hasn't completed yet, run it now
+      if (_userCheckResult == null && !_isCheckingUser) {
+        await _checkUser(email: email);
+        if (_userCheckResult != null && _userCheckResult!['exists'] != true) {
+          setState(() {
+            _localError = _userCheckResult!['message']?.toString() ??
+                'No registered user found with this email. They must register on Idir first.';
+          });
+          return;
+        }
+      }
+
       await ref.read(invitationNotifierProvider.notifier).sendBatch(
             idirId: widget.idirId,
             emails: [email],
             expiresInDays: _expiresInDays,
           );
     } else {
-      final digits = _phoneController.text.trim();
-      if (digits.isEmpty) {
+      String rawDigits = _phoneController.text.trim().replaceAll(RegExp(r'\D'), '');
+      if (rawDigits.startsWith('251') && rawDigits.length > 9) {
+        rawDigits = rawDigits.substring(3);
+      }
+      while (rawDigits.startsWith('0')) {
+        rawDigits = rawDigits.substring(1);
+      }
+
+      if (rawDigits.isEmpty) {
         setState(() {
           _localError = 'Please enter an Ethiopian mobile phone number.';
         });
         return;
       }
 
-      if (digits.length != 9) {
+      if (rawDigits.length != 9) {
         setState(() {
-          _localError = 'Phone number must be exactly 9 digits (e.g. 911223344).';
+          _localError = 'Phone number must be exactly 9 digits (e.g. 911223344 or 0911223344).';
         });
         return;
       }
 
-      if (!digits.startsWith('9') && !digits.startsWith('7')) {
+      if (!rawDigits.startsWith('9') && !rawDigits.startsWith('7')) {
         setState(() {
-          _localError = 'Ethiopian mobile number must start with 9 or 7 (e.g. 911223344).';
+          _localError = 'Ethiopian mobile number must start with 9 or 7 (e.g. 911223344 or 0911223344).';
         });
         return;
       }
 
-      final fullPhone = '+251$digits';
+      final fullPhone = '+251$rawDigits';
 
+      if (_userCheckResult != null && _userCheckResult!['isAlreadyMember'] == true) {
+        setState(() {
+          _localError = 'This user is already an active member of this Idir.';
+        });
+        return;
+      }
+
+      // Block sending if user is not registered
       if (_userCheckResult != null && _userCheckResult!['exists'] == false) {
         setState(() {
-          _localError = 'No user found with phone number "$fullPhone". User must register first.';
+          _localError = _userCheckResult!['message']?.toString() ??
+              'No registered user found with this phone number. They must register on Idir first.';
         });
         return;
+      }
+
+      // If user check hasn't completed yet, run it now
+      if (_userCheckResult == null && !_isCheckingUser) {
+        await _checkUser(phone: fullPhone);
+        if (_userCheckResult != null && _userCheckResult!['exists'] != true) {
+          setState(() {
+            _localError = _userCheckResult!['message']?.toString() ??
+                'No registered user found with this phone number. They must register on Idir first.';
+          });
+          return;
+        }
       }
 
       await ref.read(invitationNotifierProvider.notifier).sendBatch(
@@ -370,11 +419,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                               )
                             : const Icon(Icons.send_rounded, size: 16),
                         label: Text(
-                          state.isLoading
-                              ? 'Sending...'
-                              : (_inviteMode == InviteMode.email
-                                  ? 'Send Email Invite'
-                                  : 'Send SMS Invite'),
+                          state.isLoading ? 'Sending...' : 'Send Invite',
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -429,7 +474,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Enter the email address of the invitee. They will receive an email invitation with their personal secure join link.',
+            'Enter the email address of the person you want to invite. They must be a registered Idir user. The invitation will appear in their Idir app.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
             ),
@@ -477,7 +522,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Enter the 9-digit mobile number. The invitee receives an SMS with a secure personal join link.',
+            'Enter the 9-digit mobile number. The user must be registered on Idir. The invitation will appear in their Idir app.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
             ),
@@ -614,7 +659,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                 ],
               ),
             ),
-          ] else if (_inviteMode == InviteMode.phone) ...[
+          ] else ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
@@ -629,7 +674,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                   Expanded(
                     child: Text(
                       _userCheckResult!['message'] ??
-                          'No registered user found with this number. User must register first.',
+                          'No registered user found. The user must register on Idir first.',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -715,12 +760,25 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
                 const Icon(Icons.check_circle, color: AppColors.success, size: 22),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    '${result.sentCount} invitation sent successfully via ${_inviteMode == InviteMode.email ? 'Email' : 'SMS'}!',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.success,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${result.sentCount} invitation sent successfully!',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'The recipient can accept or reject this invitation directly within the Idir application upon logging in.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

@@ -29,6 +29,31 @@ export class ChatController {
       next(error);
     }
   }
+
+  async editMessage(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { idirId, messageId } = req.params;
+      const userId = req.user!.id;
+      const input = req.body;
+
+      const message = await chatService.editMessage(idirId, userId, messageId, input);
+      return sendSuccess(res, message, 200, 'Message updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deleteMessage(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { idirId, messageId } = req.params;
+      const userId = req.user!.id;
+
+      await chatService.deleteMessage(idirId, userId, messageId);
+      return sendSuccess(res, null, 200, 'Message deleted successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const chatController = new ChatController();

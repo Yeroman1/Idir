@@ -5,6 +5,7 @@ import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../domain/models/chat_message.dart';
 import '../providers/chat_provider.dart';
 import '../widgets/chat_message_bubble.dart';
 
@@ -50,6 +51,71 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
     // Scroll down shortly after sending
     Future.delayed(const Duration(milliseconds: 150), _scrollToBottom);
+  }
+
+  void _showEditDialog(BuildContext context, String idirId, ChatMessage message) {
+    final editController = TextEditingController(text: message.content);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Message'),
+        content: TextField(
+          controller: editController,
+          autofocus: true,
+          maxLines: 4,
+          minLines: 1,
+          decoration: const InputDecoration(
+            hintText: 'Edit your message...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newText = editController.text.trim();
+              if (newText.isNotEmpty && newText != message.content) {
+                ref.read(chatNotifierProvider(idirId).notifier).editMessage(message.id, newText);
+              }
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context, String idirId, ChatMessage message) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text(
+          'Are you sure you want to delete this message? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              ref.read(chatNotifierProvider(idirId).notifier).deleteMessage(message.id);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -271,6 +337,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                       message: msg,
                       isMe: isMe,
                       onRetry: () => chatNotifier.retryMessage(msg),
+                      onEdit: isMe
+                          ? () => _showEditDialog(context, targetIdirId, msg)
+                          : null,
+                      onDelete: isMe
+                          ? () => _showDeleteDialog(context, targetIdirId, msg)
+                          : null,
                     );
                   },
                 );

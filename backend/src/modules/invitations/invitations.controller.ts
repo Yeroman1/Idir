@@ -150,6 +150,43 @@ export class InvitationsController {
       next(error);
     }
   }
+
+  /**
+   * Get pending invitations received by the current user.
+   */
+  async getReceivedInvitations(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const invitations = await invitationsService.getReceivedInvitations(req.user!.id);
+      res.status(200).json({
+        success: true,
+        data: invitations,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Authenticated user responds to a received invitation by ID.
+   */
+  async respondById(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { invitationId } = req.params;
+      const { action } = req.body;
+      const result = await invitationsService.respondToInvitationById(
+        invitationId,
+        req.user!.id,
+        action
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const invitationsController = new InvitationsController();

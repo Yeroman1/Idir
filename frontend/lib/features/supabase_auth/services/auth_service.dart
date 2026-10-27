@@ -254,7 +254,7 @@ class AuthService {
       if (SupabaseConfig.isConfigured) {
         await Supabase.initialize(
           url: SupabaseConfig.supabaseUrl,
-          anonKey: SupabaseConfig.supabaseAnonKey,
+          publishableKey: SupabaseConfig.supabaseAnonKey,
         );
         supabase = Supabase.instance.client;
       } else {
@@ -300,8 +300,8 @@ class AuthService {
       _handleNetworkError(e);
     }
 
-    final user = authResponse?.user;
-    final session = authResponse?.session;
+    final user = authResponse.user;
+    final session = authResponse.session;
 
     if (user == null) {
       throw Exception('Authentication failed: no user returned from Supabase.');
@@ -309,6 +309,20 @@ class AuthService {
 
     accessToken = session?.accessToken;
     refreshToken = session?.refreshToken;
+
+    // Also attempt backend login to obtain backend JWT tokens alongside Supabase session
+    try {
+      final backendRes = await _postToCandidateBaseUrls(
+        '/login',
+        {'email': cleanEmail, 'password': password},
+      );
+      final data = (backendRes['data'] as Map<String, dynamic>?) ?? backendRes;
+      final bTokens = (data['tokens'] ?? backendRes['tokens']) as Map<String, dynamic>?;
+      if (bTokens != null && bTokens['accessToken'] != null) {
+        accessToken = bTokens['accessToken'] as String?;
+        refreshToken = bTokens['refreshToken'] as String?;
+      }
+    } catch (_) {}
 
     // 3. Extract user metadata or enrich with Supabase database profile
     String fullName = user.userMetadata?['fullName'] as String? ??
@@ -539,7 +553,7 @@ class AuthService {
       if (SupabaseConfig.isConfigured) {
         Supabase.initialize(
           url: SupabaseConfig.supabaseUrl,
-          anonKey: SupabaseConfig.supabaseAnonKey,
+          publishableKey: SupabaseConfig.supabaseAnonKey,
         );
         return Supabase.instance.client;
       }

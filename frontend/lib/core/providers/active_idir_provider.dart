@@ -77,15 +77,11 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
           customRaw.contains('00000000-0000-0000-0000-000000000001')) {
         await prefs.remove(_customIdirsCacheKey);
       }
-      // Clean up old demo caches
-      final oldKeys = prefs.getKeys().where((k) =>
-          k.contains('00000000-0000-0000-0000-000000000001') ||
-          k == 'idir_cache_cache_contributions' ||
-          k == 'idir_cache_cache_claims' ||
-          k == 'idir_cache_cache_expenses' ||
-          k == 'idir_cache_cache_members');
-      for (final k in oldKeys.toList()) {
-        await prefs.remove(k);
+      // Purge legacy un-scoped draft cache and active idir key
+      await prefs.remove('cached_draft_idirs');
+      final activeGlobal = prefs.getString(AppConstants.prefActiveIdirId);
+      if (activeGlobal != null && activeGlobal.startsWith('draft-')) {
+        await prefs.remove(AppConstants.prefActiveIdirId);
       }
     } catch (_) {}
     await reloadIdirs();
@@ -98,10 +94,23 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedActiveIdirId = prefs.getString(AppConstants.prefActiveIdirId);
 
       // 1. Collect memberships from current user
       final user = _ref.read(currentUserProvider);
+      if (user == null) {
+        if (!mounted) return;
+        state = const ActiveIdirState(
+          availableIdirs: [],
+          activeIdir: null,
+          isLoading: false,
+        );
+        return;
+      }
+
+      final userPrefKey = '${AppConstants.prefActiveIdirId}_${user.uid}';
+      final savedActiveIdirId = prefs.getString(userPrefKey) ??
+          prefs.getString(AppConstants.prefActiveIdirId);
+
       final list = <UserMembership>[];
       final seenIds = <String>{};
 
@@ -115,14 +124,14 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       }
 
       // Add user memberships from profile
-      if (user?.memberships != null) {
-        for (final m in user!.memberships) {
+      if (user.memberships.isNotEmpty) {
+        for (final m in user.memberships) {
           addMembership(m);
         }
       }
 
       // 2. Load custom / local cached Idirs for this user
-      final userCacheKey = '${_customIdirsCacheKey}_${user?.uid ?? "anon"}';
+      final userCacheKey = '${_customIdirsCacheKey}_${user.uid}';
       final customRaw = prefs.getString(userCacheKey);
       if (customRaw != null && customRaw.isNotEmpty) {
         try {
@@ -138,12 +147,16 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
         } catch (_) {}
       }
 
-      // 3. Load user Idirs from IdirsRepository (including created drafts)
+      // 3. Load user Idirs from IdirsRepository (strictly creator's drafts only)
       try {
         final idirsRepo = _ref.read(idirsRepositoryProvider);
         final fetchedIdirs = await idirsRepo.getUserIdirs();
         for (final idir in fetchedIdirs) {
           if (idir.id != '00000000-0000-0000-0000-000000000001') {
+            // Privacy check: draft Idirs only belong to the creator
+            if (idir.createdById != null && idir.createdById != user.uid) {
+              continue;
+            }
             addMembership(
               UserMembership(
                 id: idir.id,
@@ -164,25 +177,30 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
 
       // 4. No fake demo Idirs in real application
 
-      // 5. Select active Idir strictly from user's available Idirs
+      // 5. Select active Idir strictly from user's available Idirs, prioritizing real backend Idirs
+      final realList = list.where((m) => !m.idirId.startsWith('draft-')).toList();
+      final priorityList = realList.isNotEmpty ? realList : list;
+
       UserMembership? active;
       if (savedActiveIdirId != null &&
+          !savedActiveIdirId.startsWith('draft-') &&
           savedActiveIdirId != '00000000-0000-0000-0000-000000000001') {
-        active = list.where((m) => m.idirId == savedActiveIdirId).firstOrNull;
+        active = priorityList.where((m) => m.idirId == savedActiveIdirId).firstOrNull;
       }
       if (active == null &&
-          user?.idirId != null &&
-          user!.idirId!.isNotEmpty &&
+          user.idirId != null &&
+          user.idirId!.isNotEmpty &&
+          !user.idirId!.startsWith('draft-') &&
           user.idirId != '00000000-0000-0000-0000-000000000001') {
-        active = list.where((m) => m.idirId == user.idirId).firstOrNull;
+        active = priorityList.where((m) => m.idirId == user.idirId).firstOrNull;
       }
-      active ??= list.where((m) => m.idirId != '00000000-0000-0000-0000-000000000001').firstOrNull;
-      active ??= list.isNotEmpty ? list.first : null;
+      active ??= priorityList.where((m) => m.idirId != '00000000-0000-0000-0000-000000000001').firstOrNull;
+      active ??= priorityList.isNotEmpty ? priorityList.first : null;
 
       if (active != null) {
-        await prefs.setString(AppConstants.prefActiveIdirId, active.idirId);
+        await prefs.setString(userPrefKey, active.idirId);
       } else {
-        await prefs.remove(AppConstants.prefActiveIdirId);
+        await prefs.remove(userPrefKey);
       }
 
       if (!mounted) return;
@@ -213,7 +231,9 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(AppConstants.prefActiveIdirId, target.idirId);
+      final user = _ref.read(currentUserProvider);
+      final userPrefKey = '${AppConstants.prefActiveIdirId}_${user?.uid ?? "anon"}';
+      await prefs.setString(userPrefKey, target.idirId);
 
       if (!mounted) return false;
       state = state.copyWith(activeIdir: () => target);
@@ -251,9 +271,10 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       final prefs = await SharedPreferences.getInstance();
       final user = _ref.read(currentUserProvider);
       final userCacheKey = '${_customIdirsCacheKey}_${user?.uid ?? "anon"}';
+      final userPrefKey = '${AppConstants.prefActiveIdirId}_${user?.uid ?? "anon"}';
       final customList = updated.map((m) => m.toMap()).toList();
       await prefs.setString(userCacheKey, jsonEncode(customList));
-      await prefs.setString(AppConstants.prefActiveIdirId, membership.idirId);
+      await prefs.setString(userPrefKey, membership.idirId);
     } catch (_) {}
 
     if (!mounted) return;

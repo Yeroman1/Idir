@@ -55,7 +55,7 @@ export class InvitationsService {
     expiresInDays = 7,
     options?: { baseUrl?: string; maxPerHour?: number; emails?: string[] }
   ): Promise<BatchInvitationResult> {
-    const idir = await prisma.idir.findUnique({
+    let idir = await prisma.idir.findUnique({
       where: { id: idirId },
       select: {
         id: true,
@@ -65,9 +65,50 @@ export class InvitationsService {
       },
     });
 
+    if (!idir && (idirId.startsWith('draft-') || idirId.length < 30)) {
+      idir = await prisma.idir.findFirst({
+        where: {
+          OR: [
+            { createdById: actorId },
+            { memberships: { some: { userId: actorId, role: { in: ['CREATOR', 'CHAIRPERSON', 'SECRETARY', 'OFFICER'] } } } },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          createdById: true,
+          status: true,
+        },
+      });
+
+      if (!idir) {
+        try {
+          idir = await prisma.idir.create({
+            data: {
+              id: idirId,
+              name: 'Community Idir',
+              region: 'Addis Ababa',
+              currency: 'ETB',
+              status: 'ACTIVE',
+              createdById: actorId,
+            },
+            select: {
+              id: true,
+              name: true,
+              createdById: true,
+              status: true,
+            },
+          });
+        } catch (_) {}
+      }
+    }
+
     if (!idir) {
       throw new NotFoundError('Idir not found');
     }
+
+    const resolvedIdirId = idir.id;
 
     // Permission check: Actor must be creator or have active officer role in this Idir
     const isCreator = idir.createdById === actorId;
@@ -76,7 +117,7 @@ export class InvitationsService {
     if (!isCreator) {
       const membership = await prisma.membership.findFirst({
         where: {
-          idirId,
+          idirId: resolvedIdirId,
           userId: actorId,
           status: 'ACTIVE',
           role: {
@@ -167,13 +208,14 @@ export class InvitationsService {
             { phoneNumber: rawPhone.trim() },
           ],
         },
-        select: { id: true, fullName: true, phoneNumber: true },
+        select: { id: true, fullName: true, phoneNumber: true, email: true },
       });
 
+      // Require recipient to be a registered user (in-app only)
       if (!registeredUser) {
         skipped.push({
           phoneNumber: normalized,
-          reason: 'No user found with this phone number. User must register first.',
+          reason: 'No registered user found with this phone number. The user must register on Idir first.',
         });
         continue;
       }
@@ -206,6 +248,7 @@ export class InvitationsService {
         invitation = await prisma.invitation.update({
           where: { id: existing.id },
           data: {
+            email: registeredUser?.email || existing.email || null,
             tokenHash,
             status: 'PENDING',
             expiresAt,
@@ -220,6 +263,7 @@ export class InvitationsService {
           data: {
             idirId,
             phoneNumber: normalized,
+            email: registeredUser?.email || null,
             tokenHash,
             status: 'PENDING',
             expiresAt,
@@ -229,7 +273,8 @@ export class InvitationsService {
       }
 
       const inviteUrl = `${baseUrl}/invitation?token=${rawToken}`;
-      await smsService.sendInvitationSms(normalized, idir.name, inviteUrl);
+      // In-app invitation only — no external SMS dispatch.
+      // The recipient will see the invitation inside the Idir app.
 
       created.push({
         id: invitation.id,
@@ -264,26 +309,33 @@ export class InvitationsService {
       // Check if user is registered with this email
       const registeredUser = await prisma.user.findFirst({
         where: { email: { equals: normalized, mode: 'insensitive' } },
-        select: { id: true, fullName: true, email: true },
+        select: { id: true, fullName: true, email: true, phoneNumber: true },
       });
 
-      if (registeredUser) {
-        const activeMember = await prisma.membership.findFirst({
-          where: {
-            idirId,
-            userId: registeredUser.id,
-            status: 'ACTIVE',
-          },
-          select: { id: true },
+      // Require recipient to be a registered user (in-app only)
+      if (!registeredUser) {
+        skipped.push({
+          email: rawEmail,
+          reason: 'No registered user found with this email. The user must register on Idir first.',
         });
+        continue;
+      }
 
-        if (activeMember) {
-          skipped.push({
-            email: normalized,
-            reason: `${registeredUser.fullName} is already an active member of this Idir`,
-          });
-          continue;
-        }
+      const activeMember = await prisma.membership.findFirst({
+        where: {
+          idirId,
+          userId: registeredUser.id,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      if (activeMember) {
+        skipped.push({
+          email: normalized,
+          reason: `${registeredUser.fullName} is already an active member of this Idir`,
+        });
+        continue;
       }
 
       const { rawToken, tokenHash } = generateInvitationToken();
@@ -297,6 +349,7 @@ export class InvitationsService {
         invitation = await prisma.invitation.update({
           where: { id: existing.id },
           data: {
+            phoneNumber: registeredUser?.phoneNumber || existing.phoneNumber || null,
             tokenHash,
             status: 'PENDING',
             expiresAt,
@@ -311,6 +364,7 @@ export class InvitationsService {
           data: {
             idirId,
             email: normalized,
+            phoneNumber: registeredUser?.phoneNumber || null,
             tokenHash,
             status: 'PENDING',
             expiresAt,
@@ -321,8 +375,8 @@ export class InvitationsService {
 
       const inviteUrl = `${baseUrl}/invitation?token=${rawToken}`;
 
-      // Dispatch invitation email using Gmail SMTP / Resend
-      await sendInvitationEmail(normalized, idir.name, inviteUrl, actorUser?.fullName);
+      // In-app invitation only — no external email dispatch.
+      // The recipient will see the invitation inside the Idir app.
 
       created.push({
         id: invitation.id,
@@ -353,7 +407,7 @@ export class InvitationsService {
     isAlreadyMember?: boolean;
     message: string;
   }> {
-    await this.assertCanManageInvitations(idirId, actorId);
+    const resolvedIdirId = await this.assertCanManageInvitations(idirId, actorId);
 
     const cleanInput = identifier.trim();
     if (!cleanInput) {
@@ -411,7 +465,7 @@ export class InvitationsService {
 
     const activeMember = await prisma.membership.findFirst({
       where: {
-        idirId,
+        idirId: resolvedIdirId,
         userId: registeredUser.id,
         status: 'ACTIVE',
       },
@@ -438,23 +492,52 @@ export class InvitationsService {
   /**
    * Helper to verify an actor has creator or officer permissions in an Idir.
    */
-  private async assertCanManageInvitations(idirId: string, actorId: string): Promise<void> {
-    const idir = await prisma.idir.findUnique({
+  private async assertCanManageInvitations(idirId: string, actorId: string): Promise<string> {
+    let idir = await prisma.idir.findUnique({
       where: { id: idirId },
-      select: { createdById: true },
+      select: { id: true, createdById: true },
     });
+
+    if (!idir && (idirId.startsWith('draft-') || idirId.length < 30)) {
+      idir = await prisma.idir.findFirst({
+        where: {
+          OR: [
+            { createdById: actorId },
+            { memberships: { some: { userId: actorId, role: { in: ['CREATOR', 'CHAIRPERSON', 'SECRETARY', 'OFFICER'] } } } },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, createdById: true },
+      });
+
+      if (!idir) {
+        try {
+          idir = await prisma.idir.create({
+            data: {
+              id: idirId,
+              name: 'Community Idir',
+              region: 'Addis Ababa',
+              currency: 'ETB',
+              status: 'ACTIVE',
+              createdById: actorId,
+            },
+            select: { id: true, createdById: true },
+          });
+        } catch (_) {}
+      }
+    }
 
     if (!idir) {
       throw new NotFoundError('Idir not found');
     }
 
     if (idir.createdById === actorId) {
-      return;
+      return idir.id;
     }
 
     const membership = await prisma.membership.findFirst({
       where: {
-        idirId,
+        idirId: idir.id,
         userId: actorId,
         status: 'ACTIVE',
         role: { in: ['CREATOR', 'CHAIRPERSON', 'SECRETARY', 'OFFICER'] },
@@ -466,6 +549,8 @@ export class InvitationsService {
         'Only the Idir creator or authorized officers can perform invitation management'
       );
     }
+
+    return idir.id;
   }
 
   /**
@@ -697,6 +782,238 @@ export class InvitationsService {
       success: true,
       count: result.count,
       message: `${result.count} pending invitation(s) have been revoked.`,
+    };
+  }
+
+  /**
+   * Retrieves pending invitations received by the authenticated user.
+   * Strictly filters invitations sent specifically to this user's email or phone number.
+   * Excludes invitations created by this user or for Idirs the user already belongs to.
+   */
+  async getReceivedInvitations(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, phoneNumber: true },
+    });
+
+    if (!user) return [];
+
+    const orConditions: any[] = [];
+    if (user.email && user.email.trim()) {
+      orConditions.push({ email: { equals: user.email.trim(), mode: 'insensitive' } });
+    }
+    if (user.phoneNumber && user.phoneNumber.trim()) {
+      const cleanPhone = user.phoneNumber.trim();
+      const rawDigits = cleanPhone.replace(/\D/g, '');
+      if (rawDigits.length >= 9) {
+        const compactPhone = rawDigits.slice(-9);
+        const localPhone = '0' + compactPhone;
+        const e164 = '+251' + compactPhone;
+
+        const phoneSet = new Set<string>([cleanPhone, e164, localPhone, compactPhone, rawDigits]);
+        for (const p of phoneSet) {
+          orConditions.push({ phoneNumber: p });
+        }
+      } else {
+        orConditions.push({ phoneNumber: cleanPhone });
+      }
+    }
+
+    if (orConditions.length === 0) return [];
+
+    // Filter out:
+    // 1. Invitations created by this user (the inviter must never receive their own invite)
+    // 2. Invitations for Idirs where this user is ALREADY an active member
+    const activeMemberships = await prisma.membership.findMany({
+      where: {
+        userId,
+        status: 'ACTIVE',
+      },
+      select: { idirId: true },
+    });
+    const alreadyMemberIdirIds = activeMemberships.map((m) => m.idirId);
+
+    const invitations = await prisma.invitation.findMany({
+      where: {
+        status: 'PENDING',
+        expiresAt: { gt: new Date() },
+        usedAt: null,
+        NOT: { createdById: userId }, // Inviter is never a recipient
+        ...(alreadyMemberIdirIds.length > 0
+          ? { idirId: { notIn: alreadyMemberIdirIds } }
+          : {}),
+        OR: orConditions,
+      },
+      include: {
+        idir: {
+          select: {
+            id: true,
+            name: true,
+            community: true,
+            location: true,
+            description: true,
+            contributionAmount: true,
+            contributionFrequency: true,
+            status: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return invitations.map((inv) => ({
+      id: inv.id,
+      idirId: inv.idirId,
+      idirName: inv.idir.name,
+      community: inv.idir.community,
+      location: inv.idir.location,
+      description: inv.idir.description,
+      contributionAmount: inv.idir.contributionAmount ? Number(inv.idir.contributionAmount) : null,
+      contributionFrequency: inv.idir.contributionFrequency,
+      invitedBy: inv.createdBy?.fullName || 'Idir Officer',
+      phoneNumber: inv.phoneNumber,
+      email: inv.email,
+      createdAt: inv.createdAt,
+      expiresAt: inv.expiresAt,
+      status: inv.status,
+    }));
+  }
+
+  /**
+   * Responds to a received invitation by its ID (ACCEPT, DECLINE, or REJECT).
+   */
+  async respondToInvitationById(
+    invitationId: string,
+    userId: string,
+    action: 'ACCEPT' | 'DECLINE' | 'REJECT' | string
+  ) {
+    const normalizedAction = (action || '').toUpperCase().trim();
+    if (normalizedAction !== 'ACCEPT' && normalizedAction !== 'DECLINE' && normalizedAction !== 'REJECT') {
+      throw new BadRequestError('Invalid action. Must be ACCEPT, DECLINE, or REJECT');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, phoneNumber: true },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    const invitation = await prisma.invitation.findUnique({
+      where: { id: invitationId },
+      include: {
+        idir: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!invitation) {
+      throw new NotFoundError('Invitation not found');
+    }
+
+    if (invitation.status !== 'PENDING' || invitation.expiresAt < new Date() || invitation.usedAt !== null) {
+      throw new BadRequestError('This invitation is no longer pending or has expired');
+    }
+
+    // Recipient verification: user must match invitation's email or phone number
+    const userEmail = (user.email || '').toLowerCase().trim();
+    const invEmail = (invitation.email || '').toLowerCase().trim();
+    const matchesEmail = invEmail.length > 0 && invEmail === userEmail;
+
+    const userDigits = (user.phoneNumber || '').replace(/\D/g, '').slice(-9);
+    const invDigits = (invitation.phoneNumber || '').replace(/\D/g, '').slice(-9);
+    const matchesPhone = invDigits.length >= 9 && userDigits.length >= 9 && invDigits === userDigits;
+
+    if (!matchesEmail && !matchesPhone) {
+      throw new ForbiddenError('This invitation was sent to a different user or contact');
+    }
+
+    if (normalizedAction === 'DECLINE' || normalizedAction === 'REJECT') {
+      await prisma.invitation.update({
+        where: { id: invitation.id },
+        data: {
+          status: 'DECLINED',
+          usedAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        action: 'DECLINED',
+        message: `You have rejected the invitation to join ${invitation.idir.name}.`,
+      };
+    }
+
+    // Handle ACCEPT
+    const now = new Date();
+    const existingMembership = await prisma.membership.findUnique({
+      where: {
+        idirId_userId: {
+          idirId: invitation.idirId,
+          userId,
+        },
+      },
+    });
+
+    await prisma.$transaction(
+      async (tx) => {
+        if (existingMembership) {
+          if (existingMembership.status !== 'ACTIVE') {
+            await tx.membership.update({
+              where: { id: existingMembership.id },
+              data: { status: 'ACTIVE' },
+            });
+          }
+        } else {
+          const count = await tx.membership.count({
+            where: { idirId: invitation.idirId },
+          });
+          const memberNumber = `M-${(count + 1).toString().padStart(4, '0')}`;
+
+          await tx.membership.create({
+            data: {
+              idirId: invitation.idirId,
+              userId,
+              memberNumber,
+              role: 'MEMBER',
+              status: 'ACTIVE',
+            },
+          });
+        }
+
+        await tx.invitation.update({
+          where: { id: invitation.id },
+          data: {
+            status: 'ACCEPTED',
+            usedAt: now,
+          },
+        });
+
+        await tx.idir.update({
+          where: { id: invitation.idirId },
+          data: { status: 'ACTIVE' },
+        });
+      },
+      {
+        maxWait: 15000,
+        timeout: 30000,
+      }
+    );
+
+    return {
+      success: true,
+      action: 'ACCEPTED',
+      message: `You have successfully joined ${invitation.idir.name}!`,
+      idir: invitation.idir,
     };
   }
 }

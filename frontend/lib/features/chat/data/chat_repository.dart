@@ -17,9 +17,22 @@ abstract class ChatRepository {
     required String content,
   });
 
+  Future<ChatMessage> editMessage({
+    required String idirId,
+    required String messageId,
+    required String content,
+  });
+
+  Future<void> deleteMessage({
+    required String idirId,
+    required String messageId,
+  });
+
   RealtimeChannel? subscribeToMessages({
     required String idirId,
     required void Function(ChatMessage message) onMessageReceived,
+    void Function(ChatMessage message)? onMessageEdited,
+    void Function(String messageId)? onMessageDeleted,
   });
 
   Future<void> unsubscribe(RealtimeChannel? channel);
@@ -64,7 +77,6 @@ class SupabaseChatRepository implements ChatRepository {
       }
     } catch (e) {
       debugPrint('[ChatRepository] Backend REST getMessages notice: $e');
-      // If backend call failed, fallback to Supabase direct query if client is available
       final supabase = _getSupabaseClient();
       if (supabase != null) {
         final records = await supabase
@@ -125,7 +137,6 @@ class SupabaseChatRepository implements ChatRepository {
       throw Exception('Failed to send message: invalid server response');
     } catch (e) {
       debugPrint('[ChatRepository] Backend REST sendMessage notice: $e');
-      // Fallback: direct Supabase insert if direct client exists
       final supabase = _getSupabaseClient();
       if (supabase != null) {
         final user = supabase.auth.currentUser;
@@ -148,9 +159,96 @@ class SupabaseChatRepository implements ChatRepository {
   }
 
   @override
+  Future<ChatMessage> editMessage({
+    required String idirId,
+    required String messageId,
+    required String content,
+  }) async {
+    try {
+      final res = await _apiClient.patch(
+        '/idirs/$idirId/chat/$messageId',
+        body: {'content': content.trim()},
+      );
+
+      Map<String, dynamic>? messageMap;
+      if (res is Map<String, dynamic>) {
+        if (res['data'] is Map<String, dynamic>) {
+          messageMap = res['data'] as Map<String, dynamic>;
+        } else if (res.containsKey('content') || res.containsKey('id')) {
+          messageMap = res;
+        }
+      }
+
+      if (messageMap != null) {
+        final updated = ChatMessage.fromMap(messageMap);
+
+        // Broadcast edit to channel for instant delivery across clients
+        final supabase = _getSupabaseClient();
+        if (supabase != null) {
+          try {
+            final channel = supabase.channel('idir-chat-$idirId');
+            channel.sendBroadcastMessage(
+              event: 'chat_message_edit',
+              payload: updated.toMap(),
+            );
+          } catch (_) {}
+        }
+
+        return updated;
+      }
+      throw Exception('Failed to edit message: invalid server response');
+    } catch (e) {
+      debugPrint('[ChatRepository] Backend REST editMessage notice: $e');
+      final supabase = _getSupabaseClient();
+      if (supabase != null) {
+        final updated = await supabase
+            .from('ChatMessage')
+            .update({'content': content.trim(), 'isEdited': true})
+            .eq('id', messageId)
+            .select()
+            .single();
+        return ChatMessage.fromMap(updated);
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> deleteMessage({
+    required String idirId,
+    required String messageId,
+  }) async {
+    try {
+      await _apiClient.delete('/idirs/$idirId/chat/$messageId');
+
+      // Broadcast delete to channel for instant delivery across clients
+      final supabase = _getSupabaseClient();
+      if (supabase != null) {
+        try {
+          final channel = supabase.channel('idir-chat-$idirId');
+          channel.sendBroadcastMessage(
+            event: 'chat_message_delete',
+            payload: {'id': messageId},
+          );
+        } catch (_) {}
+      }
+    } catch (e) {
+      debugPrint('[ChatRepository] Backend REST deleteMessage notice: $e');
+      final supabase = _getSupabaseClient();
+      if (supabase != null) {
+        await supabase.from('ChatMessage').delete().eq('id', messageId);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  @override
   RealtimeChannel? subscribeToMessages({
     required String idirId,
     required void Function(ChatMessage message) onMessageReceived,
+    void Function(ChatMessage message)? onMessageEdited,
+    void Function(String messageId)? onMessageDeleted,
   }) {
     final supabase = _getSupabaseClient();
     if (supabase == null) {
@@ -180,12 +278,58 @@ class SupabaseChatRepository implements ChatRepository {
               onMessageReceived(msg);
             }
           } catch (e) {
-            debugPrint('[ChatRepository] Postgres change parse error: $e');
+            debugPrint('[ChatRepository] Postgres insert change parse error: $e');
           }
         },
       );
 
-      // 2. Also listen for Realtime broadcast events for instantaneous cross-client messaging
+      // 2. Listen for PostgreSQL logical replication UPDATE events
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'ChatMessage',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'idirId',
+          value: idirId,
+        ),
+        callback: (payload) {
+          try {
+            final newRecord = payload.newRecord;
+            if (newRecord.isNotEmpty) {
+              final msg = ChatMessage.fromMap(newRecord);
+              onMessageEdited?.call(msg);
+            }
+          } catch (e) {
+            debugPrint('[ChatRepository] Postgres update change parse error: $e');
+          }
+        },
+      );
+
+      // 3. Listen for PostgreSQL logical replication DELETE events
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.delete,
+        schema: 'public',
+        table: 'ChatMessage',
+        filter: PostgresChangeFilter(
+          type: PostgresChangeFilterType.eq,
+          column: 'idirId',
+          value: idirId,
+        ),
+        callback: (payload) {
+          try {
+            final oldRecord = payload.oldRecord;
+            final id = oldRecord['id']?.toString();
+            if (id != null && id.isNotEmpty) {
+              onMessageDeleted?.call(id);
+            }
+          } catch (e) {
+            debugPrint('[ChatRepository] Postgres delete change parse error: $e');
+          }
+        },
+      );
+
+      // 4. Realtime broadcast events for instantaneous cross-client messaging
       channel.onBroadcast(
         event: 'chat_message',
         callback: (payload) {
@@ -194,6 +338,32 @@ class SupabaseChatRepository implements ChatRepository {
             onMessageReceived(msg);
           } catch (e) {
             debugPrint('[ChatRepository] Broadcast message parse error: $e');
+          }
+        },
+      );
+
+      channel.onBroadcast(
+        event: 'chat_message_edit',
+        callback: (payload) {
+          try {
+            final msg = ChatMessage.fromMap(payload);
+            onMessageEdited?.call(msg);
+          } catch (e) {
+            debugPrint('[ChatRepository] Broadcast message edit parse error: $e');
+          }
+        },
+      );
+
+      channel.onBroadcast(
+        event: 'chat_message_delete',
+        callback: (payload) {
+          try {
+            final id = payload['id']?.toString();
+            if (id != null && id.isNotEmpty) {
+              onMessageDeleted?.call(id);
+            }
+          } catch (e) {
+            debugPrint('[ChatRepository] Broadcast message delete parse error: $e');
           }
         },
       );

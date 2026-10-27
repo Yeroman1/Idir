@@ -5,6 +5,7 @@ import { requireActiveIdir } from '../../middleware/assertIdirActive.js';
 import { validate } from '../../middleware/validate.js';
 import {
   sendChatMessageSchema,
+  updateChatMessageSchema,
   queryChatMessagesSchema,
 } from './chat.validation.js';
 
@@ -26,6 +27,19 @@ router.post(
   '/',
   validate({ body: sendChatMessageSchema }),
   chatController.sendMessage
+);
+
+// Edit own message
+router.patch(
+  '/:messageId',
+  validate({ body: updateChatMessageSchema }),
+  chatController.editMessage
+);
+
+// Delete own message
+router.delete(
+  '/:messageId',
+  chatController.deleteMessage
 );
 
 export const chatRoutes = router;

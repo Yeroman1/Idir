@@ -79,15 +79,9 @@ class RestAuthRepository implements AuthRepository {
 
   @override
   Future<AppUser?> getCurrentUser() async {
-    // 1. Check local cache first
-    final cachedJson = await _cache.read(_cacheKey);
-    AppUser? cachedUser;
-    if (cachedJson is Map<String, dynamic>) {
-      cachedUser = _userFromMap(cachedJson);
-    }
-
-    // 2. If online and token available, refresh profile from /auth/me
     final token = await _apiClient.getAccessToken();
+
+    // 1. If online and token available, refresh profile from /auth/me
     if (token != null && token.isNotEmpty) {
       try {
         final res = await _apiClient.get('/auth/me');
@@ -101,7 +95,18 @@ class RestAuthRepository implements AuthRepository {
       }
     }
 
-    return cachedUser;
+    // 2. Check local cache
+    final cachedJson = await _cache.read(_cacheKey);
+    if (cachedJson is Map<String, dynamic>) {
+      if (token == null || token.isEmpty) {
+        // Stale user cache with no valid token - clear to prevent 401 unauthenticated requests
+        await _cache.remove(_cacheKey);
+        return null;
+      }
+      return _userFromMap(cachedJson);
+    }
+
+    return null;
   }
 
   @override
@@ -153,13 +158,20 @@ class RestAuthRepository implements AuthRepository {
     }
 
     // Save JWT tokens
-    final tokens = res['tokens'] as Map<String, dynamic>?;
-    if (tokens != null) {
-      final access = tokens['accessToken'] as String?;
-      final refresh = tokens['refreshToken'] as String?;
-      if (access != null && refresh != null) {
-        await _apiClient.saveTokens(accessToken: access, refreshToken: refresh);
-      }
+    final tokens = (res['tokens'] as Map<String, dynamic>?) ??
+        (res['data'] is Map<String, dynamic>
+            ? (res['data'] as Map<String, dynamic>)['tokens']
+                as Map<String, dynamic>?
+            : null);
+    final access =
+        tokens?['accessToken'] as String? ?? res['accessToken'] as String?;
+    final refresh =
+        tokens?['refreshToken'] as String? ?? res['refreshToken'] as String?;
+    if (access != null && access.isNotEmpty) {
+      await _apiClient.saveTokens(
+        accessToken: access,
+        refreshToken: refresh ?? access,
+      );
     }
 
     final userData = res['user'] as Map<String, dynamic>? ?? res;

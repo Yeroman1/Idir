@@ -20,6 +20,7 @@ export class IdirsService {
           contactEmail: input.contactEmail,
           currency: input.currency || 'ETB',
           status: 'ACTIVE',
+          createdById: creatorUserId,
         },
       });
 
@@ -96,9 +97,10 @@ export class IdirsService {
       }),
       ...(params.region && { region: { equals: params.region, mode: 'insensitive' } }),
       ...(params.userId && {
-        memberships: {
-          some: { userId: params.userId, status: 'ACTIVE' },
-        },
+        OR: [
+          { createdById: params.userId },
+          { memberships: { some: { userId: params.userId, status: 'ACTIVE' } } },
+        ],
       }),
     };
 

@@ -102,6 +102,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _realtimeChannel = chatRepository.subscribeToMessages(
       idirId: idirId,
       onMessageReceived: _handleIncomingMessage,
+      onMessageEdited: _handleMessageEdited,
+      onMessageDeleted: _handleMessageDeleted,
     );
     if (_realtimeChannel != null && mounted) {
       state = state.copyWith(isRealtimeConnected: true);
@@ -114,14 +116,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     final existingIndex = state.messages.indexWhere((m) => m.id == message.id);
     if (existingIndex >= 0) {
-      // Update existing message
       final updated = List<ChatMessage>.from(state.messages);
       updated[existingIndex] = message;
       state = state.copyWith(messages: updated);
       return;
     }
 
-    // Check if this incoming message matches a pending optimistic message by content
     final pendingIndex = state.messages.indexWhere(
       (m) =>
           (m.deliveryStatus == MessageDeliveryStatus.sending ||
@@ -140,9 +140,27 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return;
     }
 
-    // Append new message to the list
     state = state.copyWith(
       messages: [...state.messages, message],
+    );
+  }
+
+  /// Handle incoming edit from realtime
+  void _handleMessageEdited(ChatMessage message) {
+    if (!mounted) return;
+    final index = state.messages.indexWhere((m) => m.id == message.id);
+    if (index >= 0) {
+      final updated = List<ChatMessage>.from(state.messages);
+      updated[index] = message;
+      state = state.copyWith(messages: updated);
+    }
+  }
+
+  /// Handle incoming deletion from realtime
+  void _handleMessageDeleted(String messageId) {
+    if (!mounted) return;
+    state = state.copyWith(
+      messages: state.messages.where((m) => m.id != messageId).toList(),
     );
   }
 
@@ -167,7 +185,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
       deliveryStatus: MessageDeliveryStatus.sending,
     );
 
-    // Optimistically show message immediately
     state = state.copyWith(
       messages: [...state.messages, optimisticMsg],
       isSending: true,
@@ -181,7 +198,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       if (!mounted) return;
 
-      // Replace optimistic message with confirmed server message (if not already replaced by realtime)
       final alreadyPresent = state.messages.any((m) => m.id == confirmed.id);
       final updated = state.messages
           .map((m) => m.id == tempId ? confirmed : m)
@@ -196,7 +212,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
       debugPrint('[ChatNotifier] Send message error: $e');
       if (!mounted) return;
 
-      // Mark message as failed so user can tap to retry
       final updated = state.messages.map((m) {
         return m.id == tempId
             ? m.copyWith(deliveryStatus: MessageDeliveryStatus.failed)
@@ -210,9 +225,88 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  /// Edit an existing message with optimistic update
+  Future<void> editMessage(String messageId, String newContent) async {
+    final cleanText = newContent.trim();
+    if (cleanText.isEmpty) return;
+
+    final index = state.messages.indexWhere((m) => m.id == messageId);
+    if (index < 0) return;
+
+    final originalMessage = state.messages[index];
+    if (originalMessage.content == cleanText) return;
+
+    // Optimistically update
+    final optimistic = originalMessage.copyWith(
+      content: cleanText,
+      isEdited: true,
+    );
+    final updatedList = List<ChatMessage>.from(state.messages);
+    updatedList[index] = optimistic;
+    state = state.copyWith(messages: updatedList);
+
+    try {
+      final confirmed = await chatRepository.editMessage(
+        idirId: idirId,
+        messageId: messageId,
+        content: cleanText,
+      );
+
+      if (!mounted) return;
+      final curIdx = state.messages.indexWhere((m) => m.id == messageId);
+      if (curIdx >= 0) {
+        final confirmedList = List<ChatMessage>.from(state.messages);
+        confirmedList[curIdx] = confirmed;
+        state = state.copyWith(messages: confirmedList);
+      }
+    } catch (e) {
+      debugPrint('[ChatNotifier] Edit message error: $e');
+      if (!mounted) return;
+      // Revert on error
+      final curIdx = state.messages.indexWhere((m) => m.id == messageId);
+      if (curIdx >= 0) {
+        final revertedList = List<ChatMessage>.from(state.messages);
+        revertedList[curIdx] = originalMessage;
+        state = state.copyWith(
+          messages: revertedList,
+          errorMessage: () => 'Failed to edit message. Please try again.',
+        );
+      }
+    }
+  }
+
+  /// Delete an existing message with optimistic update
+  Future<void> deleteMessage(String messageId) async {
+    final index = state.messages.indexWhere((m) => m.id == messageId);
+    if (index < 0) return;
+
+    final originalMessage = state.messages[index];
+
+    // Optimistically remove
+    final updatedList = state.messages.where((m) => m.id != messageId).toList();
+    state = state.copyWith(messages: updatedList);
+
+    try {
+      await chatRepository.deleteMessage(
+        idirId: idirId,
+        messageId: messageId,
+      );
+    } catch (e) {
+      debugPrint('[ChatNotifier] Delete message error: $e');
+      if (!mounted) return;
+      // Revert on error
+      final restoredList = List<ChatMessage>.from(state.messages);
+      final insertIndex = index <= restoredList.length ? index : restoredList.length;
+      restoredList.insert(insertIndex, originalMessage);
+      state = state.copyWith(
+        messages: restoredList,
+        errorMessage: () => 'Failed to delete message. Please try again.',
+      );
+    }
+  }
+
   /// Retry sending a failed message
   Future<void> retryMessage(ChatMessage failedMessage) async {
-    // Set status back to sending
     final updated = state.messages.map((m) {
       return m.id == failedMessage.id
           ? m.copyWith(deliveryStatus: MessageDeliveryStatus.sending)
