@@ -10,7 +10,6 @@ import 'package:idir_app/core/storage/offline_cache_service.dart';
 import 'package:idir_app/features/auth/data/rest_auth_repository.dart';
 import 'package:idir_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:idir_app/features/members/data/members_repository.dart';
-import 'package:idir_app/features/members/data/rest_members_repository.dart';
 import 'package:idir_app/features/members/presentation/screens/members_screen.dart';
 import 'package:idir_app/l10n/app_localizations.dart';
 

@@ -1,6 +1,19 @@
 import { prisma } from '../../config/database.js';
 import { NotFoundError, ForbiddenError } from '../../shared/errors/AppError.js';
-import { QueryChatMessagesInput, SendChatMessageInput } from './chat.validation.js';
+import { QueryChatMessagesInput, SendChatMessageInput, UpdateChatMessageInput } from './chat.validation.js';
+
+const messageSelect = {
+  id: true,
+  idirId: true,
+  membershipId: true,
+  senderId: true,
+  senderName: true,
+  senderRole: true,
+  content: true,
+  isEdited: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
 export class ChatService {
   /**
@@ -51,17 +64,7 @@ export class ChatService {
       where,
       take: query.limit,
       orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        idirId: true,
-        membershipId: true,
-        senderId: true,
-        senderName: true,
-        senderRole: true,
-        content: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: messageSelect,
     });
 
     return messages;
@@ -87,20 +90,72 @@ export class ChatService {
         senderRole: membership.role,
         content: input.content,
       },
-      select: {
-        id: true,
-        idirId: true,
-        membershipId: true,
-        senderId: true,
-        senderName: true,
-        senderRole: true,
-        content: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: messageSelect,
     });
 
     return message;
+  }
+
+  /**
+   * Edit a message. Only the original sender may edit their own message.
+   */
+  async editMessage(
+    idirId: string,
+    userId: string,
+    messageId: string,
+    input: UpdateChatMessageInput
+  ) {
+    await this.getActiveMembership(idirId, userId);
+
+    const existing = await prisma.chatMessage.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!existing || existing.idirId !== idirId) {
+      throw new NotFoundError('Message not found');
+    }
+
+    if (existing.senderId !== userId) {
+      throw new ForbiddenError('You can only edit your own messages');
+    }
+
+    const updated = await prisma.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        content: input.content,
+        isEdited: true,
+      },
+      select: messageSelect,
+    });
+
+    return updated;
+  }
+
+  /**
+   * Delete a message. Only the original sender may delete their own message.
+   */
+  async deleteMessage(
+    idirId: string,
+    userId: string,
+    messageId: string
+  ) {
+    await this.getActiveMembership(idirId, userId);
+
+    const existing = await prisma.chatMessage.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!existing || existing.idirId !== idirId) {
+      throw new NotFoundError('Message not found');
+    }
+
+    if (existing.senderId !== userId) {
+      throw new ForbiddenError('You can only delete your own messages');
+    }
+
+    await prisma.chatMessage.delete({
+      where: { id: messageId },
+    });
   }
 }
 

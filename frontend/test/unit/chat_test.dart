@@ -10,6 +10,8 @@ import 'package:idir_app/features/chat/presentation/providers/chat_provider.dart
 class MockChatRepository implements ChatRepository {
   final List<ChatMessage> messages = [];
   void Function(ChatMessage message)? onMessageCallback;
+  void Function(ChatMessage message)? onEditedCallback;
+  void Function(String messageId)? onDeletedCallback;
   bool isUnsubscribed = false;
 
   @override
@@ -41,11 +43,38 @@ class MockChatRepository implements ChatRepository {
   }
 
   @override
+  Future<ChatMessage> editMessage({
+    required String idirId,
+    required String messageId,
+    required String content,
+  }) async {
+    final index = messages.indexWhere((m) => m.id == messageId);
+    if (index >= 0) {
+      final updated = messages[index].copyWith(content: content, isEdited: true);
+      messages[index] = updated;
+      return updated;
+    }
+    throw Exception('Message not found');
+  }
+
+  @override
+  Future<void> deleteMessage({
+    required String idirId,
+    required String messageId,
+  }) async {
+    messages.removeWhere((m) => m.id == messageId);
+  }
+
+  @override
   RealtimeChannel? subscribeToMessages({
     required String idirId,
     required void Function(ChatMessage message) onMessageReceived,
+    void Function(ChatMessage message)? onMessageEdited,
+    void Function(String messageId)? onMessageDeleted,
   }) {
     onMessageCallback = onMessageReceived;
+    onEditedCallback = onMessageEdited;
+    onDeletedCallback = onMessageDeleted;
     return null;
   }
 
@@ -217,6 +246,32 @@ void main() {
       mockRepo.onMessageCallback?.call(incoming);
       state = container.read(chatNotifierProvider(testIdirId));
       expect(state.messages.length, 1); // No duplicates
+    });
+
+    test('editMessage updates message content and sets isEdited flag', () async {
+      final notifier = container.read(chatNotifierProvider(testIdirId).notifier);
+      await notifier.loadMessages();
+      await notifier.sendMessage('Initial content');
+
+      final sentMsg = container.read(chatNotifierProvider(testIdirId)).messages.first;
+      await notifier.editMessage(sentMsg.id, 'Edited content');
+
+      final state = container.read(chatNotifierProvider(testIdirId));
+      expect(state.messages.length, 1);
+      expect(state.messages.first.content, 'Edited content');
+      expect(state.messages.first.isEdited, isTrue);
+    });
+
+    test('deleteMessage removes message from state', () async {
+      final notifier = container.read(chatNotifierProvider(testIdirId).notifier);
+      await notifier.loadMessages();
+      await notifier.sendMessage('To be deleted');
+
+      final sentMsg = container.read(chatNotifierProvider(testIdirId)).messages.first;
+      await notifier.deleteMessage(sentMsg.id);
+
+      final state = container.read(chatNotifierProvider(testIdirId));
+      expect(state.messages.isEmpty, isTrue);
     });
   });
 }

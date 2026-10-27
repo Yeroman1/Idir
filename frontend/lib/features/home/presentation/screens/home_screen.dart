@@ -20,7 +20,9 @@ import '../../domain/models/dashboard_stats.dart';
 import '../providers/dashboard_provider.dart';
 import '../../../idirs/domain/models/idir_model.dart';
 import '../../../idirs/presentation/providers/idir_creation_provider.dart';
+import '../../../invitations/presentation/providers/invitations_provider.dart';
 import '../../../invitations/presentation/widgets/invite_members_dialog.dart';
+import '../../../invitations/presentation/widgets/received_invitations_banner.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -138,6 +140,7 @@ class HomeScreen extends ConsumerWidget {
           ref.read(userDraftIdirProvider.notifier).loadDraft();
           ref.invalidate(dashboardStatsProvider);
           ref.invalidate(memberPersonalDashboardProvider);
+          ref.invalidate(receivedInvitationsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -151,6 +154,9 @@ class HomeScreen extends ConsumerWidget {
                 activeIdir: activeIdir,
               ),
             const SizedBox(height: 14),
+
+            // ── 1.0 Incoming Idir Invitations ─────────────────────────────
+            const ReceivedInvitationsBanner(),
 
             if (!hasActiveIdir) ...[
               _NoIdirOnboardingView(user: user),
@@ -1843,10 +1849,10 @@ class _QuickActionsGrid extends StatelessWidget {
             isLocked: isDraft,
           ),
           _ActionTile(
-            icon: Icons.person_add_alt_1,
-            label: l10n.actionAddMember,
+            icon: Icons.email_outlined,
+            label: 'Invite Member',
             color: AppColors.primary,
-            onTap: onInviteMember ?? () => context.push(AppRoutes.membersAdd),
+            onTap: onInviteMember ?? () {},
           ),
           _ActionTile(
             icon: Icons.assignment_outlined,
@@ -1865,10 +1871,10 @@ class _QuickActionsGrid extends StatelessWidget {
       case UserRole.chairperson:
         actions.addAll([
           _ActionTile(
-            icon: Icons.person_add_alt_1,
+            icon: Icons.email_outlined,
             label: 'Invite Member',
             color: AppColors.primary,
-            onTap: onInviteMember ?? () => context.push(AppRoutes.membersAdd),
+            onTap: onInviteMember ?? () {},
           ),
           _ActionTile(
             icon: Icons.fact_check_outlined,

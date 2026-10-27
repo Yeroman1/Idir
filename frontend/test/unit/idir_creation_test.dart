@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:idir_app/core/models/app_user.dart';
+import 'package:idir_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:idir_app/features/idirs/data/idirs_repository.dart';
 import 'package:idir_app/features/idirs/domain/models/idir_model.dart';
 import 'package:idir_app/features/idirs/presentation/providers/idir_creation_provider.dart';
@@ -111,6 +113,17 @@ void main() {
       final mockRepo = MockIdirsRepository();
       final container = ProviderContainer(
         overrides: [
+          currentUserProvider.overrideWithValue(
+            AppUser(
+              uid: 'test-creator-uid',
+              name: 'Test Creator',
+              phone: '+251911111111',
+              role: UserRole.chairperson,
+              memberId: 'CREATOR-001',
+              isActive: true,
+              createdAt: DateTime(2026),
+            ),
+          ),
           idirsRepositoryProvider.overrideWithValue(mockRepo),
         ],
       );

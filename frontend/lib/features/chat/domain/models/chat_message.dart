@@ -11,6 +11,7 @@ class ChatMessage extends Equatable {
     required this.senderName,
     this.senderRole = 'MEMBER',
     required this.content,
+    this.isEdited = false,
     required this.createdAt,
     this.deliveryStatus = MessageDeliveryStatus.sent,
   });
@@ -24,6 +25,7 @@ class ChatMessage extends Equatable {
       senderName: map['senderName']?.toString() ?? map['sender_name']?.toString() ?? 'Idir Member',
       senderRole: map['senderRole']?.toString() ?? map['sender_role']?.toString() ?? 'MEMBER',
       content: map['content']?.toString() ?? '',
+      isEdited: map['isEdited'] == true || map['is_edited'] == true,
       createdAt: map['createdAt'] != null
           ? (DateTime.tryParse(map['createdAt'].toString()) ?? DateTime.now())
           : (map['created_at'] != null
@@ -40,6 +42,7 @@ class ChatMessage extends Equatable {
   final String senderName;
   final String senderRole;
   final String content;
+  final bool isEdited;
   final DateTime createdAt;
   final MessageDeliveryStatus deliveryStatus;
 
@@ -54,6 +57,7 @@ class ChatMessage extends Equatable {
       'senderName': senderName,
       'senderRole': senderRole,
       'content': content,
+      'isEdited': isEdited,
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -66,6 +70,7 @@ class ChatMessage extends Equatable {
     String? senderName,
     String? senderRole,
     String? content,
+    bool? isEdited,
     DateTime? createdAt,
     MessageDeliveryStatus? deliveryStatus,
   }) {
@@ -77,6 +82,7 @@ class ChatMessage extends Equatable {
       senderName: senderName ?? this.senderName,
       senderRole: senderRole ?? this.senderRole,
       content: content ?? this.content,
+      isEdited: isEdited ?? this.isEdited,
       createdAt: createdAt ?? this.createdAt,
       deliveryStatus: deliveryStatus ?? this.deliveryStatus,
     );
@@ -91,6 +97,7 @@ class ChatMessage extends Equatable {
         senderName,
         senderRole,
         content,
+        isEdited,
         createdAt,
         deliveryStatus,
       ];
