@@ -78,34 +78,23 @@ class MembersScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: canManage
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.extended(
-                  heroTag: 'invite_member_fab',
-                  onPressed: () {
-                    final activeIdir = ref.read(activeIdirProvider).activeIdir;
-                    if (activeIdir != null) {
-                      showDialog(
-                        context: context,
-                        builder: (_) => InviteMembersDialog(
-                          idirId: activeIdir.idirId,
-                          idirName: activeIdir.idirName,
-                        ),
-                      );
-                    }
-                  },
-                  backgroundColor: AppColors.secondary,
-                  icon: const Icon(Icons.email_outlined),
-                  label: const Text('Invite Member'),
-                ),
-                const SizedBox(width: 10),
-                FloatingActionButton(
-                  heroTag: 'add_member_fab',
-                  onPressed: () => context.push('${AppRoutes.members}/add'),
-                  child: const Icon(Icons.person_add),
-                ),
-              ],
+          ? FloatingActionButton.extended(
+              heroTag: 'invite_member_fab',
+              onPressed: () {
+                final activeIdir = ref.read(activeIdirProvider).activeIdir;
+                if (activeIdir != null) {
+                  showDialog(
+                    context: context,
+                    builder: (_) => InviteMembersDialog(
+                      idirId: activeIdir.idirId,
+                      idirName: activeIdir.idirName,
+                    ),
+                  );
+                }
+              },
+              backgroundColor: AppColors.secondary,
+              icon: const Icon(Icons.email_outlined),
+              label: const Text('Invite Member'),
             )
           : null,
       body: Column(

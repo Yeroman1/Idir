@@ -1,32 +1,50 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/app_user.dart';
 import '../../../../core/providers/active_idir_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/idirs_repository.dart';
 import '../../domain/models/idir_model.dart';
 
 final userDraftIdirProvider =
     StateNotifierProvider<UserDraftIdirNotifier, AsyncValue<IdirModel?>>((ref) {
   final repo = ref.watch(idirsRepositoryProvider);
-  return UserDraftIdirNotifier(repo);
+  final user = ref.watch(currentUserProvider);
+  return UserDraftIdirNotifier(repo, user?.uid);
 });
 
 class UserDraftIdirNotifier extends StateNotifier<AsyncValue<IdirModel?>> {
-  UserDraftIdirNotifier(this._repo) : super(const AsyncValue.loading()) {
-    loadDraft();
+  UserDraftIdirNotifier(this._repo, [this._userId]) : super(const AsyncValue.loading()) {
+    if (_userId == null) {
+      state = const AsyncValue.data(null);
+    } else {
+      loadDraft();
+    }
   }
 
   final IdirsRepository _repo;
+  final String? _userId;
 
   Future<void> loadDraft() async {
+    if (_userId == null) {
+      state = const AsyncValue.data(null);
+      return;
+    }
     try {
       final draft = await _repo.getLatestDraft();
-      state = AsyncValue.data(draft);
+      if (draft != null && draft.createdById != null && draft.createdById != _userId) {
+        state = const AsyncValue.data(null);
+      } else {
+        state = AsyncValue.data(draft);
+      }
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
   void setDraft(IdirModel draft) {
+    if (_userId == null || (draft.createdById != null && draft.createdById != _userId)) {
+      return;
+    }
     state = AsyncValue.data(draft);
   }
 }
@@ -113,6 +131,7 @@ class CreateIdirNotifier extends StateNotifier<CreateIdirState> {
     );
 
     try {
+      final user = _ref.read(currentUserProvider);
       final idir = await _repo.createDraftIdir(
         name: name.trim(),
         community: community.trim(),
@@ -123,22 +142,38 @@ class CreateIdirNotifier extends StateNotifier<CreateIdirState> {
         status: clientStatus,
       );
 
-      _ref.read(userDraftIdirProvider.notifier).setDraft(idir);
-      await _ref.read(activeIdirProvider.notifier).addAndSwitchIdir(
-            UserMembership(
+      final creatorIdir = (idir.createdById == null && user?.uid != null)
+          ? IdirModel(
               id: idir.id,
-              idirId: idir.id,
-              idirName: idir.name,
-              role: UserRole.chairperson,
-              memberNumber: 'CREATOR-01',
-              status: idir.status,
+              name: idir.name,
               community: idir.community,
               location: idir.location,
+              purpose: idir.purpose,
               contributionAmount: idir.contributionAmount,
               contributionFrequency: idir.contributionFrequency,
+              status: idir.status,
+              createdById: user!.uid,
+              createdAt: idir.createdAt,
+              updatedAt: idir.updatedAt,
+            )
+          : idir;
+
+      _ref.read(userDraftIdirProvider.notifier).setDraft(creatorIdir);
+      await _ref.read(activeIdirProvider.notifier).addAndSwitchIdir(
+            UserMembership(
+              id: creatorIdir.id,
+              idirId: creatorIdir.id,
+              idirName: creatorIdir.name,
+              role: UserRole.chairperson,
+              memberNumber: 'CREATOR-01',
+              status: creatorIdir.status,
+              community: creatorIdir.community,
+              location: creatorIdir.location,
+              contributionAmount: creatorIdir.contributionAmount,
+              contributionFrequency: creatorIdir.contributionFrequency,
             ),
           );
-      state = state.copyWith(isLoading: false, createdIdir: idir);
+      state = state.copyWith(isLoading: false, createdIdir: creatorIdir);
       return true;
     } catch (e) {
       state = state.copyWith(
