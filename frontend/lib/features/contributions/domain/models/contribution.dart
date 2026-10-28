@@ -32,6 +32,8 @@ class Contribution extends Equatable {
     required this.periodMonth,
     required this.periodYear,
     this.notes = '',
+    this.purpose,
+    this.status,
     this.isReversal = false,
     this.reversalOfId,
     this.reversalReason,
@@ -64,6 +66,8 @@ class Contribution extends Equatable {
       periodMonth: (map['periodMonth'] as num?)?.toInt() ?? DateTime.now().month,
       periodYear: (map['periodYear'] as num?)?.toInt() ?? DateTime.now().year,
       notes: map['notes'] as String? ?? '',
+      purpose: map['purpose'] as String? ?? map['notes'] as String?,
+      status: map['status'] as String?,
       isReversal: map['isReversal'] as bool? ?? false,
       reversalOfId: map['reversalOfId'] as String?,
       reversalReason: map['reversalReason'] as String?,
@@ -84,11 +88,24 @@ class Contribution extends Equatable {
   final int periodMonth;
   final int periodYear;
   final String notes;
+  final String? purpose;
+  final String? status;
   final bool isReversal;
   final String? reversalOfId;
   final String? reversalReason;
   final bool isReversed;
   final DateTime createdAt;
+
+  bool get isVerified =>
+      !isReversal &&
+      !isReversed &&
+      (status == null ||
+          status!.toUpperCase() == 'CONFIRMED' ||
+          status!.toUpperCase() == 'VERIFIED' ||
+          status!.toUpperCase() == 'PAID');
+
+  bool get isPendingVerification =>
+      !isReversal && !isReversed && status?.toUpperCase() == 'PENDING';
 
   Contribution copyWith({
     String? id,

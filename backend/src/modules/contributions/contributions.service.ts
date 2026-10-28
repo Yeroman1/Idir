@@ -84,12 +84,38 @@ export class ContributionsService {
       throw new NotFoundError('Active contribution type not found in this Idir');
     }
 
-    // 4. Generate receipt number
+    // 4. Check for duplicate contribution record (business deduplication)
+    const paymentDate = input.paymentDate ? new Date(input.paymentDate) : new Date();
+    const startOfDay = new Date(paymentDate);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(paymentDate);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
+    const duplicate = await prisma.contribution.findFirst({
+      where: {
+        idirId,
+        membershipId: input.membershipId,
+        contributionTypeId: input.contributionTypeId,
+        amount: new Prisma.Decimal(input.amount),
+        isReversed: false,
+        paymentDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        ...(input.paymentReference ? { paymentReference: input.paymentReference } : {}),
+      },
+    });
+
+    if (duplicate) {
+      throw new ConflictError(
+        `Duplicate contribution record prevented: A record (#${duplicate.receiptNumber}) already exists for this member, amount, and date.`
+      );
+    }
+
+    // 5. Generate receipt number
     const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, '');
     const randomSuffix = crypto.randomBytes(3).toString('hex').toUpperCase();
     const receiptNumber = `REC-${dateStr}-${randomSuffix}`;
-
-    const paymentDate = input.paymentDate ? new Date(input.paymentDate) : new Date();
 
     return prisma.$transaction(async (tx) => {
       const contribution = await tx.contribution.create({
@@ -319,6 +345,116 @@ export class ContributionsService {
     }
 
     return contribution;
+  }
+
+  async getDuesStatus(idirId: string, targetMembershipId?: string) {
+    const idir = await prisma.idir.findUnique({
+      where: { id: idirId },
+      include: { settings: true },
+    });
+    if (!idir) {
+      throw new NotFoundError('Idir not found');
+    }
+
+    const regularDuesAmount = idir.settings?.regularDuesAmount
+      ? Number(idir.settings.regularDuesAmount)
+      : 100;
+    const graceDays = idir.settings?.latePaymentGraceDays ?? 15;
+
+    const whereMembership: Prisma.MembershipWhereInput = {
+      idirId,
+      status: 'ACTIVE',
+      ...(targetMembershipId ? { id: targetMembershipId } : {}),
+    };
+
+    const memberships = await prisma.membership.findMany({
+      where: whereMembership,
+      include: {
+        user: { select: { id: true, fullName: true, phoneNumber: true } },
+        contributions: {
+          where: { isReversed: false, status: 'CONFIRMED' },
+          select: { amount: true, paymentDate: true },
+        },
+      },
+      orderBy: { memberNumber: 'asc' },
+    });
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    let totalExpected = 0;
+    let totalPaid = 0;
+    let totalOutstanding = 0;
+
+    const memberStatuses = memberships.map((m) => {
+      const totalMemberPaid = m.contributions.reduce(
+        (sum, c) => sum + Number(c.amount),
+        0
+      );
+
+      const joinDate = new Date(m.joinedAt);
+      const monthsSinceJoin = Math.max(
+        1,
+        (currentYear - joinDate.getFullYear()) * 12 + (currentMonth - joinDate.getMonth()) + 1
+      );
+      const cycles = Math.min(12, Math.max(1, monthsSinceJoin));
+      const expectedDues = cycles * regularDuesAmount;
+
+      const outstanding = Math.max(0, expectedDues - totalMemberPaid);
+      const balance = totalMemberPaid - expectedDues;
+
+      let status: 'PAID' | 'PARTIALLY_PAID' | 'OVERDUE' | 'EXPECTED';
+      if (outstanding <= 0) {
+        status = 'PAID';
+      } else if (totalMemberPaid > 0) {
+        status = 'PARTIALLY_PAID';
+      } else {
+        const dayOfMonth = now.getDate();
+        if (dayOfMonth > graceDays) {
+          status = 'OVERDUE';
+        } else {
+          status = 'EXPECTED';
+        }
+      }
+
+      totalExpected += expectedDues;
+      totalPaid += totalMemberPaid;
+      totalOutstanding += outstanding;
+
+      return {
+        membershipId: m.id,
+        memberNumber: m.memberNumber,
+        fullName: m.user.fullName,
+        phoneNumber: m.user.phoneNumber,
+        regularDuesAmount,
+        expectedDues,
+        totalPaid: totalMemberPaid,
+        outstanding,
+        balance,
+        status,
+        lastPaymentDate:
+          m.contributions.length > 0
+            ? m.contributions[m.contributions.length - 1].paymentDate
+            : null,
+      };
+    });
+
+    return {
+      idirId,
+      currency: idir.currency || 'ETB',
+      summary: {
+        totalExpected,
+        totalPaid,
+        totalOutstanding,
+        activeMembersCount: memberships.length,
+        paidCount: memberStatuses.filter((s) => s.status === 'PAID').length,
+        partiallyPaidCount: memberStatuses.filter((s) => s.status === 'PARTIALLY_PAID').length,
+        overdueCount: memberStatuses.filter((s) => s.status === 'OVERDUE').length,
+        expectedCount: memberStatuses.filter((s) => s.status === 'EXPECTED').length,
+      },
+      members: memberStatuses,
+    };
   }
 }
 

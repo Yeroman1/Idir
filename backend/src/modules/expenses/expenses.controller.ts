@@ -59,6 +59,20 @@ export class ExpensesController {
       next(error);
     }
   }
+
+  async reverseExpense(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const expense = await expensesService.reverseExpense(
+        req.params.idirId,
+        req.params.expenseId,
+        req.body,
+        req.user!.id
+      );
+      return sendSuccess(res, expense, 200, 'Expense reversed successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const expensesController = new ExpensesController();

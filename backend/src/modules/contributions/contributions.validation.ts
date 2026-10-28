@@ -16,6 +16,7 @@ export const recordContributionSchema = z.object({
     .enum(['CASH', 'BANK_TRANSFER', 'TELEBIRR', 'CBE_BIRR', 'OTHER'])
     .default('CASH'),
   paymentReference: z.string().optional(),
+  notes: z.string().optional(),
   status: z.enum(['PENDING', 'CONFIRMED']).default('CONFIRMED'),
   clientMutationId: z.string().uuid().optional(), // Idempotency key for offline mobile sync
 });

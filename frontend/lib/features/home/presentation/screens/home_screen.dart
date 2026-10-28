@@ -2130,11 +2130,43 @@ class _OfficerActivityFeed extends StatelessWidget {
               backgroundColor: act.iconColor.withValues(alpha: 0.14),
               child: Icon(act.icon, size: 18, color: act.iconColor),
             ),
-            title: Text(
-              act.title,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    act.title,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (act.statusText != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: act.statusText == 'VERIFIED'
+                          ? AppColors.success.withValues(alpha: 0.12)
+                          : (act.statusText == 'REVERSED'
+                              ? AppColors.error.withValues(alpha: 0.12)
+                              : Colors.amber.withValues(alpha: 0.18)),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      act.statusText!,
+                      style: TextStyle(
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        color: act.statusText == 'VERIFIED'
+                            ? AppColors.success
+                            : (act.statusText == 'REVERSED'
+                                ? AppColors.error
+                                : Colors.amber.shade900),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             subtitle: Text(
               '${act.subtitle} • $timeStr',

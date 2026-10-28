@@ -18,12 +18,22 @@ vi.mock('../src/config/database.js', () => ({
       aggregate: vi.fn(),
     },
     contributionType: { findFirst: vi.fn(), findMany: vi.fn() },
-    expense: { aggregate: vi.fn(), groupBy: vi.fn() },
-    assistanceDisbursement: { aggregate: vi.fn() },
+    expense: {
+      aggregate: vi.fn(),
+      groupBy: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+    assistanceDisbursement: { aggregate: vi.fn(), findMany: vi.fn() },
     assistanceCase: { findMany: vi.fn() },
     ikubContribution: { aggregate: vi.fn() },
     ikubPayout: { aggregate: vi.fn() },
     ikubGroup: { count: vi.fn() },
+    idir: { findUnique: vi.fn() },
+    idirSettings: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn((callback) => callback(prisma)),
   },
@@ -41,6 +51,13 @@ describe('Financial Integrity & Fund Separation Tests', () => {
       phoneNumber: '+251911222222',
       isPlatformAdmin: false,
     });
+
+    vi.mocked(prisma.idir.findUnique).mockResolvedValue({
+      id: idirId,
+      name: 'Bole Medhanealem Idir',
+      status: 'ACTIVE',
+      currency: 'ETB',
+    } as any);
 
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       id: userId,
@@ -171,5 +188,182 @@ describe('Financial Integrity & Fund Separation Tests', () => {
 
     // Verify Ikub balance was NOT blended into Idir Net
     expect(data.idirLedger.netBalance).not.toBe(9000);
+  });
+
+  it('blocks duplicate contribution submission with same member, amount, and date', async () => {
+    const memberId = '00000000-0000-0000-0000-000000000002';
+    const typeId = '00000000-0000-0000-0000-000000000003';
+
+    vi.mocked(prisma.membership.findFirst).mockResolvedValue({
+      id: memberId,
+      idirId,
+      status: 'ACTIVE',
+    } as any);
+
+    vi.mocked(prisma.contributionType.findFirst).mockResolvedValue({
+      id: typeId,
+      idirId,
+      isActive: true,
+    } as any);
+
+    // Mock existing duplicate found
+    vi.mocked(prisma.contribution.findFirst).mockResolvedValue({
+      id: 'existing-id',
+      receiptNumber: 'REC-20261028-DUP01',
+      amount: '500.00',
+    } as any);
+
+    const res = await request(app)
+      .post(`/api/v1/idirs/${idirId}/contributions`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        membershipId: memberId,
+        contributionTypeId: typeId,
+        amount: 500,
+        paymentDate: '2026-10-28',
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.message).toContain('Duplicate contribution record prevented');
+    expect(prisma.contribution.create).not.toHaveBeenCalled();
+  });
+
+  it('allows regular MEMBER to view financial report read-only', async () => {
+    const memberUserId = 'member-user-uuid';
+    const memberToken = generateAccessToken({
+      userId: memberUserId,
+      phoneNumber: '+251911999999',
+      isPlatformAdmin: false,
+    });
+
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: memberUserId,
+      status: 'ACTIVE',
+      isPlatformAdmin: false,
+    } as any);
+
+    vi.mocked(prisma.membership.findUnique).mockResolvedValue({
+      id: 'membership-regular-1',
+      idirId,
+      userId: memberUserId,
+      role: 'MEMBER',
+      status: 'ACTIVE',
+    } as any);
+
+    (prisma as any).idir = {
+      findUnique: vi.fn().mockResolvedValue({
+        id: idirId,
+        name: 'Bole Medhanealem Idir',
+        currency: 'ETB',
+      }),
+    };
+
+    const res = await request(app)
+      .get(`/api/v1/idirs/${idirId}/reports/finances`)
+      .set('Authorization', `Bearer ${memberToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('blocks regular MEMBER from recording an expense', async () => {
+    const memberUserId = 'member-user-uuid';
+    const memberToken = generateAccessToken({
+      userId: memberUserId,
+      phoneNumber: '+251911999999',
+      isPlatformAdmin: false,
+    });
+
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: memberUserId,
+      status: 'ACTIVE',
+      isPlatformAdmin: false,
+    } as any);
+
+    vi.mocked(prisma.membership.findUnique).mockResolvedValue({
+      id: 'membership-regular-1',
+      idirId,
+      userId: memberUserId,
+      role: 'MEMBER',
+      status: 'ACTIVE',
+    } as any);
+
+    const res = await request(app)
+      .post(`/api/v1/idirs/${idirId}/expenses`)
+      .set('Authorization', `Bearer ${memberToken}`)
+      .send({
+        category: 'ADMINISTRATIVE',
+        amount: 250,
+        description: 'Office stationery unauthorized attempt',
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('exports auditable financial report CSV with headers and period covered', async () => {
+    (prisma as any).idir = {
+      findUnique: vi.fn().mockResolvedValue({
+        id: idirId,
+        name: 'Bole Medhanealem Idir',
+        currency: 'ETB',
+      }),
+    };
+
+    const res = await request(app)
+      .get(`/api/v1/idirs/${idirId}/reports/export?format=csv`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.text).toContain('IDIR FINANCIAL REPORT - AUDITABLE LEDGER');
+    expect(res.text).toContain('Bole Medhanealem Idir');
+    expect(res.text).toContain('--- EXECUTIVE SUMMARY ---');
+  });
+
+  it('reverses an expense and records audit log without altering original record', async () => {
+    const expenseId = 'expense-uuid-1';
+    vi.mocked(prisma.expense.findFirst).mockResolvedValue({
+      id: expenseId,
+      idirId,
+      amount: '500.00',
+      category: 'VENUE',
+      status: 'APPROVED',
+    } as any);
+
+    vi.mocked(prisma.expense.update).mockResolvedValue({
+      id: expenseId,
+      status: 'REJECTED',
+      rejectionReason: '[REVERSED]: Duplicate receipt submitted',
+    } as any);
+
+    const res = await request(app)
+      .post(`/api/v1/idirs/${idirId}/expenses/${expenseId}/reverse`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        reversalReason: 'Duplicate receipt submitted',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(prisma.expense.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: expenseId },
+        data: expect.objectContaining({
+          status: 'REJECTED',
+          rejectionReason: expect.stringContaining('Duplicate receipt submitted'),
+        }),
+      })
+    );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'REVERSE_EXPENSE',
+          entityType: 'Expense',
+          entityId: expenseId,
+        }),
+      })
+    );
   });
 });

@@ -116,6 +116,8 @@ final dashboardStatsProvider = Provider<DashboardStats>((ref) {
           timestamp: c.date,
           type: ActivityType.reversal,
           amount: c.amount,
+          statusText: 'REVERSED',
+          isVerified: false,
         ),
       );
     } else {
@@ -127,9 +129,30 @@ final dashboardStatsProvider = Provider<DashboardStats>((ref) {
           timestamp: c.date,
           type: ActivityType.contribution,
           amount: c.amount,
+          statusText: c.isReversed
+              ? 'REVERSED'
+              : (c.isVerified ? 'VERIFIED' : 'RECORDED'),
+          isVerified: c.isVerified,
         ),
       );
     }
+  }
+
+  for (final e in expenses.take(4)) {
+    activities.add(
+      DashboardActivityItem(
+        id: 'act_exp_${e.id}',
+        title: 'Expense: ${e.category.name.toUpperCase()} (${e.voucherNumber})',
+        subtitle: '${e.description} • ${e.recordedByName}',
+        timestamp: e.createdAt,
+        type: ActivityType.reversal,
+        amount: e.amount,
+        statusText: e.isReversed
+            ? 'REVERSED'
+            : (e.isVerified ? 'VERIFIED' : 'RECORDED'),
+        isVerified: e.isVerified,
+      ),
+    );
   }
 
   for (final m in members.take(3)) {

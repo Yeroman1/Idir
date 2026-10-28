@@ -6,6 +6,7 @@ import { validate } from '../../middleware/validate.js';
 import {
   recordExpenseSchema,
   reviewExpenseSchema,
+  reverseExpenseSchema,
   queryExpensesSchema,
 } from './expenses.validation.js';
 import { requireActiveIdir } from '../../middleware/assertIdirActive.js';
@@ -22,6 +23,7 @@ router.post(
   expensesController.recordExpense
 );
 
+// Member read-only access enabled for financial transparency
 router.get(
   '/',
   requireIdirRole([
@@ -49,9 +51,16 @@ router.get(
 
 router.post(
   '/:expenseId/review',
-  requireIdirRole(['CHAIRPERSON']),
+  requireIdirRole(['CHAIRPERSON', 'TREASURER']),
   validate({ body: reviewExpenseSchema }),
   expensesController.reviewExpense
+);
+
+router.post(
+  '/:expenseId/reverse',
+  requireIdirRole(['CHAIRPERSON', 'TREASURER']),
+  validate({ body: reverseExpenseSchema }),
+  expensesController.reverseExpense
 );
 
 export const expenseRoutes = router;

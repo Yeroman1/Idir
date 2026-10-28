@@ -43,6 +43,29 @@ export class ReportsController {
       next(error);
     }
   }
+
+  async exportFinancialReport(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { startDate, endDate, format = 'csv' } = req.query;
+      const result = await reportsService.generateFinancialCsv(req.params.idirId, {
+        startDate: startDate as string,
+        endDate: endDate as string,
+      });
+
+      if (format === 'json') {
+        return sendSuccess(res, result.data);
+      }
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${result.filename}"`
+      );
+      return res.status(200).send(result.csv);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const reportsController = new ReportsController();

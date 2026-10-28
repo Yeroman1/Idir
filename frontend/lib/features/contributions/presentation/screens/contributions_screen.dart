@@ -448,6 +448,52 @@ class _ContributionCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: c.isReversed
+                                ? AppColors.error.withValues(alpha: 0.15)
+                                : (c.isVerified
+                                    ? AppColors.success.withValues(alpha: 0.15)
+                                    : Colors.amber.withValues(alpha: 0.2)),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                c.isReversed
+                                    ? Icons.cancel_outlined
+                                    : (c.isVerified
+                                        ? Icons.verified
+                                        : Icons.hourglass_top),
+                                size: 10,
+                                color: c.isReversed
+                                    ? AppColors.error
+                                    : (c.isVerified
+                                        ? AppColors.success
+                                        : Colors.amber.shade900),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                c.isReversed
+                                    ? 'REVERSED'
+                                    : (c.isVerified ? 'VERIFIED' : 'RECORDED'),
+                                style: TextStyle(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: c.isReversed
+                                      ? AppColors.error
+                                      : (c.isVerified
+                                          ? AppColors.success
+                                          : Colors.amber.shade900),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 3),

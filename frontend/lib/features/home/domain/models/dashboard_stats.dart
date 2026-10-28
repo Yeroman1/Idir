@@ -20,6 +20,8 @@ class DashboardActivityItem extends Equatable {
     required this.timestamp,
     required this.type,
     this.amount,
+    this.statusText,
+    this.isVerified,
   });
 
   final String id;
@@ -28,6 +30,8 @@ class DashboardActivityItem extends Equatable {
   final DateTime timestamp;
   final ActivityType type;
   final double? amount;
+  final String? statusText;
+  final bool? isVerified;
 
   IconData get icon {
     switch (type) {
@@ -60,7 +64,7 @@ class DashboardActivityItem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, title, subtitle, timestamp, type, amount];
+  List<Object?> get props => [id, title, subtitle, timestamp, type, amount, statusText, isVerified];
 }
 
 class PinnedAnnouncement extends Equatable {

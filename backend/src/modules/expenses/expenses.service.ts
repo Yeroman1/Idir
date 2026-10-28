@@ -167,6 +167,56 @@ export class ExpensesService {
 
     return expense;
   }
+
+  async reverseExpense(
+    idirId: string,
+    expenseId: string,
+    input: { reversalReason: string },
+    actorId: string
+  ) {
+    const expense = await prisma.expense.findFirst({
+      where: { id: expenseId, idirId },
+    });
+
+    if (!expense) {
+      throw new NotFoundError('Expense record not found');
+    }
+
+    if (expense.status === 'REJECTED') {
+      throw new BadRequestError('Cannot reverse an expense that has already been rejected or reversed');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const reversed = await tx.expense.update({
+        where: { id: expenseId },
+        data: {
+          status: 'REJECTED',
+          rejectionReason: `[REVERSED]: ${input.reversalReason}`,
+        },
+        include: {
+          recordedBy: { select: { id: true, fullName: true } },
+          approvedBy: { select: { id: true, fullName: true } },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          idirId,
+          action: 'REVERSE_EXPENSE',
+          entityType: 'Expense',
+          entityId: expenseId,
+          safeMetadata: {
+            amount: expense.amount.toString(),
+            category: expense.category,
+            reversalReason: input.reversalReason,
+          },
+        },
+      });
+
+      return reversed;
+    });
+  }
 }
 
 export const expensesService = new ExpensesService();
