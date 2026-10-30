@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
@@ -69,18 +70,121 @@ class RestInvitationsRepository implements InvitationsRepository {
     String? phone,
     String? email,
   }) async {
-    final query = email != null && email.isNotEmpty
-        ? 'email=${Uri.encodeComponent(email.trim())}'
-        : 'phone=${Uri.encodeComponent((phone ?? '').trim())}';
-    final res = await _api.get('/idirs/$idirId/invitations/check-user?$query');
+    // 1. Check live Supabase database directly for real-time status
+    try {
+      final sb = Supabase.instance.client;
+      if (email != null && email.trim().isNotEmpty) {
+        final cleanEmail = email.trim().toLowerCase();
+        final rows = await sb
+            .from('User')
+            .select('id, fullName, email, phoneNumber')
+            .ilike('email', cleanEmail)
+            .limit(1);
 
-    if (res is Map<String, dynamic>) {
-      return res['data'] is Map<String, dynamic>
-          ? res['data'] as Map<String, dynamic>
-          : res;
+        if (rows.isNotEmpty) {
+          final user = Map<String, dynamic>.from(rows.first);
+          bool isAlreadyMember = false;
+          if (!idirId.startsWith('draft-') && idirId.isNotEmpty) {
+            try {
+              final mRows = await sb
+                  .from('Membership')
+                  .select('id')
+                  .eq('idirId', idirId)
+                  .eq('userId', user['id'])
+                  .eq('status', 'ACTIVE')
+                  .limit(1);
+              isAlreadyMember = mRows.isNotEmpty;
+            } catch (_) {}
+          }
+
+          if (isAlreadyMember) {
+            return {
+              'exists': true,
+              'user': user,
+              'isAlreadyMember': true,
+              'message': '${user['fullName']} is already an active member of this Idir.',
+            };
+          }
+
+          return {
+            'exists': true,
+            'user': user,
+            'isAlreadyMember': false,
+            'message': 'User found: ${user['fullName']} (${user['email'] ?? user['phoneNumber']}).',
+          };
+        }
+      } else if (phone != null && phone.trim().isNotEmpty) {
+        final cleanPhone = phone.trim();
+        final digits = cleanPhone.replaceAll(RegExp(r'\D'), '');
+        final last9 = digits.length >= 9 ? digits.substring(digits.length - 9) : digits;
+
+        final rows = await sb
+            .from('User')
+            .select('id, fullName, email, phoneNumber')
+            .or('phoneNumber.ilike.%$last9%,phoneNumber.eq.$cleanPhone')
+            .limit(1);
+
+        if (rows.isNotEmpty) {
+          final user = Map<String, dynamic>.from(rows.first);
+          bool isAlreadyMember = false;
+          if (!idirId.startsWith('draft-') && idirId.isNotEmpty) {
+            try {
+              final mRows = await sb
+                  .from('Membership')
+                  .select('id')
+                  .eq('idirId', idirId)
+                  .eq('userId', user['id'])
+                  .eq('status', 'ACTIVE')
+                  .limit(1);
+              isAlreadyMember = mRows.isNotEmpty;
+            } catch (_) {}
+          }
+
+          if (isAlreadyMember) {
+            return {
+              'exists': true,
+              'user': user,
+              'isAlreadyMember': true,
+              'message': '${user['fullName']} is already an active member of this Idir.',
+            };
+          }
+
+          return {
+            'exists': true,
+            'user': user,
+            'isAlreadyMember': false,
+            'message': 'User found: ${user['fullName']} (${user['phoneNumber'] ?? user['email']}).',
+          };
+        }
+      }
+    } catch (sbErr) {
+      debugPrint('[InvitationsRepository] Live Supabase lookup notice: $sbErr');
     }
 
-    return {'exists': false, 'message': 'Unable to check user'};
+    // 2. Query backend REST API (with unauthenticated check-user support)
+    try {
+      final query = email != null && email.isNotEmpty
+          ? 'email=${Uri.encodeComponent(email.trim().toLowerCase())}'
+          : 'phone=${Uri.encodeComponent((phone ?? '').trim())}';
+      final res = await _api.get(
+        '/idirs/$idirId/invitations/check-user?$query',
+        requiresAuth: false,
+      );
+
+      if (res is Map<String, dynamic>) {
+        return res['data'] is Map<String, dynamic>
+            ? res['data'] as Map<String, dynamic>
+            : res;
+      }
+    } catch (apiErr) {
+      debugPrint('[InvitationsRepository] Backend checkUser notice: $apiErr');
+    }
+
+    final identifier = (email != null && email.isNotEmpty) ? email.trim() : (phone ?? '').trim();
+    return {
+      'exists': false,
+      'message': 'No user found registered with "$identifier". The user must register first.',
+    };
   }
 
   @override

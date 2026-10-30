@@ -6,6 +6,8 @@ import '../../../../core/models/app_user.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/providers/active_idir_provider.dart';
+import '../../../settings/presentation/widgets/telegram_idir_switcher.dart';
 
 class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
@@ -15,6 +17,7 @@ class MoreScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final user = ref.watch(currentUserProvider);
     final role = user?.role ?? UserRole.member;
+    final activeIdir = ref.watch(currentActiveIdirProvider);
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.moreTitle)),
@@ -33,6 +36,22 @@ class MoreScreen extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => context.push(AppRoutes.account),
             ),
+          const Divider(height: 16),
+
+          // ── Active Idir Switcher ───────────────────────────────────────
+          ListTile(
+            leading: const CircleAvatar(
+              backgroundColor: Color(0xFFE8F5E9),
+              child: Icon(Icons.swap_horiz_rounded, color: Color(0xFF2E7D32)),
+            ),
+            title: const Text('Switch Idir',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(activeIdir != null
+                ? '${activeIdir.idirName} • ${activeIdir.role.name.toUpperCase()}'
+                : 'Select active community'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showIdirSwitcherModal(context),
+          ),
           const Divider(height: 16),
 
           // ── Features ───────────────────────────────────────────────────

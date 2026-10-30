@@ -397,6 +397,7 @@ class TelegramIdirSwitcherSection extends ConsumerWidget {
                             .read(activeIdirProvider.notifier)
                             .switchIdir(idir.idirId);
                         if (success && context.mounted) {
+                          Navigator.of(context).maybePop();
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Row(
