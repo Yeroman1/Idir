@@ -233,3 +233,20 @@ docker-compose up --build -d
 This launches:
 1. `idir_connect_postgres`: Hardened PostgreSQL 16 Alpine container with persistent volume.
 2. `idir_connect_api`: Multi-stage built Node.js runtime container running the compiled Express API.
+
+
+---
+
+## 👥 Multi-Idir Architecture & System Isolation
+
+Idir Connect provides a **Telegram-style multi-Idir account switcher** allowing members and administrators to participate in multiple community Idirs seamlessly while guaranteeing complete, inviolable data isolation:
+
+### 1. Telegram-Style Community Switching
+- Users can switch their active community directly from the app bar title dropdown or the switcher action in the AppBar and More screens.
+- Selecting another community updates `activeIdirProvider` and persists the selection per-user.
+- The switcher UI mimics Telegram's account switcher with member role badges, community initials avatars, and active checkmarks.
+
+### 2. Strict Multi-Tenant Data Isolation
+- **Backend Authorization Barrier**: All Idir operations are routed under `/api/v1/idirs/:idirId/...` and protected by `requireIdirRole`. The middleware queries `prisma.membership` for `status === 'ACTIVE'` for the requesting user and target `idirId`. If no active membership exists, requests are immediately rejected with `403 Forbidden` and logged as `ACCESS_DENIED` security audit events.
+- **Frontend Reactive Scoping**: Riverpod's `activeIdirIdProvider` drives all feature repositories (`RestMembersRepository`, `RestContributionsRepository`, `RestExpensesRepository`, `RestClaimsRepository`, `RestAnnouncementsRepository`, `RestAuditLogRepository`). When the active Idir switches, existing repositories and streams are disposed and re-instantiated strictly for the new `idirId`.
+- **Cache Partitioning**: Local offline caches partition data strictly by Idir ID (`cache_members_${idirId}`, `cache_contributions_${idirId}`, etc.), ensuring zero cross-community data leakage.
