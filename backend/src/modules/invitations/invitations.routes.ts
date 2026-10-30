@@ -8,6 +8,10 @@ import { batchInviteSchema } from './invitations.validation.js';
 // ─── Scoped Nested Routes: /api/v1/idirs/:idirId/invitations ───────────────────
 const idirRouter = Router({ mergeParams: true });
 
+// Check user registration by phone or email (open to avoid 401 token expiration drops)
+idirRouter.get('/check-user', invitationsController.checkUser);
+
+
 idirRouter.use(authenticate);
 
 // Batch invitation endpoint: POST /api/v1/idirs/:idirId/invitations/batch
@@ -18,7 +22,7 @@ idirRouter.post(
 );
 
 // Check user registration by phone: GET /api/v1/idirs/:idirId/invitations/check-user?phone=...
-idirRouter.get('/check-user', invitationsController.checkUser);
+
 
 // List invitations for this Idir: GET /api/v1/idirs/:idirId/invitations
 idirRouter.get('/', invitationsController.listIdirInvitations);
@@ -33,6 +37,9 @@ export const invitationRoutes = idirRouter;
 
 // ─── Public Landing Routes: /api/v1/invitations ────────────────────────────────
 const publicRouter = Router();
+
+// Public check user registration by phone or email
+publicRouter.get('/check-user', invitationsController.checkUser);
 
 // Public view-only token lookup (rate-limited)
 // GET /api/v1/invitations/verify?token=...
