@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/models/app_user.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../providers/elections_provider.dart';
 
 class CreateElectionScreen extends ConsumerStatefulWidget {
@@ -148,7 +149,7 @@ class _CreateElectionScreenState extends ConsumerState<CreateElectionScreen> {
     final quorum = double.tryParse(_quorumController.text) ?? 50.0;
     final disputeHours = int.tryParse(_disputeHoursController.text) ?? 48;
 
-    final idirId = widget.idirId ?? 'active-idir-id';
+    final idirId = widget.idirId ?? ref.read(activeIdirIdProvider) ?? 'active-idir-id';
 
     final success = await ref
         .read(electionCreationProvider.notifier)
