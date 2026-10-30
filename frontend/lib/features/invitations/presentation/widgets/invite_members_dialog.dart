@@ -161,10 +161,14 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
           _userCheckResult = res;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isCheckingUser = false;
+          _userCheckResult = {
+            'exists': false,
+            'message': 'Error checking user: ${e.toString().replaceFirst("ApiException: ", "").replaceFirst("Exception: ", "")}',
+          };
         });
       }
     }
