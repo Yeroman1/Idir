@@ -8,7 +8,7 @@ export class InvitationsController {
    * Dispatch batch invitations (Creator / Officer).
    */
   async batchInvite(
-    req: AuthenticatedRequest,
+    req: Request,
     res: Response,
     next: NextFunction
   ): Promise<void> {
@@ -39,17 +39,18 @@ export class InvitationsController {
    * GET /api/v1/idirs/:idirId/invitations/check-user?phone=... or ?email=...
    */
   async checkUser(
-    req: AuthenticatedRequest,
+    req: Request,
     res: Response,
     next: NextFunction
   ): Promise<void> {
     try {
-      const idirId = req.params.idirId;
+      const idirId = req.params.idirId || (req.query.idirId as string) || '';
       const identifier = (req.query.email as string) || (req.query.phone as string) || '';
+      const actorId = (req as AuthenticatedRequest).user?.id || 'system';
 
       const result = await invitationsService.checkUserRegistration(
         idirId,
-        req.user!.id,
+        actorId,
         identifier
       );
 
