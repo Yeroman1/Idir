@@ -10,8 +10,9 @@ vi.mock('../src/config/database.js', () => ({
   prisma: {
     user: { findUnique: vi.fn(), findFirst: vi.fn() },
     idir: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-    membership: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), count: vi.fn(), update: vi.fn() },
+    membership: { findFirst: vi.fn(), findUnique: vi.fn(), create: vi.fn(), count: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     invitation: { count: vi.fn(), create: vi.fn(), upsert: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    notification: { create: vi.fn(), findMany: vi.fn(), count: vi.fn(), updateMany: vi.fn() },
     $transaction: vi.fn((callback) => callback(prisma)),
   } as any,
 }));
@@ -98,6 +99,22 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
         ...data,
       } as any;
     }) as any);
+
+    vi.mocked(prisma.invitation.findFirst).mockResolvedValue(null);
+    vi.mocked(prisma.invitation.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.invitation.update).mockImplementation((async ({ data }: any) => {
+      return {
+        id: `invite-${Math.random().toString(36).substring(7)}`,
+        ...data,
+      } as any;
+    }) as any);
+    vi.mocked(prisma.membership.findMany).mockResolvedValue([]);
+
+    // Default mock for notifications
+    vi.mocked(prisma.notification.create).mockResolvedValue({ id: 'mock-notif-1' } as any);
+    vi.mocked(prisma.notification.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.notification.count).mockResolvedValue(0);
+    vi.mocked(prisma.notification.updateMany).mockResolvedValue({ count: 1 } as any);
   });
 
   describe('1. Phone Normalizer & Crypto Token Generator', () => {
@@ -523,6 +540,287 @@ describe('Stage 4: Phone Invitations & Cryptographic Tokens', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('FORBIDDEN');
+    });
+  });
+
+  describe('9. In-App Direct Delivery, Privacy & Receiver Lifecycle', () => {
+    const receiverUserId = 'receiver-user-uuid-999';
+    const receiverPhone = '+251911999999';
+    const receiverEmail = 'receiver@example.com';
+    let receiverToken: string;
+
+    beforeEach(() => {
+      receiverToken = generateAccessToken({
+        userId: receiverUserId,
+        phoneNumber: receiverPhone,
+        isPlatformAdmin: false,
+      });
+
+      vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: any) => {
+        if (where.id === receiverUserId) {
+          return {
+            id: receiverUserId,
+            fullName: 'Receiver User',
+            phoneNumber: receiverPhone,
+            email: receiverEmail,
+            status: 'ACTIVE',
+            isPlatformAdmin: false,
+          } as any;
+        }
+        if (where.id === creatorUserId) {
+          return {
+            id: creatorUserId,
+            fullName: 'Creator User',
+            phoneNumber: '+251911000001',
+            email: 'creator@example.com',
+            status: 'ACTIVE',
+            isPlatformAdmin: false,
+          } as any;
+        }
+        return {
+          id: where.id,
+          fullName: 'Test User',
+          phoneNumber: '+251911000000',
+          email: 'test@example.com',
+          status: 'ACTIVE',
+          isPlatformAdmin: false,
+        } as any;
+      }) as any);
+    });
+
+    it('creates an in-app notification for the receiver user when an invitation is dispatched', async () => {
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({
+        id: receiverUserId,
+        fullName: 'Receiver User',
+        phoneNumber: receiverPhone,
+        email: receiverEmail,
+      } as any);
+
+      const res = await request(app)
+        .post(`/api/v1/idirs/${idirId}/invitations/batch`)
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .send({
+          phoneNumbers: [receiverPhone],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.sentCount).toBe(1);
+
+      // Verify in-app notification was dispatched to receiver
+      expect(prisma.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: receiverUserId,
+            title: expect.stringContaining('Invitation'),
+            body: expect.stringContaining('home screen'),
+          }),
+        })
+      );
+    });
+
+    it('strictly isolates received invitations to the recipient only (Privacy Guarantee)', async () => {
+      // Mock received invitations query
+      vi.mocked(prisma.membership.findMany).mockResolvedValue([]); // not member yet
+      vi.mocked(prisma.invitation.findMany).mockImplementation((async ({ where }: any) => {
+        // Assert NOT createdById is applied
+        expect(where?.NOT?.createdById).toBe(receiverUserId);
+
+        return [
+          {
+            id: 'inv-private-1',
+            idirId,
+            phoneNumber: receiverPhone,
+            email: receiverEmail,
+            status: 'PENDING',
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            createdAt: new Date(),
+            idir: {
+              id: idirId,
+              name: 'Yeka Michael Idir',
+              community: 'Yeka',
+              location: 'Addis Ababa',
+              description: 'Mutual aid',
+              contributionAmount: 300,
+              contributionFrequency: 'MONTHLY',
+              status: 'ACTIVE',
+            },
+            createdBy: {
+              id: creatorUserId,
+              fullName: 'Creator User',
+            },
+          },
+        ] as any;
+      }) as any);
+
+      const res = await request(app)
+        .get('/api/v1/invitations/received')
+        .set('Authorization', `Bearer ${receiverToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].id).toBe('inv-private-1');
+      expect(res.body.data[0].idirName).toBe('Yeka Michael Idir');
+      expect(res.body.data[0].invitedBy).toBe('Creator User');
+    });
+
+    it('prevents an unauthorized user from accepting or rejecting another users invitation (403)', async () => {
+      const otherUserToken = generateAccessToken({
+        userId: 'intruder-user-id',
+        phoneNumber: '+251977777777',
+        isPlatformAdmin: false,
+      });
+
+      vi.mocked(prisma.invitation.findUnique).mockResolvedValue({
+        id: 'inv-private-target',
+        idirId,
+        phoneNumber: receiverPhone, // sent to receiver, NOT intruder
+        email: receiverEmail,
+        status: 'PENDING',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        usedAt: null,
+        idir: { id: idirId, name: 'Yeka Michael Idir' },
+      } as any);
+
+      const res = await request(app)
+        .post('/api/v1/invitations/inv-private-target/respond')
+        .set('Authorization', `Bearer ${otherUserToken}`)
+        .send({ action: 'ACCEPT' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.message).toContain('This invitation was sent to a different user or contact');
+    });
+
+    it('allows the authentic receiver to ACCEPT received invitation by ID', async () => {
+      vi.mocked(prisma.invitation.findUnique).mockResolvedValue({
+        id: 'inv-to-accept',
+        idirId,
+        phoneNumber: receiverPhone,
+        email: receiverEmail,
+        status: 'PENDING',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        usedAt: null,
+        createdById: creatorUserId,
+        idir: { id: idirId, name: 'Yeka Michael Idir' },
+      } as any);
+
+      vi.mocked(prisma.membership.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.membership.count).mockResolvedValue(10);
+
+      const res = await request(app)
+        .post('/api/v1/invitations/inv-to-accept/respond')
+        .set('Authorization', `Bearer ${receiverToken}`)
+        .send({ action: 'ACCEPT' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.action).toBe('ACCEPTED');
+
+      // Verify active membership created
+      expect(prisma.membership.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            idirId,
+            userId: receiverUserId,
+            status: 'ACTIVE',
+            role: 'MEMBER',
+          }),
+        })
+      );
+
+      // Verify invitation marked ACCEPTED
+      expect(prisma.invitation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'inv-to-accept' },
+          data: expect.objectContaining({
+            status: 'ACCEPTED',
+          }),
+        })
+      );
+
+      // Verify notification created for inviter
+      expect(prisma.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: creatorUserId,
+            title: expect.stringContaining('New member joined'),
+          }),
+        })
+      );
+    });
+
+    it('allows the authentic receiver to DECLINE / REJECT received invitation by ID', async () => {
+      vi.mocked(prisma.invitation.findUnique).mockResolvedValue({
+        id: 'inv-to-decline',
+        idirId,
+        phoneNumber: receiverPhone,
+        email: receiverEmail,
+        status: 'PENDING',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        usedAt: null,
+        idir: { id: idirId, name: 'Yeka Michael Idir' },
+      } as any);
+
+      const res = await request(app)
+        .post('/api/v1/invitations/inv-to-decline/respond')
+        .set('Authorization', `Bearer ${receiverToken}`)
+        .send({ action: 'REJECT' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.action).toBe('DECLINED');
+
+      expect(prisma.invitation.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'inv-to-decline' },
+          data: expect.objectContaining({
+            status: 'DECLINED',
+          }),
+        })
+      );
+    });
+
+    it('retrieves in-app notifications for the receiver with unread count', async () => {
+      vi.mocked(prisma.notification.findMany).mockResolvedValue([
+        {
+          id: 'notif-inv-1',
+          userId: receiverUserId,
+          title: 'Invitation from Yeka Michael Idir',
+          body: 'You were invited to join Yeka Michael Idir.',
+          type: 'ANNOUNCEMENT' as any,
+          data: { type: 'INVITATION', idirId, invitationId: 'inv-1' },
+          readAt: null,
+          createdAt: new Date(),
+        },
+      ]);
+      vi.mocked(prisma.notification.count).mockResolvedValue(1);
+
+      const res = await request(app)
+        .get('/api/v1/notifications')
+        .set('Authorization', `Bearer ${receiverToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveLength(1);
+      expect(res.body.data[0].title).toContain('Invitation');
+      expect(res.body.meta.unreadCount).toBe(1);
+    });
+
+    it('marks a specific notification as read by receiver', async () => {
+      vi.mocked(prisma.notification.updateMany).mockResolvedValue({ count: 1 });
+
+      const res = await request(app)
+        .patch('/api/v1/notifications/notif-inv-1/read')
+        .set('Authorization', `Bearer ${receiverToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.markedRead).toBe(true);
+      expect(prisma.notification.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'notif-inv-1', userId: receiverUserId },
+          data: expect.objectContaining({ readAt: expect.any(Date) }),
+        })
+      );
     });
   });
 });
