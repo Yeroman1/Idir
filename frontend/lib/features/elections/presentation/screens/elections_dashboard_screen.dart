@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/models/app_user.dart';
 import '../../../../core/router/app_router.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../providers/elections_provider.dart';
 import 'candidates_and_nominations_screen.dart';
 import 'voting_booth_screen.dart';
@@ -40,7 +41,10 @@ class ElectionsDashboardScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final user = ref.watch(authNotifierProvider).user;
     final canCreate = user?.role.canManageElections ?? true;
-    final electionsAsync = ref.watch(electionsListProvider(idirId));
+    final effectiveIdirId = (idirId.isNotEmpty && idirId != 'active-idir-id')
+        ? idirId
+        : (ref.watch(activeIdirIdProvider) ?? idirId);
+    final electionsAsync = ref.watch(electionsListProvider(effectiveIdirId));
 
     return Scaffold(
       appBar: AppBar(
@@ -52,14 +56,14 @@ class ElectionsDashboardScreen extends ConsumerWidget {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (ctx) => LeadershipEventsScreen(idirId: idirId),
+                  builder: (ctx) => LeadershipEventsScreen(idirId: effectiveIdirId),
                 ),
               );
             },
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.refresh(electionsListProvider(idirId)),
+            onPressed: () => ref.refresh(electionsListProvider(effectiveIdirId)),
           ),
         ],
       ),
@@ -76,7 +80,7 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                 Text('Error loading elections: $err', textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () => ref.refresh(electionsListProvider(idirId)),
+                  onPressed: () => ref.refresh(electionsListProvider(effectiveIdirId)),
                   child: const Text('Retry'),
                 ),
               ],
@@ -211,7 +215,7 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                                 Navigator.of(context).push(
                                   MaterialPageRoute(
                                     builder: (_) => CandidatesAndNominationsScreen(
-                                      idirId: idirId,
+                                      idirId: effectiveIdirId,
                                       election: election,
                                     ),
                                   ),
@@ -229,7 +233,7 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
                                           builder: (_) => VotingBoothScreen(
-                                            idirId: idirId,
+                                            idirId: effectiveIdirId,
                                             election: election,
                                           ),
                                         ),
@@ -247,7 +251,7 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
                                           builder: (_) => ElectionResultsScreen(
-                                            idirId: idirId,
+                                            idirId: effectiveIdirId,
                                             election: election,
                                           ),
                                         ),
@@ -283,7 +287,7 @@ class ElectionsDashboardScreen extends ConsumerWidget {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => ElectionResultsScreen(
-                                    idirId: idirId,
+                                    idirId: effectiveIdirId,
                                     election: election,
                                   ),
                                 ),
