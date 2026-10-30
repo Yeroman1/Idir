@@ -26,7 +26,7 @@ class _ReceivedInvitationsBannerState
 
     final success = await ref
         .read(receivedInvitationsProvider.notifier)
-        .respond(inv.id, action);
+        .respond(inv.id, action, targetIdirId: inv.idirId);
 
     if (mounted) {
       setState(() => _processingIds.remove(inv.id));
