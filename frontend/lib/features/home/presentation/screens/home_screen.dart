@@ -23,6 +23,9 @@ import '../../../idirs/presentation/providers/idir_creation_provider.dart';
 import '../../../invitations/presentation/providers/invitations_provider.dart';
 import '../../../invitations/presentation/widgets/invite_members_dialog.dart';
 import '../../../invitations/presentation/widgets/received_invitations_banner.dart';
+import '../../../notifications/presentation/providers/notifications_provider.dart';
+import '../../../notifications/presentation/widgets/notifications_sheet.dart';
+import '../../../settings/presentation/widgets/telegram_idir_switcher.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -42,6 +45,7 @@ class HomeScreen extends ConsumerWidget {
     final isRegularMember = effectiveRole == UserRole.member;
     final officerStats = ref.watch(dashboardStatsProvider);
     final memberStats = ref.watch(memberPersonalDashboardProvider);
+    final pendingAlertsCount = ref.watch(totalPendingAlertsCountProvider);
     final pinned = isRegularMember
         ? memberStats.pinnedAnnouncement
         : officerStats.pinnedAnnouncement;
@@ -57,20 +61,52 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(l10n.dashboardTitle),
-            Text(
-              hasActiveIdir ? currentIdirName : 'Idir Community Network',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                letterSpacing: 0.2,
-              ),
+        title: InkWell(
+          onTap: () => showIdirSwitcherModal(context),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(l10n.dashboardTitle),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
+                      child: Text(
+                        hasActiveIdir ? currentIdirName : 'Idir Community Network',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
+          ),
         ),
         actions: [
+          // ── Telegram-Style Idir Switcher Action Button ────────────────────
+          IconButton(
+            icon: const Icon(Icons.swap_horiz_rounded),
+            tooltip: 'Switch Idir',
+            onPressed: () => showIdirSwitcherModal(context),
+          ),
+
           // ── Sync Status Chip ─────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
@@ -82,6 +118,18 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.forum_outlined),
             tooltip: l10n.groupChatTitle,
             onPressed: () => context.push(AppRoutes.chat),
+          ),
+
+          // ── In-App Notifications & Invitations Bell ──────────────────────
+          IconButton(
+            icon: Badge(
+              isLabelVisible: pendingAlertsCount > 0,
+              label: Text('$pendingAlertsCount'),
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            tooltip: 'Notifications',
+            onPressed: () => NotificationsSheet.show(context),
           ),
 
           // ── Refresh Action Button ────────────────────────────────────────
@@ -101,6 +149,8 @@ class HomeScreen extends ConsumerWidget {
               ref.read(userDraftIdirProvider.notifier).loadDraft();
               ref.invalidate(dashboardStatsProvider);
               ref.invalidate(memberPersonalDashboardProvider);
+              ref.invalidate(receivedInvitationsProvider);
+              ref.invalidate(notificationsNotifierProvider);
             },
           ),
 
@@ -141,6 +191,7 @@ class HomeScreen extends ConsumerWidget {
           ref.invalidate(dashboardStatsProvider);
           ref.invalidate(memberPersonalDashboardProvider);
           ref.invalidate(receivedInvitationsProvider);
+          ref.invalidate(notificationsNotifierProvider);
         },
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
