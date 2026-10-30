@@ -102,7 +102,7 @@ class ReceivedInvitationsNotifier
     }
   }
 
-  Future<bool> respond(String invitationId, String action) async {
+  Future<bool> respond(String invitationId, String action, {String? targetIdirId}) async {
     try {
       await _repository.respondToReceivedInvitation(
         invitationId: invitationId,
@@ -116,6 +116,9 @@ class ReceivedInvitationsNotifier
       if (action.toUpperCase() == 'ACCEPT') {
         await _ref.read(authNotifierProvider.notifier).refreshCurrentUser();
         await _ref.read(activeIdirProvider.notifier).reloadIdirs();
+        if (targetIdirId != null) {
+          await _ref.read(activeIdirProvider.notifier).switchIdir(targetIdirId);
+        }
       }
       return true;
     } catch (e) {
