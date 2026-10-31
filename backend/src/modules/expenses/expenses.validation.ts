@@ -16,12 +16,16 @@ export const recordExpenseSchema = z.object({
   amount: z.coerce.number().positive('Expense amount must be positive'),
   expenseDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   description: z.string().min(3, 'Description must be at least 3 characters'),
-  receiptUrl: z.string().url().optional().nullable(),
+  receiptUrl: z.string().optional().nullable(),
 });
 
 export const reviewExpenseSchema = z.object({
   approved: z.boolean(),
   rejectionReason: z.string().optional(),
+});
+
+export const reverseExpenseSchema = z.object({
+  reversalReason: z.string().min(5, 'Reversal reason must be at least 5 characters'),
 });
 
 export const queryExpensesSchema = z.object({

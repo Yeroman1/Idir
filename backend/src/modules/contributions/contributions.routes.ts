@@ -59,6 +59,20 @@ router.get(
   contributionsController.listContributions
 );
 
+// Member Dues Status (Expected, Paid, Partially Paid, Overdue)
+router.get(
+  '/dues-status',
+  requireIdirRole([
+    'CHAIRPERSON',
+    'TREASURER',
+    'SECRETARY',
+    'COMMITTEE',
+    'AUDITOR',
+    'MEMBER',
+  ]),
+  contributionsController.getDuesStatus
+);
+
 router.get(
   '/:contributionId',
   requireIdirRole([

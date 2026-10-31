@@ -34,6 +34,10 @@ class Expense extends Equatable {
     required this.amount,
     required this.description,
     this.claimId,
+    this.receiptUrl,
+    this.status,
+    this.recipient,
+    this.reference,
     this.isReversal = false,
     this.reversalOfId,
     this.reversalReason,
@@ -51,6 +55,10 @@ class Expense extends Equatable {
       amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
       description: map['description'] as String? ?? '',
       claimId: map['claimId'] as String?,
+      receiptUrl: map['receiptUrl'] as String?,
+      status: map['status'] as String?,
+      recipient: map['recipient'] as String?,
+      reference: map['reference'] as String?,
       isReversal: map['isReversal'] as bool? ?? false,
       reversalOfId: map['reversalOfId'] as String?,
       reversalReason: map['reversalReason'] as String?,
@@ -69,6 +77,10 @@ class Expense extends Equatable {
   final double amount;
   final String description;
   final String? claimId;
+  final String? receiptUrl;
+  final String? status;
+  final String? recipient;
+  final String? reference;
   final bool isReversal;
   final String? reversalOfId;
   final String? reversalReason;
@@ -76,6 +88,17 @@ class Expense extends Equatable {
   final String recordedByUid;
   final String recordedByName;
   final DateTime createdAt;
+
+  bool get isVerified =>
+      !isReversal &&
+      !isReversed &&
+      (status == null ||
+          status!.toUpperCase() == 'APPROVED' ||
+          status!.toUpperCase() == 'PAID' ||
+          status!.toUpperCase() == 'CONFIRMED');
+
+  bool get isPendingApproval =>
+      !isReversal && !isReversed && status?.toUpperCase() == 'PENDING';
 
   Expense copyWith({
     String? id,
@@ -115,6 +138,10 @@ class Expense extends Equatable {
         'amount': amount,
         'description': description,
         if (claimId != null) 'claimId': claimId,
+        if (receiptUrl != null) 'receiptUrl': receiptUrl,
+        if (status != null) 'status': status,
+        if (recipient != null) 'recipient': recipient,
+        if (reference != null) 'reference': reference,
         'isReversal': isReversal,
         if (reversalOfId != null) 'reversalOfId': reversalOfId,
         if (reversalReason != null) 'reversalReason': reversalReason,
@@ -132,6 +159,10 @@ class Expense extends Equatable {
         amount,
         description,
         claimId,
+        receiptUrl,
+        status,
+        recipient,
+        reference,
         isReversal,
         reversalOfId,
         reversalReason,

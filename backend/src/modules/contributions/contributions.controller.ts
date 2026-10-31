@@ -110,6 +110,24 @@ export class ContributionsController {
       next(error);
     }
   }
+
+  async getDuesStatus(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      let targetMembershipId = req.query.membershipId as string | undefined;
+      // BROKEN ACCESS CONTROL FIX (IDOR): Ordinary members can only view their own dues status
+      if (req.membership?.role === 'MEMBER') {
+        targetMembershipId = req.membership.id;
+      }
+
+      const status = await contributionsService.getDuesStatus(
+        req.params.idirId,
+        targetMembershipId
+      );
+      return sendSuccess(res, status);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const contributionsController = new ContributionsController();

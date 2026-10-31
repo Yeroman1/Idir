@@ -91,6 +91,115 @@ class ExpensesScreen extends ConsumerWidget {
     }
   }
 
+  void _showExpenseDetailDialog(BuildContext context, Expense expense) {
+    final theme = Theme.of(context);
+    final dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(expense.createdAt);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.receipt_long, color: AppColors.primary),
+            const SizedBox(width: 8),
+            Text(expense.voucherNumber, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailRow('Category', expense.category.name.toUpperCase()),
+              _detailRow('Amount', '${expense.amount.toStringAsFixed(2)} ETB'),
+              _detailRow('Description', expense.description),
+              if (expense.recipient != null && expense.recipient!.isNotEmpty)
+                _detailRow('Recipient', expense.recipient!),
+              if (expense.reference != null && expense.reference!.isNotEmpty)
+                _detailRow('Reference', expense.reference!),
+              _detailRow(
+                'Status',
+                expense.isReversed
+                    ? 'REVERSED'
+                    : (expense.isVerified ? 'VERIFIED' : 'RECORDED (PENDING)'),
+              ),
+              _detailRow('Recorded By', expense.recordedByName),
+              _detailRow('Date', dateStr),
+              if (expense.reversalReason != null && expense.reversalReason!.isNotEmpty)
+                _detailRow('Reversal Reason', expense.reversalReason!),
+              const SizedBox(height: 12),
+              if (expense.receiptUrl != null && expense.receiptUrl!.isNotEmpty) ...[
+                const Divider(),
+                const SizedBox(height: 6),
+                const Text(
+                  'Attached Receipt / Document Proof',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: theme.dividerColor),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.description_outlined, size: 36, color: AppColors.primary),
+                      const SizedBox(height: 6),
+                      Text(
+                        expense.receiptUrl!,
+                        style: const TextStyle(fontSize: 11),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Secure receipt attached and auditable',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
@@ -271,57 +380,91 @@ class ExpensesScreen extends ConsumerWidget {
                             color: theme.dividerColor.withValues(alpha: 0.5),
                           ),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: exp.isReversal
-                                              ? AppColors.error.withValues(alpha: 0.12)
-                                              : Colors.brown.withValues(alpha: 0.12),
-                                          borderRadius:
-                                              BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          exp.voucherNumber,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () => _showExpenseDetailDialog(context, exp),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(
                                             color: exp.isReversal
-                                                ? AppColors.error
-                                                : Colors.brown.shade800,
+                                                ? AppColors.error.withValues(alpha: 0.12)
+                                                : Colors.brown.withValues(alpha: 0.12),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            exp.voucherNumber,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: exp.isReversal
+                                                  ? AppColors.error
+                                                  : Colors.brown.shade800,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.withValues(alpha: 0.1),
-                                          borderRadius:
-                                              BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          exp.category.name.toUpperCase(),
-                                          style: const TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w600,
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.withValues(alpha: 0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            exp.category.name.toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: exp.isReversed
+                                                ? AppColors.error.withValues(alpha: 0.12)
+                                                : (exp.isVerified
+                                                    ? AppColors.success.withValues(alpha: 0.12)
+                                                    : Colors.amber.withValues(alpha: 0.15)),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            exp.isReversed
+                                                ? 'REVERSED'
+                                                : (exp.isVerified ? 'VERIFIED' : 'RECORDED'),
+                                            style: TextStyle(
+                                              fontSize: 8.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: exp.isReversed
+                                                  ? AppColors.error
+                                                  : (exp.isVerified
+                                                      ? AppColors.success
+                                                      : Colors.amber.shade900),
+                                            ),
+                                          ),
+                                        ),
+                                        if (exp.receiptUrl != null && exp.receiptUrl!.isNotEmpty) ...[
+                                          const SizedBox(width: 6),
+                                          const Icon(Icons.attachment, size: 14, color: AppColors.primary),
+                                        ],
+                                      ],
+                                    ),
                                   Text(
                                     exp.isReversal
                                         ? '+${exp.amount.toStringAsFixed(0)} ETB (Reversal)'
