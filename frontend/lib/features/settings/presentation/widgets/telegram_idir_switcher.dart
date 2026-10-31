@@ -25,12 +25,16 @@ class _IdirSwitcherBottomSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        ),
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -94,7 +98,7 @@ class _IdirSwitcherBottomSheet extends ConsumerWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }
 

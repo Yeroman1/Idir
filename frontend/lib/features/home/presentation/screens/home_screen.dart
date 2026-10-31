@@ -8,6 +8,7 @@ import '../../../../core/providers/active_idir_provider.dart';
 import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/providers/pin_provider.dart';
 import '../../../../core/providers/sync_status_provider.dart';
+import '../../../../core/providers/theme_mode_provider.dart';
 import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/offline_indicator_bar.dart';
@@ -74,8 +75,7 @@ class HomeScreen extends ConsumerWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 160),
+                    Flexible(
                       child: Text(
                         hasActiveIdir ? currentIdirName : 'Idir Community Network',
                         style: theme.textTheme.labelSmall?.copyWith(
@@ -107,12 +107,6 @@ class HomeScreen extends ConsumerWidget {
             onPressed: () => showIdirSwitcherModal(context),
           ),
 
-          // ── Sync Status Chip ─────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-            child: _SyncStatusChip(syncStatus: syncStatus, l10n: l10n),
-          ),
-
           // ── Group Chat Action Button ─────────────────────────────────────
           IconButton(
             icon: const Icon(Icons.forum_outlined),
@@ -132,55 +126,151 @@ class HomeScreen extends ConsumerWidget {
             onPressed: () => NotificationsSheet.show(context),
           ),
 
-          // ── Refresh Action Button ────────────────────────────────────────
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Syncing live data from Supabase...'),
-                  duration: Duration(milliseconds: 900),
-                  behavior: SnackBarBehavior.floating,
+          // On mobile screens (< 600px), group secondary actions into a clean popup menu
+          if (MediaQuery.sizeOf(context).width < 600) ...[
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'Options',
+              onSelected: (val) async {
+                switch (val) {
+                  case 'refresh':
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Syncing live data from Supabase...'),
+                        duration: Duration(milliseconds: 900),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    await ref.read(syncProvider.notifier).triggerSync();
+                    await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
+                    ref.read(userDraftIdirProvider.notifier).loadDraft();
+                    ref.invalidate(dashboardStatsProvider);
+                    ref.invalidate(memberPersonalDashboardProvider);
+                    ref.invalidate(receivedInvitationsProvider);
+                    ref.invalidate(notificationsNotifierProvider);
+                    break;
+                  case 'sync':
+                    showOfflineSyncModal(context);
+                    break;
+                  case 'theme':
+                    final current = ref.read(themeModeProvider);
+                    ref.read(themeModeProvider.notifier).state =
+                        current == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+                    break;
+                  case 'lang_en':
+                    ref.read(localeProvider.notifier).setLocale(const Locale('en'));
+                    break;
+                  case 'lang_am':
+                    ref.read(localeProvider.notifier).setLocale(const Locale('am'));
+                    break;
+                  case 'lang_om':
+                    ref.read(localeProvider.notifier).setLocale(const Locale('om'));
+                    break;
+                  case 'lock':
+                    ref.read(pinNotifierProvider.notifier).lock();
+                    context.go(AppRoutes.pin);
+                    break;
+                }
+              },
+              itemBuilder: (ctx) => [
+                PopupMenuItem(
+                  value: 'sync',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.sync, size: 20, color: AppColors.primary),
+                      const SizedBox(width: 10),
+                      Text('Sync: ${syncStatus.name.toUpperCase()}'),
+                    ],
+                  ),
                 ),
-              );
-              await ref.read(syncProvider.notifier).triggerSync();
-              await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
-              ref.read(userDraftIdirProvider.notifier).loadDraft();
-              ref.invalidate(dashboardStatsProvider);
-              ref.invalidate(memberPersonalDashboardProvider);
-              ref.invalidate(receivedInvitationsProvider);
-              ref.invalidate(notificationsNotifierProvider);
-            },
-          ),
-
-          // ── Language Selector ────────────────────────────────────────────
-          PopupMenuButton<Locale>(
-            icon: const Icon(Icons.language),
-            tooltip: 'Language',
-            onSelected: (loc) {
-              ref.read(localeProvider.notifier).setLocale(loc);
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: Locale('en'), child: Text('English')),
-              PopupMenuItem(value: Locale('am'), child: Text('አማርኛ (Amharic)')),
-              PopupMenuItem(value: Locale('om'), child: Text('Afaan Oromoo')),
-            ],
-          ),
-
-          // ── Theme Mode Toggle ───────────────────────────────────────────
-          const ThemeModeToggle(),
-
-          // ── Security Quick Lock Button ────────────────────────────────────
-          if (pinState.isSet)
+                const PopupMenuItem(
+                  value: 'refresh',
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh, size: 20),
+                      SizedBox(width: 10),
+                      Text('Refresh Data'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'theme',
+                  child: Row(
+                    children: [
+                      Icon(Icons.brightness_medium, size: 20),
+                      SizedBox(width: 10),
+                      Text('Toggle Theme'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(value: 'lang_en', child: Text('English')),
+                const PopupMenuItem(value: 'lang_am', child: Text('አማርኛ (Amharic)')),
+                const PopupMenuItem(value: 'lang_om', child: Text('Afaan Oromoo')),
+                if (pinState.isSet) ...[
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: 'lock',
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_outline, size: 20),
+                        SizedBox(width: 10),
+                        Text('Lock App'),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ] else ...[
+            // Wide screens: Show all individual controls
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+              child: _SyncStatusChip(syncStatus: syncStatus, l10n: l10n),
+            ),
             IconButton(
-              icon: const Icon(Icons.lock_outline),
-              tooltip: 'Lock app',
-              onPressed: () {
-                ref.read(pinNotifierProvider.notifier).lock();
-                context.go(AppRoutes.pin);
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+              onPressed: () async {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Syncing live data from Supabase...'),
+                    duration: Duration(milliseconds: 900),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                await ref.read(syncProvider.notifier).triggerSync();
+                await ref.read(authNotifierProvider.notifier).refreshCurrentUser();
+                ref.read(userDraftIdirProvider.notifier).loadDraft();
+                ref.invalidate(dashboardStatsProvider);
+                ref.invalidate(memberPersonalDashboardProvider);
+                ref.invalidate(receivedInvitationsProvider);
+                ref.invalidate(notificationsNotifierProvider);
               },
             ),
+            PopupMenuButton<Locale>(
+              icon: const Icon(Icons.language),
+              tooltip: 'Language',
+              onSelected: (loc) {
+                ref.read(localeProvider.notifier).setLocale(loc);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: Locale('en'), child: Text('English')),
+                PopupMenuItem(value: Locale('am'), child: Text('አማርኛ (Amharic)')),
+                PopupMenuItem(value: Locale('om'), child: Text('Afaan Oromoo')),
+              ],
+            ),
+            const ThemeModeToggle(),
+            if (pinState.isSet)
+              IconButton(
+                icon: const Icon(Icons.lock_outline),
+                tooltip: 'Lock app',
+                onPressed: () {
+                  ref.read(pinNotifierProvider.notifier).lock();
+                  context.go(AppRoutes.pin);
+                },
+              ),
+          ],
         ],
       ),
       body: RefreshIndicator(
@@ -481,56 +571,19 @@ class _UserProfileHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        user.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (currentIdirTitle != null && currentIdirTitle.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.groups_outlined,
-                                size: 12, color: AppColors.primary),
-                            const SizedBox(width: 4),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 140),
-                              child: Text(
-                                currentIdirTitle,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primary,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
+                Text(
+                  user.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                Row(
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -550,7 +603,38 @@ class _UserProfileHeader extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    if (currentIdirTitle != null && currentIdirTitle.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.groups_outlined,
+                                size: 12, color: AppColors.primary),
+                            const SizedBox(width: 4),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 150),
+                              child: Text(
+                                currentIdirTitle,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Text(
                       hasActiveIdir
                           ? (effectiveMemberId.isNotEmpty
@@ -1367,20 +1451,27 @@ class _OfficerFinancialOverview extends StatelessWidget {
               const Divider(color: Colors.white24, height: 1),
               const SizedBox(height: 12),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _HeroStat(
-                    label: l10n.thisMonth,
-                    value: 'ETB ${stats.collectedThisMonth.toStringAsFixed(0)}',
+                  Expanded(
+                    child: _HeroStat(
+                      label: l10n.thisMonth,
+                      value: 'ETB ${stats.collectedThisMonth.toStringAsFixed(0)}',
+                    ),
                   ),
-                  _HeroStat(
-                    label: l10n.target,
-                    value: 'ETB ${stats.expectedThisMonth.toStringAsFixed(0)}',
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _HeroStat(
+                      label: l10n.target,
+                      value: 'ETB ${stats.expectedThisMonth.toStringAsFixed(0)}',
+                    ),
                   ),
-                  _HeroStat(
-                    label: l10n.collectionProgress,
-                    value:
-                        '${(stats.collectionProgress * 100).toStringAsFixed(0)}%',
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _HeroStat(
+                      label: l10n.collectionProgress,
+                      value:
+                          '${(stats.collectionProgress * 100).toStringAsFixed(0)}%',
+                    ),
                   ),
                 ],
               ),
@@ -1466,47 +1557,68 @@ class _OfficerFinancialOverview extends StatelessWidget {
         const SizedBox(height: 12),
 
         // ── Secondary Metric Cards Row (Members, Arrears & Claims) ────────
-        Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                icon: Icons.people_outline,
-                title: l10n.memberCount,
-                value: '${stats.totalMembersCount}',
-                subtitle: '${stats.activeMembersCount} ${l10n.activeMembers}',
-                accentColor: AppColors.primary,
-                onTap: onViewMembers,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricCard(
-                icon: Icons.warning_amber_rounded,
-                title: l10n.membersInArrears,
-                value: '${stats.membersInArrearsCount}',
-                subtitle: stats.membersInArrearsCount > 0
-                    ? 'Action needed'
-                    : l10n.goodStanding,
-                accentColor: stats.membersInArrearsCount > 0
-                    ? AppColors.error
-                    : AppColors.success,
-                onTap: onViewMembers,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _MetricCard(
-                icon: Icons.assignment_late_outlined,
-                title: l10n.pendingClaims,
-                value: '${stats.pendingClaimsCount}',
-                subtitle: stats.pendingClaimsCount > 0
-                    ? 'Review queue'
-                    : 'All clear',
-                accentColor: AppColors.secondary,
-                onTap: onViewClaims,
-              ),
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final card1 = _MetricCard(
+              icon: Icons.people_outline,
+              title: l10n.memberCount,
+              value: '${stats.totalMembersCount}',
+              subtitle: '${stats.activeMembersCount} ${l10n.activeMembers}',
+              accentColor: AppColors.primary,
+              onTap: onViewMembers,
+            );
+            final card2 = _MetricCard(
+              icon: Icons.warning_amber_rounded,
+              title: l10n.membersInArrears,
+              value: '${stats.membersInArrearsCount}',
+              subtitle: stats.membersInArrearsCount > 0
+                  ? 'Action needed'
+                  : l10n.goodStanding,
+              accentColor: stats.membersInArrearsCount > 0
+                  ? AppColors.error
+                  : AppColors.success,
+              onTap: onViewMembers,
+            );
+            final card3 = _MetricCard(
+              icon: Icons.assignment_late_outlined,
+              title: l10n.pendingClaims,
+              value: '${stats.pendingClaimsCount}',
+              subtitle: stats.pendingClaimsCount > 0
+                  ? 'Review queue'
+                  : 'All clear',
+              accentColor: AppColors.secondary,
+              onTap: onViewClaims,
+            );
+
+            if (constraints.maxWidth < 460) {
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(child: card1),
+                      const SizedBox(width: 10),
+                      Expanded(child: card2),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: card3,
+                  ),
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Expanded(child: card1),
+                const SizedBox(width: 10),
+                Expanded(child: card2),
+                const SizedBox(width: 10),
+                Expanded(child: card3),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -1527,14 +1639,20 @@ class _HeroStat extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(fontSize: 11, color: Colors.white70),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
         ),
       ],
@@ -2006,15 +2124,42 @@ class _QuickActionsGrid extends StatelessWidget {
         ]);
     }
 
-    return Row(
-      children: actions
-          .map((tile) => Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: tile,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 480) {
+          final rows = <Widget>[];
+          for (var i = 0; i < actions.length; i += 2) {
+            final first = actions[i];
+            final second = i + 1 < actions.length ? actions[i + 1] : null;
+            rows.add(
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Expanded(child: first),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: second != null ? second : const SizedBox.shrink(),
+                    ),
+                  ],
                 ),
-              ))
-          .toList(),
+              ),
+            );
+          }
+          return Column(children: rows);
+        }
+
+        return Row(
+          children: actions
+              .map((tile) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: tile,
+                    ),
+                  ))
+              .toList(),
+        );
+      },
     );
   }
 }

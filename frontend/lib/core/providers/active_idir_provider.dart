@@ -99,6 +99,10 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       final user = _ref.read(currentUserProvider);
       if (user == null) {
         if (!mounted) return;
+        if (state.availableIdirs.isNotEmpty && state.activeIdir != null) {
+          state = state.copyWith(isLoading: false);
+          return;
+        }
         state = const ActiveIdirState(
           availableIdirs: [],
           activeIdir: null,
@@ -234,6 +238,7 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       final user = _ref.read(currentUserProvider);
       final userPrefKey = '${AppConstants.prefActiveIdirId}_${user?.uid ?? "anon"}';
       await prefs.setString(userPrefKey, target.idirId);
+      await prefs.setString(AppConstants.prefActiveIdirId, target.idirId);
 
       if (!mounted) return false;
       state = state.copyWith(activeIdir: () => target);

@@ -25,12 +25,13 @@ class NotificationsSheet extends ConsumerWidget {
     final invitationsAsync = ref.watch(receivedInvitationsProvider);
     final pendingInvites = invitationsAsync.value ?? [];
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.75,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+    return SafeArea(
+      child: Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
       child: Column(
         children: [
           // Drag handle
@@ -301,7 +302,7 @@ class NotificationsSheet extends ConsumerWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 }
 

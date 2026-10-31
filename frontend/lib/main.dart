@@ -90,6 +90,36 @@ class IdirApp extends ConsumerWidget {
 
       // ── Routing ────────────────────────────────────────────────────────
       routerConfig: router,
+
+      // ── Responsive Mobile Frame for Web/Desktop ────────────────────────
+      builder: (context, child) {
+        if (child == null) return const SizedBox.shrink();
+        final width = MediaQuery.sizeOf(context).width;
+        if (width > 600) {
+          return Container(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+            alignment: Alignment.center,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: ClipRect(
+                child: Container(
+                  decoration: BoxDecoration(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: child,
+                ),
+              ),
+            ),
+          );
+        }
+        return child;
+      },
     );
   }
 }
