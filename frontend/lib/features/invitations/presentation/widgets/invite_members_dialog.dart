@@ -304,7 +304,7 @@ class _InviteMembersDialogState extends ConsumerState<InviteMembersDialog> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480, maxHeight: 620),
+        constraints: BoxConstraints(maxWidth: 480, maxHeight: MediaQuery.sizeOf(context).height * 0.85),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(

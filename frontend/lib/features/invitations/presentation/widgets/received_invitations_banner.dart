@@ -230,8 +230,11 @@ class _ReceivedInvitationsBannerState
                         ),
                       ],
                       const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                      Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 8,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           OutlinedButton.icon(
                             onPressed: isProcessing
@@ -243,12 +246,13 @@ class _ReceivedInvitationsBannerState
                                   color: theme.colorScheme.error
                                       .withValues(alpha: 0.5)),
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 8),
+                                  horizontal: 12, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            icon: const Icon(Icons.close, size: 16),
-                            label: const Text('Reject'),
+                            icon: const Icon(Icons.close, size: 14),
+                            label: const Text('Reject', style: TextStyle(fontSize: 12)),
                           ),
-                          const SizedBox(width: 10),
                           FilledButton.icon(
                             onPressed: isProcessing
                                 ? null
@@ -256,7 +260,9 @@ class _ReceivedInvitationsBannerState
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 8),
+                                  horizontal: 14, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             icon: isProcessing
                                 ? const SizedBox(
@@ -268,8 +274,8 @@ class _ReceivedInvitationsBannerState
                                           Colors.white),
                                     ),
                                   )
-                                : const Icon(Icons.check, size: 16),
-                            label: const Text('Accept'),
+                                : const Icon(Icons.check, size: 14),
+                            label: const Text('Accept', style: TextStyle(fontSize: 12)),
                           ),
                         ],
                       ),
