@@ -10,11 +10,27 @@ abstract class ChatRepository {
   Future<List<ChatMessage>> getMessages({
     required String idirId,
     int limit = 50,
+    String? beforeCursor,
+    String? search,
+    bool? pinnedOnly,
   });
+
+  Future<List<ChatMessage>> getPinnedMessages({required String idirId});
 
   Future<ChatMessage> sendMessage({
     required String idirId,
     required String content,
+    String messageType = 'TEXT',
+    String? replyToId,
+    bool isForwarded = false,
+    String? forwardedFromName,
+    String? attachmentUrl,
+    String? attachmentType,
+    String? attachmentName,
+    int? attachmentSize,
+    int? attachmentDuration,
+    List<String>? mentions,
+    String? clientMutationId,
   });
 
   Future<ChatMessage> editMessage({
@@ -26,6 +42,34 @@ abstract class ChatRepository {
   Future<void> deleteMessage({
     required String idirId,
     required String messageId,
+  });
+
+  Future<ChatMessage> pinMessage({
+    required String idirId,
+    required String messageId,
+    required bool isPinned,
+  });
+
+  Future<ChatMessage> reactToMessage({
+    required String idirId,
+    required String messageId,
+    required String emoji,
+    String action = 'add',
+  });
+
+  Future<void> reportMessage({
+    required String idirId,
+    required String messageId,
+    required String reason,
+    String? details,
+  });
+
+  Future<Map<String, dynamic>> uploadAttachment({
+    required String idirId,
+    required String fileName,
+    required String mimeType,
+    required int size,
+    String? base64Data,
   });
 
   RealtimeChannel? subscribeToMessages({
@@ -56,12 +100,23 @@ class SupabaseChatRepository implements ChatRepository {
   Future<List<ChatMessage>> getMessages({
     required String idirId,
     int limit = 50,
+    String? beforeCursor,
+    String? search,
+    bool? pinnedOnly,
   }) async {
     // 1. Primary path: Use Idir Connect authenticated API endpoint
     try {
-      final res = await _apiClient.get(
-        '/idirs/$idirId/chat?limit=$limit',
-      );
+      final queryParams = <String>[
+        'limit=$limit',
+        if (beforeCursor != null && beforeCursor.isNotEmpty)
+          'beforeCursor=$beforeCursor',
+        if (search != null && search.isNotEmpty)
+          'search=${Uri.encodeComponent(search)}',
+        if (pinnedOnly == true) 'pinnedOnly=true',
+      ];
+      final url = '/idirs/$idirId/chat?${queryParams.join('&')}';
+
+      final res = await _apiClient.get(url);
 
       List<dynamic>? rawList;
       if (res is List) {
@@ -79,10 +134,22 @@ class SupabaseChatRepository implements ChatRepository {
       debugPrint('[ChatRepository] Backend REST getMessages notice: $e');
       final supabase = _getSupabaseClient();
       if (supabase != null) {
-        final records = await supabase
+        var query = supabase
             .from('ChatMessage')
             .select()
-            .eq('idirId', idirId)
+            .eq('idirId', idirId);
+
+        if (pinnedOnly == true) {
+          query = query.eq('isPinned', true);
+        }
+        if (beforeCursor != null && beforeCursor.isNotEmpty) {
+          query = query.lt('createdAt', beforeCursor);
+        }
+        if (search != null && search.isNotEmpty) {
+          query = query.ilike('content', '%$search%');
+        }
+
+        final records = await query
             .order('createdAt', ascending: true)
             .limit(limit);
 
@@ -97,15 +164,63 @@ class SupabaseChatRepository implements ChatRepository {
   }
 
   @override
+  Future<List<ChatMessage>> getPinnedMessages({required String idirId}) async {
+    try {
+      final res = await _apiClient.get('/idirs/$idirId/chat/pinned');
+      List<dynamic>? rawList;
+      if (res is List) {
+        rawList = res;
+      } else if (res is Map<String, dynamic> && res['data'] is List) {
+        rawList = res['data'] as List<dynamic>;
+      }
+
+      if (rawList != null) {
+        return rawList
+            .map((item) => ChatMessage.fromMap(item as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[ChatRepository] Backend getPinnedMessages error: $e');
+      return getMessages(idirId: idirId, pinnedOnly: true);
+    }
+    return const [];
+  }
+
+  @override
   Future<ChatMessage> sendMessage({
     required String idirId,
     required String content,
+    String messageType = 'TEXT',
+    String? replyToId,
+    bool isForwarded = false,
+    String? forwardedFromName,
+    String? attachmentUrl,
+    String? attachmentType,
+    String? attachmentName,
+    int? attachmentSize,
+    int? attachmentDuration,
+    List<String>? mentions,
+    String? clientMutationId,
   }) async {
-    // 1. Primary path: Use Idir Connect backend API (validates active membership & persists to Supabase PostgreSQL)
+    final payload = <String, dynamic>{
+      'content': content.trim(),
+      'messageType': messageType,
+      if (replyToId != null) 'replyToId': replyToId,
+      if (isForwarded) 'isForwarded': true,
+      if (forwardedFromName != null) 'forwardedFromName': forwardedFromName,
+      if (attachmentUrl != null) 'attachmentUrl': attachmentUrl,
+      if (attachmentType != null) 'attachmentType': attachmentType,
+      if (attachmentName != null) 'attachmentName': attachmentName,
+      if (attachmentSize != null) 'attachmentSize': attachmentSize,
+      if (attachmentDuration != null) 'attachmentDuration': attachmentDuration,
+      if (mentions != null && mentions.isNotEmpty) 'mentions': mentions,
+      if (clientMutationId != null) 'clientMutationId': clientMutationId,
+    };
+
     try {
       final res = await _apiClient.post(
         '/idirs/$idirId/chat',
-        body: {'content': content.trim()},
+        body: payload,
       );
 
       Map<String, dynamic>? messageMap;
@@ -148,6 +263,16 @@ class SupabaseChatRepository implements ChatRepository {
               'senderId': user?.id ?? 'web-user',
               'senderName': user?.userMetadata?['fullName'] ?? 'Idir Member',
               'content': content.trim(),
+              'messageType': messageType,
+              'replyToId': replyToId,
+              'isForwarded': isForwarded,
+              'forwardedFromName': forwardedFromName,
+              'attachmentUrl': attachmentUrl,
+              'attachmentType': attachmentType,
+              'attachmentName': attachmentName,
+              'attachmentSize': attachmentSize,
+              'attachmentDuration': attachmentDuration,
+              'clientMutationId': clientMutationId,
             })
             .select()
             .single();
@@ -182,7 +307,6 @@ class SupabaseChatRepository implements ChatRepository {
       if (messageMap != null) {
         final updated = ChatMessage.fromMap(messageMap);
 
-        // Broadcast edit to channel for instant delivery across clients
         final supabase = _getSupabaseClient();
         if (supabase != null) {
           try {
@@ -221,7 +345,6 @@ class SupabaseChatRepository implements ChatRepository {
     try {
       await _apiClient.delete('/idirs/$idirId/chat/$messageId');
 
-      // Broadcast delete to channel for instant delivery across clients
       final supabase = _getSupabaseClient();
       if (supabase != null) {
         try {
@@ -236,11 +359,129 @@ class SupabaseChatRepository implements ChatRepository {
       debugPrint('[ChatRepository] Backend REST deleteMessage notice: $e');
       final supabase = _getSupabaseClient();
       if (supabase != null) {
-        await supabase.from('ChatMessage').delete().eq('id', messageId);
+        await supabase
+            .from('ChatMessage')
+            .update({'isDeleted': true, 'content': 'This message was deleted'})
+            .eq('id', messageId);
         return;
       }
       rethrow;
     }
+  }
+
+  @override
+  Future<ChatMessage> pinMessage({
+    required String idirId,
+    required String messageId,
+    required bool isPinned,
+  }) async {
+    final res = await _apiClient.post(
+      '/idirs/$idirId/chat/$messageId/pin',
+      body: {'isPinned': isPinned},
+    );
+
+    Map<String, dynamic>? messageMap;
+    if (res is Map<String, dynamic>) {
+      if (res['data'] is Map<String, dynamic>) {
+        messageMap = res['data'] as Map<String, dynamic>;
+      } else if (res.containsKey('id')) {
+        messageMap = res;
+      }
+    }
+
+    if (messageMap != null) {
+      final updated = ChatMessage.fromMap(messageMap);
+      final supabase = _getSupabaseClient();
+      if (supabase != null) {
+        try {
+          final channel = supabase.channel('idir-chat-$idirId');
+          channel.sendBroadcastMessage(
+            event: 'chat_message_edit',
+            payload: updated.toMap(),
+          );
+        } catch (_) {}
+      }
+      return updated;
+    }
+    throw Exception('Failed to update pinned state');
+  }
+
+  @override
+  Future<ChatMessage> reactToMessage({
+    required String idirId,
+    required String messageId,
+    required String emoji,
+    String action = 'add',
+  }) async {
+    final res = await _apiClient.post(
+      '/idirs/$idirId/chat/$messageId/react',
+      body: {'emoji': emoji, 'action': action},
+    );
+
+    Map<String, dynamic>? messageMap;
+    if (res is Map<String, dynamic>) {
+      if (res['data'] is Map<String, dynamic>) {
+        messageMap = res['data'] as Map<String, dynamic>;
+      } else if (res.containsKey('id')) {
+        messageMap = res;
+      }
+    }
+
+    if (messageMap != null) {
+      final updated = ChatMessage.fromMap(messageMap);
+      final supabase = _getSupabaseClient();
+      if (supabase != null) {
+        try {
+          final channel = supabase.channel('idir-chat-$idirId');
+          channel.sendBroadcastMessage(
+            event: 'chat_message_edit',
+            payload: updated.toMap(),
+          );
+        } catch (_) {}
+      }
+      return updated;
+    }
+    throw Exception('Failed to react to message');
+  }
+
+  @override
+  Future<void> reportMessage({
+    required String idirId,
+    required String messageId,
+    required String reason,
+    String? details,
+  }) async {
+    await _apiClient.post(
+      '/idirs/$idirId/chat/$messageId/report',
+      body: {'reason': reason, if (details != null) 'details': details},
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> uploadAttachment({
+    required String idirId,
+    required String fileName,
+    required String mimeType,
+    required int size,
+    String? base64Data,
+  }) async {
+    final res = await _apiClient.post(
+      '/idirs/$idirId/chat/upload',
+      body: {
+        'fileName': fileName,
+        'mimeType': mimeType,
+        'size': size,
+        if (base64Data != null) 'base64Data': base64Data,
+      },
+    );
+
+    if (res is Map<String, dynamic>) {
+      if (res['data'] is Map<String, dynamic>) {
+        return res['data'] as Map<String, dynamic>;
+      }
+      return res;
+    }
+    throw Exception('Invalid file upload response');
   }
 
   @override
@@ -260,7 +501,6 @@ class SupabaseChatRepository implements ChatRepository {
       final channelName = 'idir-chat-$idirId';
       final channel = supabase.channel(channelName);
 
-      // 1. Listen for PostgreSQL logical replication INSERT events on ChatMessage table
       channel.onPostgresChanges(
         event: PostgresChangeEvent.insert,
         schema: 'public',
@@ -283,7 +523,6 @@ class SupabaseChatRepository implements ChatRepository {
         },
       );
 
-      // 2. Listen for PostgreSQL logical replication UPDATE events
       channel.onPostgresChanges(
         event: PostgresChangeEvent.update,
         schema: 'public',
@@ -306,7 +545,6 @@ class SupabaseChatRepository implements ChatRepository {
         },
       );
 
-      // 3. Listen for PostgreSQL logical replication DELETE events
       channel.onPostgresChanges(
         event: PostgresChangeEvent.delete,
         schema: 'public',
@@ -329,7 +567,7 @@ class SupabaseChatRepository implements ChatRepository {
         },
       );
 
-      // 4. Realtime broadcast events for instantaneous cross-client messaging
+      // Realtime broadcast events for instantaneous cross-client messaging
       channel.onBroadcast(
         event: 'chat_message',
         callback: (payload) {
