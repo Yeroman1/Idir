@@ -153,9 +153,7 @@ class HomeScreen extends ConsumerWidget {
                     showOfflineSyncModal(context);
                     break;
                   case 'theme':
-                    final current = ref.read(themeModeProvider);
-                    ref.read(themeModeProvider.notifier).state =
-                        current == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+                    ref.read(themeModeProvider.notifier).toggle();
                     break;
                   case 'lang_en':
                     ref.read(localeProvider.notifier).setLocale(const Locale('en'));
@@ -2139,7 +2137,7 @@ class _QuickActionsGrid extends StatelessWidget {
                     Expanded(child: first),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: second != null ? second : const SizedBox.shrink(),
+                      child: second ?? const SizedBox.shrink(),
                     ),
                   ],
                 ),
