@@ -54,6 +54,75 @@ export class ChatController {
       next(error);
     }
   }
+
+  async pinMessage(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { idirId, messageId } = req.params;
+      const userId = req.user!.id;
+      const input = req.body;
+
+      const message = await chatService.pinMessage(idirId, userId, messageId, input);
+      return sendSuccess(
+        res,
+        message,
+        200,
+        input.isPinned ? 'Message pinned successfully' : 'Message unpinned successfully'
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async reactToMessage(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { idirId, messageId } = req.params;
+      const userId = req.user!.id;
+      const input = req.body;
+
+      const message = await chatService.reactToMessage(idirId, userId, messageId, input);
+      return sendSuccess(res, message, 200, 'Reaction updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async uploadAttachment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { idirId } = req.params;
+      const userId = req.user!.id;
+      const input = req.body;
+
+      const attachment = await chatService.uploadAttachment(idirId, userId, input);
+      return sendCreated(res, attachment, 'Attachment uploaded and verified successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getPinnedMessages(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { idirId } = req.params;
+      const userId = req.user!.id;
+
+      const pinned = await chatService.listPinnedMessages(idirId, userId);
+      return sendSuccess(res, pinned, 200, 'Pinned messages retrieved successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async reportMessage(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { idirId, messageId } = req.params;
+      const userId = req.user!.id;
+      const input = req.body;
+
+      const result = await chatService.reportMessage(idirId, userId, messageId, input);
+      return sendSuccess(res, result, 200, 'Message reported for moderation review');
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const chatController = new ChatController();
