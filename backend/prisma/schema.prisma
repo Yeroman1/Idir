@@ -982,22 +982,42 @@ model NoConfidenceBallot {
 // ─── REAL-TIME GROUP CHAT ───────────────────────────────────────────────────
 
 model ChatMessage {
-  id           String     @id @default(uuid())
-  idirId       String
-  idir         Idir       @relation(fields: [idirId], references: [id], onDelete: Cascade)
-  membershipId String
-  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  senderId     String
-  sender       User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  senderName   String
-  senderRole   String     @default("MEMBER")
-  content      String     @db.Text
-  isEdited     Boolean    @default(false)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id                 String     @id @default(uuid())
+  idirId             String
+  idir               Idir       @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  membershipId       String
+  membership         Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  senderId           String
+  sender             User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderName         String
+  senderRole         String     @default("MEMBER")
+  messageType        String     @default("TEXT") // 'TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'VOICE', 'DOCUMENT', 'ANNOUNCEMENT', 'EMERGENCY'
+  content            String     @db.Text
+  isEdited           Boolean    @default(false)
+  replyToId          String?
+  replyToSenderName  String?
+  replyToContent     String?    @db.Text
+  isForwarded        Boolean    @default(false)
+  forwardedFromName  String?
+  isPinned           Boolean    @default(false)
+  pinnedAt           DateTime?
+  pinnedById         String?
+  attachmentUrl      String?
+  attachmentType     String?    // 'IMAGE', 'VIDEO', 'AUDIO', 'VOICE', 'DOCUMENT', 'PDF'
+  attachmentName     String?
+  attachmentSize     Int?
+  attachmentDuration Int?       // seconds for audio/voice/video
+  reactions          Json?      // e.g. [{"emoji": "👍", "userId": "...", "userName": "..."}]
+  mentions           Json?      // e.g. ["user-1", "user-2"]
+  clientMutationId   String?    // Idempotency token for deduplication
+  isDeleted          Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   @@index([idirId, createdAt])
+  @@index([idirId, isPinned])
   @@index([senderId])
   @@index([membershipId])
+  @@index([clientMutationId])
 }
 
