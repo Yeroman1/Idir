@@ -175,6 +175,9 @@ class AppUser extends Equatable {
     required this.memberId,
     required this.isActive,
     required this.createdAt,
+    this.email,
+    this.address,
+    this.preferredLanguage = 'am',
     this.idirId,
     this.idirName,
     this.memberships = const [],
@@ -188,8 +191,11 @@ class AppUser extends Equatable {
 
     return AppUser(
       uid: uid,
-      name: map['name'] as String? ?? '',
-      phone: map['phone'] as String? ?? '',
+      name: map['name'] as String? ?? map['fullName'] as String? ?? '',
+      phone: map['phone'] as String? ?? map['phoneNumber'] as String? ?? '',
+      email: map['email'] as String?,
+      address: map['address'] as String?,
+      preferredLanguage: map['preferredLanguage'] as String? ?? 'am',
       role: UserRoleX.fromString(map['role'] as String? ?? 'member'),
       memberId: map['memberId'] as String? ?? '',
       isActive: map['isActive'] as bool? ?? true,
@@ -207,6 +213,9 @@ class AppUser extends Equatable {
   final String uid;
   final String name;
   final String phone;
+  final String? email;
+  final String? address;
+  final String preferredLanguage;
   final UserRole role;
   final String memberId;
   final bool isActive;
@@ -223,6 +232,9 @@ class AppUser extends Equatable {
   Map<String, dynamic> toMap() => {
         'name': name,
         'phone': phone,
+        if (email != null) 'email': email,
+        if (address != null) 'address': address,
+        'preferredLanguage': preferredLanguage,
         'role': role.name,
         'memberId': memberId,
         'isActive': isActive,
@@ -236,6 +248,9 @@ class AppUser extends Equatable {
     String? uid,
     String? name,
     String? phone,
+    String? email,
+    String? address,
+    String? preferredLanguage,
     UserRole? role,
     String? memberId,
     bool? isActive,
@@ -248,6 +263,9 @@ class AppUser extends Equatable {
       uid: uid ?? this.uid,
       name: name ?? this.name,
       phone: phone ?? this.phone,
+      email: email ?? this.email,
+      address: address ?? this.address,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       role: role ?? this.role,
       memberId: memberId ?? this.memberId,
       isActive: isActive ?? this.isActive,
@@ -263,6 +281,9 @@ class AppUser extends Equatable {
         uid,
         name,
         phone,
+        email,
+        address,
+        preferredLanguage,
         role,
         memberId,
         isActive,
