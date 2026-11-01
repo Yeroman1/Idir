@@ -74,5 +74,68 @@ void main() {
       final user = await repository.getCurrentUser();
       expect(user, isNull);
     });
+
+    test('setSessionFromAuthResponse parses email, address, and preferredLanguage', () async {
+      final mockResponse = {
+        'tokens': {
+          'accessToken': 'mock-access-token',
+          'refreshToken': 'mock-refresh-token',
+        },
+        'user': {
+          'id': 'user-456',
+          'fullName': 'Fatuma Roba',
+          'phoneNumber': '+251911556677',
+          'email': 'fatuma@example.com',
+          'address': 'Kirkos Subcity, Woreda 02',
+          'preferredLanguage': 'om',
+          'role': 'MEMBER',
+          'status': 'ACTIVE',
+          'createdAt': '2026-02-01T00:00:00.000Z',
+          'memberships': [],
+        },
+      };
+
+      final appUser = await repository.setSessionFromAuthResponse(mockResponse);
+      expect(appUser.uid, 'user-456');
+      expect(appUser.name, 'Fatuma Roba');
+      expect(appUser.email, 'fatuma@example.com');
+      expect(appUser.address, 'Kirkos Subcity, Woreda 02');
+      expect(appUser.preferredLanguage, 'om');
+
+      final cached = await repository.getCurrentUser();
+      expect(cached, isNotNull);
+      expect(cached!.email, 'fatuma@example.com');
+      expect(cached.address, 'Kirkos Subcity, Woreda 02');
+      expect(cached.preferredLanguage, 'om');
+    });
+
+    test('AppUser copyWith maintains email immutability when updating profile fields', () {
+      final user = AppUser(
+        uid: 'user-789',
+        name: 'Original Name',
+        phone: '+251911111111',
+        email: 'original@example.com',
+        address: 'Old Address',
+        preferredLanguage: 'am',
+        role: UserRole.member,
+        memberId: 'IDIR-001',
+        isActive: true,
+        createdAt: DateTime.now(),
+      );
+
+      final updated = user.copyWith(
+        name: 'New Name',
+        phone: '+251922222222',
+        address: 'New Address',
+        preferredLanguage: 'en',
+      );
+
+      expect(updated.name, 'New Name');
+      expect(updated.phone, '+251922222222');
+      expect(updated.address, 'New Address');
+      expect(updated.preferredLanguage, 'en');
+      // Email remains unchanged
+      expect(updated.email, 'original@example.com');
+    });
   });
 }

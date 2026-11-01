@@ -113,15 +113,19 @@ class RestAuthRepository implements AuthRepository {
   Future<void> updateProfile(AppUser user) async {
     await _cacheUser(user);
     try {
-      await _apiClient.put(
-        '/users/${user.uid}',
+      // Intentionally omit email: email is permanent and strictly read-only
+      await _apiClient.patch(
+        '/users/me',
         body: {
           'fullName': user.name,
           'phoneNumber': user.phone,
+          if (user.address != null) 'address': user.address,
+          'preferredLanguage': user.preferredLanguage,
         },
       );
     } catch (e) {
-      debugPrint('[RestAuthRepository] Offline profile update queued locally: $e');
+      debugPrint('[RestAuthRepository] Profile update queued / error: $e');
+      rethrow;
     }
   }
 
@@ -182,6 +186,9 @@ class RestAuthRepository implements AuthRepository {
     final uid = json['id'] as String? ?? json['uid'] as String? ?? '';
     final name = json['fullName'] as String? ?? json['name'] as String? ?? '';
     final phone = json['phoneNumber'] as String? ?? json['phone'] as String? ?? '';
+    final email = json['email'] as String?;
+    final address = json['address'] as String?;
+    final preferredLanguage = json['preferredLanguage'] as String? ?? 'am';
     final isActive = json['status'] == 'ACTIVE' || json['isActive'] == true;
     final createdAt = DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now();
 
@@ -233,6 +240,9 @@ class RestAuthRepository implements AuthRepository {
       uid: uid,
       name: name,
       phone: phone,
+      email: email,
+      address: address,
+      preferredLanguage: preferredLanguage,
       role: role,
       memberId: memberId,
       isActive: isActive,
@@ -253,6 +263,9 @@ class RestAuthRepository implements AuthRepository {
       uid: map['uid'] as String? ?? '',
       name: map['name'] as String? ?? '',
       phone: map['phone'] as String? ?? '',
+      email: map['email'] as String?,
+      address: map['address'] as String?,
+      preferredLanguage: map['preferredLanguage'] as String? ?? 'am',
       role: UserRoleX.fromString(map['role'] as String? ?? 'member'),
       memberId: map['memberId'] as String? ?? '',
       isActive: map['isActive'] as bool? ?? true,
@@ -271,6 +284,9 @@ class RestAuthRepository implements AuthRepository {
       'uid': user.uid,
       'name': user.name,
       'phone': user.phone,
+      if (user.email != null) 'email': user.email,
+      if (user.address != null) 'address': user.address,
+      'preferredLanguage': user.preferredLanguage,
       'role': user.role.name,
       'memberId': user.memberId,
       'isActive': user.isActive,

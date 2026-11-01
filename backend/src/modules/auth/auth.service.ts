@@ -285,6 +285,8 @@ export class AuthService {
         fullName: true,
         phoneNumber: true,
         email: true,
+        address: true,
+        dateOfBirth: true,
         preferredLanguage: true,
         status: true,
         isPlatformAdmin: true,

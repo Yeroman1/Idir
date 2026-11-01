@@ -17,125 +17,289 @@ class AccountScreen extends ConsumerWidget {
   void _showEditProfileSheet(BuildContext context, WidgetRef ref, AppUser user) {
     final nameCtrl = TextEditingController(text: user.name);
     final phoneCtrl = TextEditingController(text: user.phone);
+    final addressCtrl = TextEditingController(text: user.address ?? '');
+    String selectedLanguage = (user.preferredLanguage.isNotEmpty) ? user.preferredLanguage : 'am';
+    bool isSaving = false;
+    String? localError;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        padding: EdgeInsets.only(
-          top: 16,
-          left: 20,
-          right: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: EdgeInsets.only(
+            top: 16,
+            left: 20,
+            right: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.edit_note_rounded, color: AppColors.primary, size: 24),
-                const SizedBox(width: 10),
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.edit_note_rounded, color: AppColors.primary, size: 24),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Edit Account Profile',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
                 Text(
-                  'Edit Account Profile',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                  'Update your personal information. For system security and identity verification, your registered email address is permanent and cannot be modified.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                       ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Update your official name and registered phone number.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                labelText: 'Full Name',
-                prefixIcon: const Icon(Icons.person_outline),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: phoneCtrl,
-              keyboardType: TextInputType.phone,
-              decoration: InputDecoration(
-                labelText: 'Phone Number',
-                prefixIcon: const Icon(Icons.phone_outlined),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                if (localError != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                     ),
-                    child: const Text('Cancel'),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            localError!,
+                            style: const TextStyle(color: AppColors.error, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final newName = nameCtrl.text.trim();
-                      final newPhone = phoneCtrl.text.trim();
-                      if (newName.isNotEmpty) {
-                        await ref.read(authNotifierProvider.notifier).updateProfile(
-                              name: newName,
-                              phone: newPhone,
-                            );
-                        if (ctx.mounted) {
-                          Navigator.pop(ctx);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Profile updated successfully!'),
-                              backgroundColor: AppColors.success,
-                              behavior: SnackBarBehavior.floating,
+                ],
+                const SizedBox(height: 18),
+
+                // ── Email Field: Strictly Read-Only / Immutable ─────────
+                TextFormField(
+                  initialValue: user.email?.isNotEmpty == true ? user.email! : 'No email registered',
+                  readOnly: true,
+                  enabled: false,
+                  decoration: InputDecoration(
+                    labelText: 'Registered Email Address',
+                    prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                    suffixIcon: Container(
+                      margin: const EdgeInsets.only(right: 10, top: 10, bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.grey.withValues(alpha: 0.4)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock, size: 12, color: Colors.grey),
+                          SizedBox(width: 4),
+                          Text(
+                            'LOCKED',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                              letterSpacing: 0.5,
                             ),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Text('Save Changes'),
+                    helperText: '🔒 Email address cannot be changed (permanent account ID)',
+                    helperStyle: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontStyle: FontStyle.italic,
+                    ),
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Full Name Field ────────────────────────────────────
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Full Name *',
+                    prefixIcon: const Icon(Icons.person_outline),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // ── Phone Number Field ─────────────────────────────────
+                TextField(
+                  controller: phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: 'Phone Number *',
+                    prefixIcon: const Icon(Icons.phone_outlined),
+                    hintText: '09... or +251...',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // ── Residential Address / Sub-City Field ───────────────
+                TextField(
+                  controller: addressCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Residential Address / Sub-City',
+                    prefixIcon: const Icon(Icons.location_on_outlined),
+                    hintText: 'e.g. Bole Sub-City, Woreda 03, House 412',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // ── Preferred Language Selector ────────────────────────
+                DropdownButtonFormField<String>(
+                  initialValue: selectedLanguage,
+                  decoration: InputDecoration(
+                    labelText: 'Preferred Language',
+                    prefixIcon: const Icon(Icons.language_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'am',
+                      child: Text('አማርኛ (Amharic)'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'en',
+                      child: Text('English'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'om',
+                      child: Text('Afaan Oromoo'),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setSheetState(() => selectedLanguage = val);
+                    }
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // ── Action Buttons ─────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: isSaving
+                            ? null
+                            : () async {
+                                final newName = nameCtrl.text.trim();
+                                final newPhone = phoneCtrl.text.trim();
+                                final newAddress = addressCtrl.text.trim();
+
+                                if (newName.isEmpty) {
+                                  setSheetState(() => localError = 'Full name cannot be empty');
+                                  return;
+                                }
+                                if (newPhone.isEmpty) {
+                                  setSheetState(() => localError = 'Phone number cannot be empty');
+                                  return;
+                                }
+
+                                setSheetState(() {
+                                  isSaving = true;
+                                  localError = null;
+                                });
+
+                                try {
+                                  await ref.read(authNotifierProvider.notifier).updateProfile(
+                                        name: newName,
+                                        phone: newPhone,
+                                        address: newAddress.isNotEmpty ? newAddress : null,
+                                        preferredLanguage: selectedLanguage,
+                                      );
+                                  if (ctx.mounted) {
+                                    Navigator.pop(ctx);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Profile updated successfully!'),
+                                        backgroundColor: AppColors.success,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (ctx.mounted) {
+                                    setSheetState(() {
+                                      isSaving = false;
+                                      localError = e.toString().replaceFirst('Exception: ', '');
+                                    });
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Save Changes'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -429,12 +593,65 @@ class AccountScreen extends ConsumerWidget {
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
+                  leading: const Icon(Icons.alternate_email_rounded),
+                  title: const Text('Registered Email'),
+                  subtitle: Text(
+                    user.email?.isNotEmpty == true ? user.email! : 'No email attached',
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  trailing: Tooltip(
+                    message: 'Email address cannot be changed (permanent account ID)',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock_outline, size: 13, color: Colors.grey),
+                          SizedBox(width: 4),
+                          Text(
+                            'Permanent',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
                   leading: const Icon(Icons.phone_outlined),
                   title: Text(l10n.phoneLabel),
                   subtitle: Text(user.phone.isNotEmpty ? user.phone : '—'),
                   trailing: IconButton(
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     onPressed: () => _showEditProfileSheet(context, ref, user),
+                  ),
+                ),
+                if (user.address?.isNotEmpty == true) ...[
+                  const Divider(height: 1, indent: 56),
+                  ListTile(
+                    leading: const Icon(Icons.location_on_outlined),
+                    title: const Text('Residential Address'),
+                    subtitle: Text(user.address!),
+                  ),
+                ],
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.translate_rounded),
+                  title: const Text('Preferred Language'),
+                  subtitle: Text(
+                    user.preferredLanguage == 'om'
+                        ? 'Afaan Oromoo'
+                        : (user.preferredLanguage == 'en' ? 'English' : 'አማርኛ (Amharic)'),
                   ),
                 ),
                 const Divider(height: 1, indent: 56),
