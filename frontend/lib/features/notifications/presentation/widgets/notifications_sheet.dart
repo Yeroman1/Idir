@@ -116,8 +116,8 @@ class NotificationsSheet extends ConsumerWidget {
                   children: [
                     // Pending invitations highlight if available
                     if (pendingInvites.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8, left: 4),
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8, left: 4),
                         child: Text(
                           'PENDING INVITATIONS',
                           style: TextStyle(
@@ -327,7 +327,7 @@ class _NotificationTile extends StatelessWidget {
         color: isUnread
             ? (isInvite
                 ? AppColors.primary.withValues(alpha: 0.05)
-                : theme.colorScheme.surfaceVariant.withValues(alpha: 0.35))
+                : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35))
             : theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(

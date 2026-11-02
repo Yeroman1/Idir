@@ -8,7 +8,7 @@ export class InvitationsController {
    * Dispatch batch invitations (Creator / Officer).
    */
   async batchInvite(
-    req: Request,
+    req: AuthenticatedRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> {

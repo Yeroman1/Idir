@@ -7,6 +7,10 @@ import {
   sendChatMessageSchema,
   updateChatMessageSchema,
   queryChatMessagesSchema,
+  pinChatMessageSchema,
+  reactChatMessageSchema,
+  uploadChatAttachmentSchema,
+  reportChatMessageSchema,
 } from './chat.validation.js';
 
 const router = Router({ mergeParams: true });
@@ -15,14 +19,27 @@ const router = Router({ mergeParams: true });
 router.use(authenticate);
 router.use(requireActiveIdir());
 
-// Retrieve chat history
+// Retrieve chat history (with pagination & search support)
 router.get(
   '/',
   validate({ query: queryChatMessagesSchema }),
   chatController.getMessages
 );
 
-// Send message to group chat
+// Retrieve pinned messages
+router.get(
+  '/pinned',
+  chatController.getPinnedMessages
+);
+
+// Upload attachment (images, videos, voice/audio notes, pdf/docs)
+router.post(
+  '/upload',
+  validate({ body: uploadChatAttachmentSchema }),
+  chatController.uploadAttachment
+);
+
+// Send message to group chat (text, attachment, announcement, reply, forward)
 router.post(
   '/',
   validate({ body: sendChatMessageSchema }),
@@ -36,10 +53,31 @@ router.patch(
   chatController.editMessage
 );
 
-// Delete own message
+// Delete message (sender can delete own; admin can delete any)
 router.delete(
   '/:messageId',
   chatController.deleteMessage
+);
+
+// Pin / Unpin message (leadership only)
+router.post(
+  '/:messageId/pin',
+  validate({ body: pinChatMessageSchema }),
+  chatController.pinMessage
+);
+
+// React / Unreact with emoji
+router.post(
+  '/:messageId/react',
+  validate({ body: reactChatMessageSchema }),
+  chatController.reactToMessage
+);
+
+// Report message for moderation
+router.post(
+  '/:messageId/report',
+  validate({ body: reportChatMessageSchema }),
+  chatController.reportMessage
 );
 
 export const chatRoutes = router;

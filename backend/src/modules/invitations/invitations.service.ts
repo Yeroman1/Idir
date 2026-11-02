@@ -55,7 +55,7 @@ export class InvitationsService {
     expiresInDays = 7,
     options?: { baseUrl?: string; maxPerHour?: number; emails?: string[] }
   ): Promise<BatchInvitationResult> {
-    let idir: { id: string; name: string; createdById: string; status: any } | null = null;
+    let idir: { id: string; name: string; createdById: string | null; status: any } | null = null;
     if (!idirId.startsWith('draft-')) {
       try {
         idir = await prisma.idir.findUnique({
@@ -1123,7 +1123,7 @@ export class InvitationsService {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, phoneNumber: true },
+      select: { id: true, email: true, phoneNumber: true, fullName: true },
     });
 
     if (!user) {

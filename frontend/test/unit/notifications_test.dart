@@ -2,8 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:idir_app/core/models/app_user.dart';
 import 'package:idir_app/features/auth/presentation/providers/auth_provider.dart';
-import 'package:idir_app/features/invitations/domain/models/received_invitation.dart';
-import 'package:idir_app/features/invitations/presentation/providers/invitations_provider.dart';
 import 'package:idir_app/features/notifications/data/notifications_repository.dart';
 import 'package:idir_app/features/notifications/domain/models/app_notification.dart';
 import 'package:idir_app/features/notifications/presentation/providers/notifications_provider.dart';
