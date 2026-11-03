@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import {
@@ -11,10 +12,43 @@ import {
   CreateRoundInput,
   RecordIkubContributionInput,
   RecordIkubPayoutInput,
+  DrawLotteryInput,
 } from './ikub.validation.js';
 
 export class IkubService {
   async createGroup(idirId: string, input: CreateIkubGroupInput, actorId: string) {
+    // 1. Enforce Singleton Active Ikub constraint per Idir
+    const activeExisting = await prisma.ikubGroup.findFirst({
+      where: { idirId, status: { in: ['ACTIVE', 'DRAFT'] } },
+    });
+    if (activeExisting) {
+      throw new ConflictError(
+        `An active Ikub group ("${activeExisting.name}") already exists for this Idir. Complete or cancel it before starting a new one.`
+      );
+    }
+
+    const totalRounds = input.totalRounds || 10;
+    const start = new Date(input.startDate);
+
+    // 2. Auto-generate all scheduled rounds based on frequency
+    const roundsData: Prisma.IkubRoundCreateManyIkubGroupInput[] = [];
+    for (let i = 1; i <= totalRounds; i++) {
+      const roundDate = new Date(start);
+      if (input.frequency === 'WEEKLY') {
+        roundDate.setDate(start.getDate() + (i - 1) * 7);
+      } else if (input.frequency === 'BIWEEKLY') {
+        roundDate.setDate(start.getDate() + (i - 1) * 14);
+      } else {
+        roundDate.setMonth(start.getMonth() + (i - 1));
+      }
+
+      roundsData.push({
+        roundNumber: i,
+        scheduledDate: roundDate,
+        status: i === 1 ? 'IN_PROGRESS' : 'SCHEDULED',
+      });
+    }
+
     const group = await prisma.ikubGroup.create({
       data: {
         idirId,
@@ -23,10 +57,22 @@ export class IkubService {
         contributionAmount: new Prisma.Decimal(input.contributionAmount),
         currency: 'ETB',
         frequency: input.frequency || 'WEEKLY',
-        startDate: new Date(input.startDate),
-        totalRounds: input.totalRounds || 10,
+        startDate: start,
+        totalRounds,
         payoutRule: input.payoutRule || 'LOTTERY',
+        winnersPerRound: input.winnersPerRound || 1,
+        drawMode: input.drawMode || 'DIGITAL_LOTTERY',
         status: 'ACTIVE',
+        rounds: {
+          createMany: {
+            data: roundsData,
+          },
+        },
+      },
+      include: {
+        rounds: {
+          orderBy: { roundNumber: 'asc' },
+        },
       },
     });
 
@@ -37,11 +83,74 @@ export class IkubService {
         action: 'CREATE_IKUB_GROUP',
         entityType: 'IkubGroup',
         entityId: group.id,
-        safeMetadata: { name: group.name, amount: input.contributionAmount },
+        safeMetadata: {
+          name: group.name,
+          amount: input.contributionAmount,
+          totalRounds,
+          winnersPerRound: input.winnersPerRound || 1,
+        },
       },
     });
 
     return group;
+  }
+
+  async getActiveGroup(idirId: string) {
+    const group = await prisma.ikubGroup.findFirst({
+      where: { idirId, status: 'ACTIVE' },
+      include: {
+        participants: {
+          where: { status: 'ACTIVE' },
+          include: {
+            membership: {
+              include: {
+                user: { select: { id: true, fullName: true, phoneNumber: true } },
+              },
+            },
+          },
+        },
+        rounds: {
+          orderBy: { roundNumber: 'asc' },
+          include: {
+            payouts: {
+              include: {
+                recipientParticipant: {
+                  include: {
+                    membership: {
+                      include: {
+                        user: { select: { fullName: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            _count: {
+              select: { contributions: true },
+            },
+          },
+        },
+        _count: {
+          select: { participants: true, rounds: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!group) return null;
+
+    const currentRound =
+      group.rounds.find((r) => r.status === 'IN_PROGRESS') ||
+      group.rounds.find((r) => r.status === 'SCHEDULED') ||
+      group.rounds[group.rounds.length - 1];
+
+    const summary = await this.getGroupSummary(idirId, group.id);
+
+    return {
+      ...group,
+      currentRound,
+      summary,
+    };
   }
 
   async listGroups(
@@ -106,7 +215,7 @@ export class IkubService {
         rounds: {
           orderBy: { roundNumber: 'asc' },
           include: {
-            payout: {
+            payouts: {
               include: {
                 recipientParticipant: {
                   include: {
@@ -121,6 +230,16 @@ export class IkubService {
             },
             _count: {
               select: { contributions: true },
+            },
+          },
+        },
+        joinRequests: {
+          where: { status: 'PENDING' },
+          include: {
+            membership: {
+              include: {
+                user: { select: { id: true, fullName: true, phoneNumber: true } },
+              },
             },
           },
         },
@@ -196,6 +315,169 @@ export class IkubService {
     return participant;
   }
 
+  async requestToJoin(
+    idirId: string,
+    groupId: string,
+    membershipId: string,
+    note?: string
+  ) {
+    const group = await prisma.ikubGroup.findFirst({
+      where: { id: groupId, idirId, status: 'ACTIVE' },
+    });
+    if (!group) {
+      throw new NotFoundError('Active Ikub group not found');
+    }
+
+    const membership = await prisma.membership.findFirst({
+      where: { id: membershipId, idirId, status: 'ACTIVE' },
+      include: {
+        user: { select: { fullName: true, phoneNumber: true } },
+      },
+    });
+    if (!membership) {
+      throw new BadRequestError('Active Idir membership is required to join Ikub');
+    }
+
+    const existingParticipant = await prisma.ikubParticipant.findUnique({
+      where: {
+        ikubGroupId_membershipId: {
+          ikubGroupId: groupId,
+          membershipId,
+        },
+      },
+    });
+    if (existingParticipant) {
+      throw new ConflictError('You are already an enrolled participant in this Ikub group');
+    }
+
+    // 1-Click Instant Enrollment: Directly register participant into active Ikub pool
+    return prisma.$transaction(async (tx) => {
+      const participant = await tx.ikubParticipant.create({
+        data: {
+          ikubGroupId: groupId,
+          membershipId,
+          status: 'ACTIVE',
+        },
+        include: {
+          membership: {
+            include: {
+              user: { select: { fullName: true, phoneNumber: true } },
+            },
+          },
+        },
+      });
+
+      // Record approved join request for audit and tracking
+      await tx.ikubJoinRequest.upsert({
+        where: {
+          ikubGroupId_membershipId: {
+            ikubGroupId: groupId,
+            membershipId,
+          },
+        },
+        create: {
+          ikubGroupId: groupId,
+          membershipId,
+          note: note || '1-Click Instant Member Enrollment',
+          status: 'APPROVED',
+          reviewedAt: new Date(),
+        },
+        update: {
+          note: note || '1-Click Instant Member Enrollment',
+          status: 'APPROVED',
+          reviewedAt: new Date(),
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: membership.userId,
+          idirId,
+          action: 'JOIN_IKUB_INSTANT',
+          entityType: 'IkubParticipant',
+          entityId: participant.id,
+          safeMetadata: { groupId, membershipId },
+        },
+      });
+
+      return participant;
+    });
+  }
+
+  async listJoinRequests(idirId: string, groupId: string) {
+    const group = await prisma.ikubGroup.findFirst({
+      where: { id: groupId, idirId },
+    });
+    if (!group) {
+      throw new NotFoundError('Ikub group not found');
+    }
+
+    return prisma.ikubJoinRequest.findMany({
+      where: { ikubGroupId: groupId, status: 'PENDING' },
+      include: {
+        membership: {
+          include: {
+            user: { select: { id: true, fullName: true, phoneNumber: true } },
+          },
+        },
+      },
+      orderBy: { requestedAt: 'asc' },
+    });
+  }
+
+  async respondToJoinRequest(
+    idirId: string,
+    groupId: string,
+    requestId: string,
+    status: 'APPROVED' | 'REJECTED',
+    actorId: string
+  ) {
+    const request = await prisma.ikubJoinRequest.findFirst({
+      where: { id: requestId, ikubGroupId: groupId, ikubGroup: { idirId } },
+    });
+    if (!request) {
+      throw new NotFoundError('Join request not found');
+    }
+
+    if (request.status !== 'PENDING') {
+      throw new BadRequestError(`Join request has already been ${request.status.toLowerCase()}`);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updatedRequest = await tx.ikubJoinRequest.update({
+        where: { id: requestId },
+        data: {
+          status,
+          reviewedById: actorId,
+          reviewedAt: new Date(),
+        },
+      });
+
+      if (status === 'APPROVED') {
+        await tx.ikubParticipant.create({
+          data: {
+            ikubGroupId: groupId,
+            membershipId: request.membershipId,
+            status: 'ACTIVE',
+          },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          idirId,
+          action: status === 'APPROVED' ? 'APPROVE_IKUB_JOIN' : 'REJECT_IKUB_JOIN',
+          entityType: 'IkubJoinRequest',
+          entityId: requestId,
+          safeMetadata: { groupId, membershipId: request.membershipId, status },
+        },
+      });
+
+      return updatedRequest;
+    });
+  }
+
   async createRound(idirId: string, groupId: string, input: CreateRoundInput, actorId: string) {
     const group = await prisma.ikubGroup.findFirst({
       where: { id: groupId, idirId },
@@ -240,13 +522,124 @@ export class IkubService {
     return round;
   }
 
+  async drawLottery(
+    idirId: string,
+    groupId: string,
+    roundId: string,
+    input: DrawLotteryInput,
+    actorId: string
+  ) {
+    const group = await prisma.ikubGroup.findFirst({
+      where: { id: groupId, idirId },
+    });
+    if (!group) {
+      throw new NotFoundError('Ikub group not found');
+    }
+
+    const round = await prisma.ikubRound.findFirst({
+      where: { id: roundId, ikubGroupId: groupId },
+      include: { payouts: true },
+    });
+    if (!round) {
+      throw new NotFoundError('Ikub round not found');
+    }
+
+    if (round.status === 'COMPLETED') {
+      throw new BadRequestError('Round is already completed');
+    }
+
+    if (round.payouts.length >= group.winnersPerRound) {
+      throw new ConflictError(
+        `Round ${round.roundNumber} already has ${round.payouts.length} payout(s) recorded`
+      );
+    }
+
+    // Eligible participants: ACTIVE and hasWonPayout === false
+    const eligibleParticipants = await prisma.ikubParticipant.findMany({
+      where: {
+        ikubGroupId: groupId,
+        status: 'ACTIVE',
+        hasWonPayout: false,
+      },
+      include: {
+        membership: {
+          include: {
+            user: { select: { id: true, fullName: true, phoneNumber: true } },
+          },
+        },
+      },
+    });
+
+    if (eligibleParticipants.length === 0) {
+      throw new BadRequestError('No eligible participants remain who have not yet won an Ikub round');
+    }
+
+    let winner = eligibleParticipants[0];
+    let drawSeed = 'manual';
+
+    if (input.manualWinnerId) {
+      const match = eligibleParticipants.find((p) => p.id === input.manualWinnerId);
+      if (!match) {
+        throw new BadRequestError('Selected manual winner is not eligible or has already won');
+      }
+      winner = match;
+    } else {
+      const randomIndex = crypto.randomInt(0, eligibleParticipants.length);
+      winner = eligibleParticipants[randomIndex];
+      drawSeed = crypto.randomBytes(16).toString('hex');
+    }
+
+    // Update round with selected recipient and draw metadata
+    const updatedRound = await prisma.ikubRound.update({
+      where: { id: roundId },
+      data: {
+        recipientParticipantId: winner.id,
+        drawnById: actorId,
+        drawnAt: new Date(),
+        drawSeed,
+        status: 'IN_PROGRESS',
+      },
+      include: {
+        contributions: true,
+        payouts: true,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        actorId,
+        idirId,
+        action: 'DRAW_IKUB_LOTTERY',
+        entityType: 'IkubRound',
+        entityId: round.id,
+        safeMetadata: {
+          groupId,
+          roundNumber: round.roundNumber,
+          winnerParticipantId: winner.id,
+          winnerName: winner.membership.user.fullName,
+          drawSeed,
+        },
+      },
+    });
+
+    return {
+      winner: {
+        id: winner.id,
+        membershipId: winner.membershipId,
+        fullName: winner.membership.user.fullName,
+        phoneNumber: winner.membership.user.phoneNumber,
+      },
+      round: updatedRound,
+      drawSeed,
+    };
+  }
+
   async recordContribution(
     idirId: string,
     groupId: string,
     input: RecordIkubContributionInput,
     actorId: string
   ) {
-    // Idempotency check for mobile sync
     if (input.clientMutationId) {
       const existing = await prisma.ikubContribution.findUnique({
         where: { clientMutationId: input.clientMutationId },
@@ -270,7 +663,6 @@ export class IkubService {
       throw new NotFoundError('Active participant not found in this Ikub group');
     }
 
-    // Check for duplicate contribution for this participant in this round
     const existing = await prisma.ikubContribution.findUnique({
       where: {
         roundId_participantId: {
@@ -332,17 +724,28 @@ export class IkubService {
     input: RecordIkubPayoutInput,
     actorId: string
   ) {
+    const group = await prisma.ikubGroup.findFirst({
+      where: { id: groupId, idirId },
+    });
+    if (!group) {
+      throw new NotFoundError('Ikub group not found');
+    }
+
     const round = await prisma.ikubRound.findFirst({
       where: { id: input.roundId, ikubGroupId: groupId, ikubGroup: { idirId } },
-      include: { payout: true },
+      include: { payouts: true },
     });
     if (!round) {
       throw new NotFoundError('Ikub round not found');
     }
 
-    // Prevent duplicate payouts for the round
-    if (round.payout) {
-      throw new ConflictError(`Round ${round.roundNumber} has already been paid out`);
+    const existingPayout = round.payouts.find(
+      (p) => p.recipientParticipantId === input.recipientParticipantId
+    );
+    if (existingPayout) {
+      throw new ConflictError(
+        `A payout has already been recorded for this recipient in Round ${round.roundNumber}`
+      );
     }
 
     const participant = await prisma.ikubParticipant.findFirst({
@@ -358,7 +761,6 @@ export class IkubService {
       );
     }
 
-    // Atomic transaction: Record payout, mark participant won, complete round
     return prisma.$transaction(async (tx) => {
       const payout = await tx.ikubPayout.create({
         data: {
@@ -389,17 +791,39 @@ export class IkubService {
         data: { hasWonPayout: true },
       });
 
-      // Mark round completed
-      await tx.ikubRound.update({
-        where: { id: input.roundId },
-        data: {
-          status: 'COMPLETED',
-          completedAt: new Date(),
-          recipientParticipantId: input.recipientParticipantId,
-        },
-      });
+      // Check if total payouts for this round reaches winnersPerRound
+      const totalPayoutsNow = round.payouts.length + 1;
+      const isRoundFinished = totalPayoutsNow >= group.winnersPerRound;
 
-      // Emit Audit Log
+      if (isRoundFinished) {
+        await tx.ikubRound.update({
+          where: { id: input.roundId },
+          data: {
+            status: 'COMPLETED',
+            completedAt: new Date(),
+            recipientParticipantId: input.recipientParticipantId,
+          },
+        });
+
+        // If this was the last round, complete the IkubGroup
+        if (round.roundNumber >= group.totalRounds) {
+          await tx.ikubGroup.update({
+            where: { id: groupId },
+            data: { status: 'COMPLETED', endDate: new Date() },
+          });
+        } else {
+          // Advance next round to IN_PROGRESS
+          await tx.ikubRound.updateMany({
+            where: {
+              ikubGroupId: groupId,
+              roundNumber: round.roundNumber + 1,
+              status: 'SCHEDULED',
+            },
+            data: { status: 'IN_PROGRESS' },
+          });
+        }
+      }
+
       await tx.auditLog.create({
         data: {
           actorId,
@@ -428,7 +852,6 @@ export class IkubService {
       throw new NotFoundError('Ikub group not found');
     }
 
-    // Segregated financial calculation for Ikub
     const [contribAgg, payoutAgg, participantsCount, completedRoundsCount] =
       await Promise.all([
         prisma.ikubContribution.aggregate({
@@ -458,6 +881,7 @@ export class IkubService {
       activeParticipants: participantsCount,
       completedRounds: completedRoundsCount,
       totalRounds: group.totalRounds,
+      winnersPerRound: group.winnersPerRound,
       financials: {
         totalCollected,
         totalPaidOut,
