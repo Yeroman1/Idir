@@ -2,12 +2,22 @@ import { Response, NextFunction } from 'express';
 import { ikubService } from './ikub.service.js';
 import { sendSuccess, sendCreated } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
+import { BadRequestError } from '../../shared/errors/AppError.js';
 
 export class IkubController {
   async createGroup(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const group = await ikubService.createGroup(req.params.idirId, req.body, req.user!.id);
       return sendCreated(res, group, 'Ikub group created successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getActiveGroup(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const activeGroup = await ikubService.getActiveGroup(req.params.idirId);
+      return sendSuccess(res, activeGroup);
     } catch (error) {
       next(error);
     }
@@ -50,6 +60,56 @@ export class IkubController {
     }
   }
 
+  async requestToJoin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const membershipId = req.body?.membershipId || (req as any).membership?.id;
+      if (!membershipId) {
+        throw new BadRequestError('Membership ID is required to join Ikub');
+      }
+      const participant = await ikubService.requestToJoin(
+        req.params.idirId,
+        req.params.groupId,
+        membershipId,
+        req.body?.note
+      );
+      return sendCreated(res, participant, 'Successfully enrolled in Ikub pool');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listJoinRequests(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const requests = await ikubService.listJoinRequests(
+        req.params.idirId,
+        req.params.groupId
+      );
+      return sendSuccess(res, requests);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async respondToJoinRequest(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const updated = await ikubService.respondToJoinRequest(
+        req.params.idirId,
+        req.params.groupId,
+        req.params.requestId,
+        req.body.status,
+        req.user!.id
+      );
+      return sendSuccess(
+        res,
+        updated,
+        200,
+        `Join request ${req.body.status.toLowerCase()} successfully`
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createRound(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const round = await ikubService.createRound(
@@ -59,6 +119,21 @@ export class IkubController {
         req.user!.id
       );
       return sendCreated(res, round, 'Ikub round created successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async drawLottery(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await ikubService.drawLottery(
+        req.params.idirId,
+        req.params.groupId,
+        req.params.roundId,
+        req.body,
+        req.user!.id
+      );
+      return sendSuccess(res, result, 200, 'Ikub lottery drawn successfully');
     } catch (error) {
       next(error);
     }
