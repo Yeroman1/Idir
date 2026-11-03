@@ -50,6 +50,11 @@ extension UserRoleX on UserRole {
   bool get canChangeSettings => this == UserRole.chairperson;
 
   bool get canManageElections => this == UserRole.chairperson;
+
+  bool get isChairperson => this == UserRole.chairperson;
+  bool get isTreasurer => this == UserRole.treasurer;
+  bool get isAuditor => this == UserRole.auditor;
+  bool get isMember => this == UserRole.member;
 }
 
 /// Domain model representing a user's membership in a specific Idir association.
