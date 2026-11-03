@@ -356,7 +356,18 @@ class _CreateIdirScreenState extends ConsumerState<CreateIdirScreen> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 hintText: 'e.g. 250.00',
-                prefixIcon: const Icon(Icons.attach_money),
+                prefixIcon: Container(
+                  width: 48,
+                  alignment: Alignment.center,
+                  child: Text(
+                    'ETB',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
                 errorText: state.fieldErrors['contributionAmount'],
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),

@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/models/app_user.dart';
+import '../../../../core/providers/active_idir_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/chat_repository.dart';
 import '../../domain/models/chat_message.dart';
@@ -375,6 +376,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (cleanText.isEmpty) return;
 
     final user = ref.read(currentUserProvider);
+    final activeIdir = ref.read(activeIdirProvider).activeIdir;
+    final effectiveRole = activeIdir?.role ?? user?.role ?? UserRole.member;
     final tempId = 'temp-${_uuid.v4()}';
     final mutationId = 'mut-${_uuid.v4()}';
     final now = DateTime.now();
@@ -385,10 +388,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final optimisticMsg = ChatMessage(
       id: tempId,
       idirId: idirId,
-      membershipId: user?.memberId ?? '',
+      membershipId: activeIdir?.id ?? user?.memberId ?? '',
       senderId: user?.uid ?? '',
       senderName: user?.name.isNotEmpty == true ? user!.name : 'Idir Member',
-      senderRole: user?.role.name.toUpperCase() ?? 'MEMBER',
+      senderRole: effectiveRole.name.toUpperCase(),
       content: cleanText,
       messageType: messageType,
       replyToId: replyingTo?.id,
@@ -466,6 +469,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     String? caption,
   }) async {
     final user = ref.read(currentUserProvider);
+    final activeIdir = ref.read(activeIdirProvider).activeIdir;
+    final effectiveRole = activeIdir?.role ?? user?.role ?? UserRole.member;
     final tempId = 'temp-${_uuid.v4()}';
     final mutationId = 'mut-${_uuid.v4()}';
     final now = DateTime.now();
@@ -478,10 +483,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final optimisticMsg = ChatMessage(
       id: tempId,
       idirId: idirId,
-      membershipId: user?.memberId ?? '',
+      membershipId: activeIdir?.id ?? user?.memberId ?? '',
       senderId: user?.uid ?? '',
       senderName: user?.name.isNotEmpty == true ? user!.name : 'Idir Member',
-      senderRole: user?.role.name.toUpperCase() ?? 'MEMBER',
+      senderRole: effectiveRole.name.toUpperCase(),
       content: cleanCaption,
       messageType: messageType,
       replyToId: replyingTo?.id,

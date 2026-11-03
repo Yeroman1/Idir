@@ -45,7 +45,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
           m.phone.toLowerCase().contains(q);
     }).toList();
 
-    final isLeader = currentUser?.role.canPostAnnouncement ?? false;
+    final effectiveRole = activeMembership?.role ?? currentUser?.role ?? UserRole.member;
+    final isLeader = effectiveRole.canPostAnnouncement;
 
     return Scaffold(
       appBar: AppBar(

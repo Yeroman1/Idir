@@ -480,28 +480,33 @@ class AccountScreen extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Membership Standing',
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            memberStats.isInArrears
-                                ? 'Arrears (${memberStats.arrearsMonths} Months Overdue)'
-                                : 'In Good Standing',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: memberStats.isInArrears
-                                  ? AppColors.error
-                                  : AppColors.success,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Membership Standing',
+                              style: TextStyle(fontSize: 12, color: Colors.grey),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              memberStats.isInArrears
+                                  ? 'Arrears (${memberStats.arrearsMonths} Months Overdue)'
+                                  : 'In Good Standing',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: memberStats.isInArrears
+                                    ? AppColors.error
+                                    : AppColors.success,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),

@@ -27,6 +27,9 @@ import '../../../invitations/presentation/widgets/received_invitations_banner.da
 import '../../../notifications/presentation/providers/notifications_provider.dart';
 import '../../../notifications/presentation/widgets/notifications_sheet.dart';
 import '../../../settings/presentation/widgets/telegram_idir_switcher.dart';
+import '../../../ikub/presentation/providers/ikub_provider.dart';
+import '../../../ikub/presentation/screens/create_ikub_screen.dart';
+import '../../../ikub/domain/models/ikub_models.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -330,6 +333,10 @@ class HomeScreen extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: 20),
+
+            // ── 3.5 Active Ikub Quick Banner ───────────────────────────────
+            const _HomeIkubBanner(),
+            const SizedBox(height: 16),
 
             // ── 4. Quick Actions ───────────────────────────────────────────
             Text(
@@ -1751,6 +1758,126 @@ class _MemberPersonalStandingCard extends StatelessWidget {
   final AppLocalizations l10n;
   final VoidCallback onViewReceipts;
 
+  void _showStandingDetails(BuildContext context, bool inArrears) {
+    final theme = Theme.of(context);
+    final accent = inArrears ? AppColors.warning : AppColors.success;
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        inArrears
+                            ? Icons.warning_amber_rounded
+                            : Icons.check_circle,
+                        color: accent,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            inArrears ? l10n.arrears : l10n.goodStanding,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: accent,
+                            ),
+                          ),
+                          Text(
+                            l10n.myFinancialStanding,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.6),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  inArrears
+                      ? l10n.youAreInArrears(
+                          stats.arrearsMonths,
+                          stats.personalArrears,
+                        )
+                      : l10n.youAreUpToDate,
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _StatSummaryColumn(
+                        label: l10n.balance,
+                        value: 'ETB ${stats.personalBalance.toStringAsFixed(0)}',
+                        color: stats.personalBalance >= 0
+                            ? AppColors.success
+                            : AppColors.error,
+                      ),
+                      _StatSummaryColumn(
+                        label: l10n.totalPaidLabel,
+                        value: 'ETB ${stats.totalPaid.toStringAsFixed(0)}',
+                        color: AppColors.primary,
+                      ),
+                      _StatSummaryColumn(
+                        label: l10n.monthlyDuesLabel,
+                        value: 'ETB ${stats.monthlyDues.toStringAsFixed(0)}',
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text(MaterialLocalizations.of(ctx).closeButtonLabel),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1768,168 +1895,344 @@ class _MemberPersonalStandingCard extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      inArrears ? Icons.warning_amber_rounded : Icons.check_circle,
-                      color: accentColor,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      l10n.myFinancialStanding,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    inArrears ? l10n.arrears : l10n.goodStanding,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: accentColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 360;
 
-            if (inArrears) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        color: AppColors.warning, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.youAreInArrears(
-                          stats.arrearsMonths,
-                          stats.personalArrears,
-                        ),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          height: 1.35,
-                          fontWeight: FontWeight.w500,
-                        ),
+            final standingBadge = Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _showStandingDetails(context, inArrears),
+                borderRadius: BorderRadius.circular(10),
+                child: Tooltip(
+                  message: inArrears
+                      ? l10n.youAreInArrears(
+                          stats.arrearsMonths, stats.personalArrears)
+                      : l10n.youAreUpToDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: accentColor.withValues(alpha: 0.3),
                       ),
                     ),
-                  ],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          inArrears
+                              ? Icons.warning_amber_rounded
+                              : Icons.check_circle,
+                          color: accentColor,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            inArrears ? l10n.arrears : l10n.goodStanding,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: accentColor,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ] else ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.thumb_up_alt_outlined,
-                        color: AppColors.success, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.youAreUpToDate,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          height: 1.35,
-                          fontWeight: FontWeight.w500,
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isNarrow) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        inArrears
+                            ? Icons.warning_amber_rounded
+                            : Icons.check_circle,
+                        color: accentColor,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.myFinancialStanding,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  standingBadge,
+                ] else ...[
+                  Row(
+                    children: [
+                      Icon(
+                        inArrears
+                            ? Icons.warning_amber_rounded
+                            : Icons.check_circle,
+                        color: accentColor,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          l10n.myFinancialStanding,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      standingBadge,
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 14),
 
-            // Financial Metrics breakdown
-            Row(
-              children: [
-                Expanded(
-                  child: _MemberDataBox(
+                if (inArrears) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            color: AppColors.warning, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            l10n.youAreInArrears(
+                              stats.arrearsMonths,
+                              stats.personalArrears,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.thumb_up_alt_outlined,
+                            color: AppColors.success, size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            l10n.youAreUpToDate,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+
+                // Financial Metrics breakdown (responsive)
+                if (isNarrow) ...[
+                  _MemberDataBox(
                     label: l10n.balance,
                     value: 'ETB ${stats.personalBalance.toStringAsFixed(0)}',
                     textColor: stats.personalBalance >= 0
                         ? AppColors.success
                         : AppColors.error,
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _MemberDataBox(
-                    label: l10n.totalPaidLabel,
-                    value: 'ETB ${stats.totalPaid.toStringAsFixed(0)}',
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MemberDataBox(
+                          label: l10n.totalPaidLabel,
+                          value: 'ETB ${stats.totalPaid.toStringAsFixed(0)}',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _MemberDataBox(
+                          label: l10n.monthlyDuesLabel,
+                          value: 'ETB ${stats.monthlyDues.toStringAsFixed(0)}',
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _MemberDataBox(
-                    label: l10n.monthlyDuesLabel,
-                    value: 'ETB ${stats.monthlyDues.toStringAsFixed(0)}',
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _MemberDataBox(
+                          label: l10n.balance,
+                          value:
+                              'ETB ${stats.personalBalance.toStringAsFixed(0)}',
+                          textColor: stats.personalBalance >= 0
+                              ? AppColors.success
+                              : AppColors.error,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _MemberDataBox(
+                          label: l10n.totalPaidLabel,
+                          value: 'ETB ${stats.totalPaid.toStringAsFixed(0)}',
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _MemberDataBox(
+                          label: l10n.monthlyDuesLabel,
+                          value: 'ETB ${stats.monthlyDues.toStringAsFixed(0)}',
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                ],
+                const SizedBox(height: 16),
 
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onViewReceipts,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                // Responsive Action Buttons
+                if (isNarrow) ...[
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: onViewReceipts,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: const Icon(Icons.receipt_long, size: 18),
+                        label: Text(l10n.myContributions),
                       ),
-                    ),
-                    icon: const Icon(Icons.receipt_long, size: 18),
-                    label: Text(l10n.myContributions),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: () => context.push(AppRoutes.reports),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      backgroundColor: AppColors.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        onPressed: () => context.push(AppRoutes.reports),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon:
+                            const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                        label: const Text('Statement PDF'),
                       ),
-                    ),
-                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                    label: const Text('Statement PDF'),
+                    ],
                   ),
-                ),
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onViewReceipts,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.receipt_long, size: 18),
+                          label: Text(l10n.myContributions),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => context.push(AppRoutes.reports),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            backgroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: const Icon(Icons.picture_as_pdf_outlined,
+                              size: 18),
+                          label: const Text('Statement PDF'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
+    );
+  }
+}
+
+class _StatSummaryColumn extends StatelessWidget {
+  const _StatSummaryColumn({
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontSize: 11,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
     );
   }
 }
@@ -2034,6 +2337,12 @@ class _QuickActionsGrid extends StatelessWidget {
             color: const Color(0xFF5D4037),
             onTap: () => context.push(AppRoutes.reports),
           ),
+          _ActionTile(
+            icon: Icons.savings_outlined,
+            label: 'Idir Ikub',
+            color: const Color(0xFF2E7D32),
+            onTap: () => context.push(AppRoutes.ikub),
+          ),
         ]);
       case UserRole.chairperson:
         actions.addAll([
@@ -2061,6 +2370,12 @@ class _QuickActionsGrid extends StatelessWidget {
             label: l10n.actionViewReports,
             color: const Color(0xFF1565C0),
             onTap: () => context.push(AppRoutes.reports),
+          ),
+          _ActionTile(
+            icon: Icons.savings_outlined,
+            label: 'Idir Ikub',
+            color: const Color(0xFF2E7D32),
+            onTap: () => context.push(AppRoutes.ikub),
           ),
         ]);
       case UserRole.auditor:
@@ -2118,6 +2433,12 @@ class _QuickActionsGrid extends StatelessWidget {
             label: l10n.account,
             color: const Color(0xFF455A64),
             onTap: () => context.push(AppRoutes.account),
+          ),
+          _ActionTile(
+            icon: Icons.savings_outlined,
+            label: 'Idir Ikub',
+            color: const Color(0xFF2E7D32),
+            onTap: () => context.push(AppRoutes.ikub),
           ),
         ]);
     }
@@ -2432,6 +2753,187 @@ class _MemberRecentReceiptsList extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _HomeIkubBanner extends ConsumerWidget {
+  const _HomeIkubBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeIdir = ref.watch(currentActiveIdirProvider);
+    if (activeIdir == null) return const SizedBox.shrink();
+
+    final effectiveRole = activeIdir.role;
+    final ikubAsync = ref.watch(activeIkubProvider);
+
+    return ikubAsync.maybeWhen(
+      data: (group) {
+        if (group == null) {
+          if (!effectiveRole.isChairperson) return const SizedBox.shrink();
+          return Card(
+            elevation: 1,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            color: const Color(0xFFF1F8E9),
+            child: ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFF2E7D32),
+                child: Icon(Icons.savings_outlined, color: Colors.white),
+              ),
+              title: const Text('Start an Idir Ikub', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Launch a rotating savings pool for your active members'),
+              trailing: FilledButton.tonal(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CreateIkubScreen()),
+                  );
+                },
+                child: const Text('Start'),
+              ),
+            ),
+          );
+        }
+
+        final completedRounds = group.rounds.where((r) => r.isCompleted).length;
+        final myParticipant = group.participants.cast<IkubParticipantModel?>().firstWhere(
+              (p) => p?.membershipId == activeIdir.id,
+              orElse: () => null,
+            );
+
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFA5D6A7), width: 1.5),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => context.push(AppRoutes.ikub),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.savings_outlined, color: Color(0xFF2E7D32), size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    group.name,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2E7D32),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'IKUB',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Round $completedRounds of ${group.totalRounds} • ${group.frequency.toLowerCase()}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
+                  const Divider(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('ROUND POT', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, letterSpacing: 0.8)),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${group.expectedPotPerRound.toStringAsFixed(0)} ${group.currency}',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                          ),
+                        ],
+                      ),
+                      if (myParticipant == null)
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF2E7D32),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            try {
+                              await ref.read(activeIkubProvider.notifier).requestToJoin(activeIdir.id);
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('🎉 Enrolled in Ikub pool!'),
+                                  backgroundColor: Color(0xFF2E7D32),
+                                ),
+                              );
+                            } catch (e) {
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Error joining: $e')),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.touch_app, size: 14),
+                          label: const Text('1-Click Join', style: TextStyle(fontSize: 11)),
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: myParticipant.hasWonPayout ? const Color(0xFFFFF8E1) : const Color(0xFFE8F5E9),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            myParticipant.hasWonPayout ? 'Won Pot 🏆' : 'Enrolled Pool',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: myParticipant.hasWonPayout ? Colors.amber.shade900 : const Color(0xFF2E7D32),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }
