@@ -8,6 +8,21 @@ export const createIkubGroupSchema = z.object({
   startDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   totalRounds: z.coerce.number().int().positive().default(10),
   payoutRule: z.enum(['LOTTERY', 'FIXED_ORDER', 'NEED_BASED']).default('LOTTERY'),
+  winnersPerRound: z.coerce.number().int().positive().default(1),
+  drawMode: z.enum(['DIGITAL_LOTTERY', 'PHYSICAL_RECORDED', 'NEED_BASED']).default('DIGITAL_LOTTERY'),
+});
+
+export const drawLotterySchema = z.object({
+  manualWinnerId: z.string().uuid('Valid manual winner participantId is required').optional(),
+  note: z.string().optional(),
+});
+
+export const createJoinRequestSchema = z.object({
+  note: z.string().optional(),
+});
+
+export const respondJoinRequestSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']),
 });
 
 export const addParticipantSchema = z.object({
@@ -53,3 +68,6 @@ export type AddParticipantInput = z.infer<typeof addParticipantSchema>;
 export type CreateRoundInput = z.infer<typeof createRoundSchema>;
 export type RecordIkubContributionInput = z.infer<typeof recordIkubContributionSchema>;
 export type RecordIkubPayoutInput = z.infer<typeof recordIkubPayoutSchema>;
+export type DrawLotteryInput = z.infer<typeof drawLotterySchema>;
+export type CreateJoinRequestInput = z.infer<typeof createJoinRequestSchema>;
+export type RespondJoinRequestInput = z.infer<typeof respondJoinRequestSchema>;
