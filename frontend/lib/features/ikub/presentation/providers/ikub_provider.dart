@@ -85,6 +85,8 @@ class ActiveIkubNotifier extends StateNotifier<AsyncValue<IkubGroupModel?>> {
     String roundId, {
     String? manualWinnerId,
     String? note,
+    bool? isRedraw,
+    String? redrawReason,
   }) async {
     final idirId = _idirId;
     final current = state.valueOrNull;
@@ -95,6 +97,8 @@ class ActiveIkubNotifier extends StateNotifier<AsyncValue<IkubGroupModel?>> {
       roundId,
       manualWinnerId: manualWinnerId,
       note: note,
+      isRedraw: isRedraw,
+      redrawReason: redrawReason,
     );
     await refresh();
     return res;

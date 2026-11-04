@@ -154,10 +154,14 @@ class IkubRepository {
     String roundId, {
     String? manualWinnerId,
     String? note,
+    bool? isRedraw,
+    String? redrawReason,
   }) async {
     final body = {
       if (manualWinnerId != null) 'manualWinnerId': manualWinnerId,
       if (note != null) 'note': note,
+      if (isRedraw != null) 'isRedraw': isRedraw,
+      if (redrawReason != null) 'redrawReason': redrawReason,
     };
     final res = await _client.post(
       '/idirs/$idirId/ikub/groups/$groupId/rounds/$roundId/draw',

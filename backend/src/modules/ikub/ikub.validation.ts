@@ -28,6 +28,8 @@ export const createIkubGroupSchema = z.object({
 export const drawLotterySchema = z.object({
   manualWinnerId: z.string().uuid('Valid manual winner participantId is required').optional(),
   note: z.string().max(255).optional(),
+  isRedraw: z.boolean().optional(),
+  redrawReason: z.string().min(5, 'Redraw reason must be at least 5 characters').max(255).optional(),
 });
 
 export const createJoinRequestSchema = z.object({

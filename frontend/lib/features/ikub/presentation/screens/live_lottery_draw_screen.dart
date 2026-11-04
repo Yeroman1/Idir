@@ -38,7 +38,19 @@ class _LiveLotteryDrawScreenState extends ConsumerState<LiveLotteryDrawScreen>
     _eligibleParticipants = widget.group.participants
         .where((p) => p.status == 'ACTIVE' && !p.hasWonPayout)
         .toList();
-    if (_eligibleParticipants.isNotEmpty) {
+
+    final pendingWinnerId = widget.round.recipientParticipantId;
+    final isAlreadyPaid = widget.round.payouts.any((p) => p.recipientParticipantId == pendingWinnerId);
+    if (pendingWinnerId != null && !isAlreadyPaid) {
+      final existingWinner = widget.group.participants.cast<IkubParticipantModel?>().firstWhere(
+            (p) => p?.id == pendingWinnerId,
+            orElse: () => null,
+          );
+      if (existingWinner != null) {
+        _drawnWinner = existingWinner;
+        _displayName = existingWinner.fullName ?? 'Drawn Winner';
+      }
+    } else if (_eligibleParticipants.isNotEmpty) {
       _displayName = _eligibleParticipants.first.fullName ?? 'Participant 1';
     }
   }
@@ -49,7 +61,7 @@ class _LiveLotteryDrawScreenState extends ConsumerState<LiveLotteryDrawScreen>
     super.dispose();
   }
 
-  void _triggerDraw() async {
+  void _triggerDraw({bool isRedraw = false, String? redrawReason}) async {
     if (_eligibleParticipants.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No eligible participants remain to draw')),
@@ -85,6 +97,8 @@ class _LiveLotteryDrawScreenState extends ConsumerState<LiveLotteryDrawScreen>
             manualWinnerId: widget.group.drawMode == 'PHYSICAL_RECORDED'
                 ? _selectedManualWinnerId
                 : null,
+            isRedraw: isRedraw ? true : null,
+            redrawReason: redrawReason,
           );
 
       // Wait for spin timer to complete if it hasn't
@@ -124,8 +138,54 @@ class _LiveLotteryDrawScreenState extends ConsumerState<LiveLotteryDrawScreen>
     }
   }
 
+  void _promptRedrawDialog() {
+    final reasonController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Audited Redraw'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'A winner is already recorded for this round. Conducting a redraw requires documenting an audited reason for Idir records.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Redraw Reason *',
+                hintText: 'e.g. Drawn member declined or unreachable',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final reason = reasonController.text.trim();
+              if (reason.length < 5) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Reason must be at least 5 characters')),
+                );
+                return;
+              }
+              Navigator.of(ctx).pop();
+              _triggerDraw(isRedraw: true, redrawReason: reason);
+            },
+            child: const Text('Confirm Redraw'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showWinnerCelebrationDialog(String name, IkubParticipantModel winner) {
-    final potAmount = widget.group.expectedPotPerRound;
+    final potAmount = widget.group.expectedPotPerWinner;
 
     showDialog(
       context: context,
@@ -201,7 +261,7 @@ class _LiveLotteryDrawScreenState extends ConsumerState<LiveLotteryDrawScreen>
 
   void _showDisbursePayoutSheet(IkubParticipantModel winner) {
     final amountController = TextEditingController(
-      text: widget.group.expectedPotPerRound.toStringAsFixed(0),
+      text: widget.group.expectedPotPerWinner.toStringAsFixed(0),
     );
     final refController = TextEditingController();
     String paymentMethod = 'CASH';
@@ -512,33 +572,67 @@ class _LiveLotteryDrawScreenState extends ConsumerState<LiveLotteryDrawScreen>
               const SizedBox(height: 24),
             ],
 
-            // Draw Button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: FilledButton.icon(
-                onPressed: _isSpinning ? null : _triggerDraw,
-                icon: _isSpinning
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : const Icon(Icons.casino_outlined, size: 24),
-                label: Text(
-                  _isSpinning
-                      ? 'Drawing Chance...'
-                      : (widget.group.drawMode == 'PHYSICAL_RECORDED'
-                          ? 'Confirm Drawn Winner'
-                          : 'Roll & Draw Winner'),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            // Action Buttons: If a winner has been drawn and not yet paid out, offer Disburse Payout or Audited Redraw
+            if (_drawnWinner != null &&
+                !widget.round.payouts.any((p) => p.recipientParticipantId == _drawnWinner!.id)) ...[
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: () => _showDisbursePayoutSheet(_drawnWinner!),
+                  icon: const Icon(Icons.payments_outlined, size: 22),
+                  label: Text(
+                    'Disburse Payout (${widget.group.expectedPotPerWinner.toStringAsFixed(0)} ETB)',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: _isSpinning ? null : _promptRedrawDialog,
+                  icon: const Icon(Icons.replay_rounded, size: 20),
+                  label: const Text('Audited Redraw...'),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+            ] else ...[
+              // Standard Draw Button
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _isSpinning ? null : () => _triggerDraw(),
+                  icon: _isSpinning
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Icon(Icons.casino_outlined, size: 24),
+                  label: Text(
+                    _isSpinning
+                        ? 'Drawing Chance...'
+                        : (widget.group.drawMode == 'PHYSICAL_RECORDED'
+                            ? 'Confirm Drawn Winner'
+                            : 'Roll & Draw Winner'),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
 
             // Eligible Pool Preview List

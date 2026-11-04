@@ -330,11 +330,20 @@ class _IkubHubScreenState extends ConsumerState<IkubHubScreen>
 
     // Check if current user is participant
     final activeIdir = ref.watch(currentActiveIdirProvider);
-    final myMembershipId = activeIdir?.id;
-    final myParticipant = group.participants.cast<IkubParticipantModel?>().firstWhere(
-          (p) => p?.membershipId == myMembershipId,
+    final activeMembership = user?.memberships.cast<UserMembership?>().firstWhere(
+          (m) => m?.idirId == activeIdir?.id,
           orElse: () => null,
         );
+    final myMembershipId = activeMembership?.id ?? user?.memberId;
+    final myParticipant = group.participants.cast<IkubParticipantModel?>().firstWhere(
+          (p) =>
+              (myMembershipId != null && p?.membershipId == myMembershipId) ||
+              (user != null && p?.phoneNumber == user.phone),
+          orElse: () => null,
+        );
+
+    final maxCapacity = group.totalRounds * group.winnersPerRound;
+    final isPoolFull = group.participants.length >= maxCapacity;
 
     final completedRounds = group.rounds.where((r) => r.isCompleted).length;
     final progress = group.totalRounds > 0 ? (completedRounds / group.totalRounds) : 0.0;
@@ -481,31 +490,41 @@ class _IkubHubScreenState extends ConsumerState<IkubHubScreen>
                             ? (myParticipant.hasWonPayout
                                 ? 'You have received your pot payout in this cycle.'
                                 : 'You are eligible to win upcoming chance draws.')
-                            : 'Participation is voluntary. You can join anytime.',
+                            : (isPoolFull
+                                ? 'This Ikub cycle is full ($maxCapacity/$maxCapacity participants).'
+                                : 'Participation is voluntary. You can join anytime.'),
                         style: const TextStyle(fontSize: 12, height: 1.3),
                       ),
                     ],
                   ),
                 ),
                 if (myParticipant == null && myMembershipId != null)
-                  FilledButton.icon(
-                    onPressed: _isJoining ? null : () => _oneClickJoin(group, myMembershipId),
-                    icon: _isJoining
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.touch_app, size: 18),
-                    label: Text(_isJoining ? 'Joining...' : '1-Click Join'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      backgroundColor: const Color(0xFF2E7D32),
-                    ),
-                  ),
+                  isPoolFull
+                      ? OutlinedButton(
+                          onPressed: null,
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          ),
+                          child: const Text('Pool Full'),
+                        )
+                      : FilledButton.icon(
+                          onPressed: _isJoining ? null : () => _oneClickJoin(group, myMembershipId),
+                          icon: _isJoining
+                              ? const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.touch_app, size: 18),
+                          label: Text(_isJoining ? 'Joining...' : '1-Click Join'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            backgroundColor: const Color(0xFF2E7D32),
+                          ),
+                        ),
               ],
             ),
           ),

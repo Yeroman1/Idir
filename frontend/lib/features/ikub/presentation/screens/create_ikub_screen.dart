@@ -380,7 +380,9 @@ class _CreateIkubScreenState extends ConsumerState<CreateIkubScreen> {
                     '• Total Duration: $rounds rounds\n'
                     '• Contribution: ${amount.toStringAsFixed(0)} ETB per member per round\n'
                     '• Winners: $_winnersPerRound winner(s) per draw\n'
-                    '• Draw: ${_drawMode == 'DIGITAL_LOTTERY' ? 'Provably fair digital lottery' : 'Traditional physical draw'}\n'
+                    '• Payout Split: ${_winnersPerRound == 1 ? '100% of round pot to single winner' : '$_winnersPerRound winners (equal ${((100 / _winnersPerRound)).toStringAsFixed(0)}% split enforced by backend)'}\n'
+                    '• Max Capacity: ${rounds * _winnersPerRound} participants ($rounds rounds × $_winnersPerRound winner(s))\n'
+                    '• Draw: ${_drawMode == 'DIGITAL_LOTTERY' ? 'Cryptographically randomized digital lottery' : 'Traditional physical draw'}\n'
                     '• All $rounds rounds will be automatically scheduled upon creation.',
                     style: TextStyle(fontSize: 13, height: 1.4, color: Colors.grey.shade800),
                   ),

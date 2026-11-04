@@ -92,6 +92,9 @@ class IkubGroupModel {
   double get expectedPotPerRound =>
       contributionAmount * (participants.isNotEmpty ? participants.length : 1);
 
+  double get expectedPotPerWinner =>
+      expectedPotPerRound / (winnersPerRound > 0 ? winnersPerRound : 1);
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'idirId': idirId,
