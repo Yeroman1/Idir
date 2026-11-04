@@ -133,10 +133,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         csvContent.writeln('"Period Covered","Year ${data.year}"');
         csvContent.writeln('');
         csvContent.writeln('"Metric","Value (ETB)"');
-        csvContent.writeln('"Opening Balance","${data.openingBalance.toStringAsFixed(2)}"');
-        csvContent.writeln('"Total Contributions","${data.totalContributions.toStringAsFixed(2)}"');
-        csvContent.writeln('"Total Expenses","${data.totalExpenses.toStringAsFixed(2)}"');
-        csvContent.writeln('"Net Reserve Fund","${data.closingBalance.toStringAsFixed(2)}"');
+        csvContent.writeln('"Gross Contributions","${data.grossContributions.toStringAsFixed(2)}"');
+        csvContent.writeln('"Claims Disbursed","${data.claimsDisbursed.toStringAsFixed(2)}"');
+        csvContent.writeln('"Operational Expenses","${data.operationalExpenses.toStringAsFixed(2)}"');
+        csvContent.writeln('"Closing Reserve Fund","${data.closingReserveFund.toStringAsFixed(2)}"');
         break;
       case ReportType.arrearsReport:
         final data = ref.read(arrearsReportDataProvider);
@@ -146,7 +146,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
         csvContent.writeln('');
         csvContent.writeln('"Member ID","Full Name","Phone","Months in Arrears","Total Overdue"');
         for (final item in data.items) {
-          csvContent.writeln('"${item.member.memberId}","${item.member.fullName}","${item.member.phoneNumber}","${item.monthsInArrears}","${item.arrearsAmount.toStringAsFixed(2)}"');
+          csvContent.writeln('"${item.memberId}","${item.fullName}","${item.phone}","${item.monthsOverdue}","${item.totalOwed.toStringAsFixed(2)}"');
         }
         break;
       case ReportType.memberStatement:

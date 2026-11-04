@@ -76,6 +76,11 @@ class MoreScreen extends ConsumerWidget {
             () => context.push(AppRoutes.ikub),
           ),
           _MoreItem(
+            Icons.handshake_outlined,
+            'Cross-Idir Cooperation',
+            () => context.push(AppRoutes.cooperation),
+          ),
+          _MoreItem(
             Icons.bar_chart_outlined,
             role.canViewAllFinances ? l10n.reports : 'My Dues Statement',
             () => context.push(AppRoutes.reports),
