@@ -24,6 +24,8 @@ import '../../features/invitations/presentation/screens/public_invitation_screen
 import '../../features/elections/presentation/screens/create_election_screen.dart';
 import '../../features/elections/presentation/screens/elections_dashboard_screen.dart';
 import '../../features/chat/presentation/screens/group_chat_screen.dart';
+import '../../features/ikub/presentation/screens/ikub_hub_screen.dart';
+import '../../features/ikub/presentation/screens/create_ikub_screen.dart';
 import '../models/app_user.dart';
 import '../providers/pin_provider.dart';
 import '../widgets/access_denied_screen.dart';
@@ -229,6 +231,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      GoRoute(
+        path: AppRoutes.ikub,
+        name: 'ikub',
+        builder: (_, __) => const IkubHubScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.createIkub,
+        name: 'createIkub',
+        builder: (_, __) => const CreateIkubScreen(),
+      ),
+
       // ── Supabase Email Auth Routes ──────────────────────────────────────
       GoRoute(
         path: AppRoutes.supabaseRegister,
@@ -345,4 +358,6 @@ abstract final class AppRoutes {
   static const elections = '/elections';
   static const createElection = '/elections/create';
   static const chat = '/chat';
+  static const ikub = '/ikub';
+  static const createIkub = '/ikub/create';
 }

@@ -547,7 +547,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
     final chatState = ref.watch(chatNotifierProvider(targetIdirId));
     final chatNotifier = ref.read(chatNotifierProvider(targetIdirId).notifier);
-    final canPostAnnouncement = currentUser?.role.canPostAnnouncement ?? false;
+    final effectiveRole = activeIdirState.activeIdir?.role ?? currentUser?.role ?? UserRole.member;
+    final canPostAnnouncement = effectiveRole.canPostAnnouncement;
 
     // Auto-scroll on new incoming messages
     ref.listen<ChatState>(chatNotifierProvider(targetIdirId), (prev, next) {

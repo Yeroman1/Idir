@@ -71,6 +71,11 @@ class MoreScreen extends ConsumerWidget {
             () => context.push(AppRoutes.elections),
           ),
           _MoreItem(
+            Icons.savings_outlined,
+            'Idir Ikub (Rotating Savings)',
+            () => context.push(AppRoutes.ikub),
+          ),
+          _MoreItem(
             Icons.bar_chart_outlined,
             role.canViewAllFinances ? l10n.reports : 'My Dues Statement',
             () => context.push(AppRoutes.reports),

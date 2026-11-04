@@ -314,6 +314,7 @@ model Membership {
   contributions                Contribution[]
   assistanceCases              AssistanceCase[]
   ikubParticipants             IkubParticipant[]
+  ikubJoinRequests             IkubJoinRequest[]
   meetingAttendances           MeetingAttendance[]
   electionCommitteeMemberships ElectionCommitteeMember[]
   candidateNominations         ElectionNomination[]      @relation("NominatedCandidate")
@@ -503,11 +504,14 @@ model IkubGroup {
   status             IkubStatus @default(ACTIVE)
   totalRounds        Int        @default(10)
   payoutRule         String     @default("LOTTERY") // 'LOTTERY', 'FIXED_ORDER', 'NEED_BASED'
+  winnersPerRound    Int        @default(1)
+  drawMode           String     @default("DIGITAL_LOTTERY") // 'DIGITAL_LOTTERY', 'PHYSICAL_RECORDED', 'NEED_BASED'
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
   participants IkubParticipant[]
   rounds       IkubRound[]
+  joinRequests IkubJoinRequest[]
 
   @@index([idirId])
   @@index([status])
@@ -541,13 +545,16 @@ model IkubRound {
   roundNumber            Int
   scheduledDate          DateTime
   recipientParticipantId String?
+  drawnById              String?
+  drawnAt                DateTime?
+  drawSeed               String?
   status                 RoundStatus @default(SCHEDULED)
   completedAt            DateTime?
   createdAt              DateTime    @default(now())
   updatedAt              DateTime    @updatedAt
 
   contributions IkubContribution[]
-  payout        IkubPayout?
+  payouts       IkubPayout[]
 
   @@unique([ikubGroupId, roundNumber])
   @@index([ikubGroupId])
@@ -580,7 +587,7 @@ model IkubContribution {
 
 model IkubPayout {
   id                     String          @id @default(uuid())
-  roundId                String          @unique // Ensures strictly 1 payout per round
+  roundId                String
   round                  IkubRound       @relation(fields: [roundId], references: [id], onDelete: Restrict)
   recipientParticipantId String
   recipientParticipant   IkubParticipant @relation(fields: [recipientParticipantId], references: [id], onDelete: Restrict)
@@ -597,8 +604,27 @@ model IkubPayout {
   createdAt              DateTime        @default(now())
   updatedAt              DateTime        @updatedAt
 
+  @@unique([roundId, recipientParticipantId])
   @@index([roundId])
   @@index([recipientParticipantId])
+}
+
+model IkubJoinRequest {
+  id           String      @id @default(uuid())
+  ikubGroupId  String
+  ikubGroup    IkubGroup   @relation(fields: [ikubGroupId], references: [id], onDelete: Cascade)
+  membershipId String
+  membership   Membership  @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  status       String      @default("PENDING") // 'PENDING', 'APPROVED', 'REJECTED'
+  note         String?
+  requestedAt  DateTime    @default(now())
+  reviewedById String?
+  reviewedAt   DateTime?
+
+  @@unique([ikubGroupId, membershipId])
+  @@index([ikubGroupId])
+  @@index([membershipId])
+  @@index([status])
 }
 
 // ─── MEETINGS, ANNOUNCEMENTS & NOTIFICATIONS ─────────────────────────────────

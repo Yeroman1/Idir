@@ -494,9 +494,23 @@ class ApiClient {
     _isRefreshing = true;
 
     try {
+      // 1. Try refreshing via active Supabase session if present
+      try {
+        final sb = Supabase.instance.client;
+        final res = await sb.auth.refreshSession();
+        final newSession = res.session;
+        if (newSession != null && newSession.accessToken.isNotEmpty) {
+          await saveTokens(
+            accessToken: newSession.accessToken,
+            refreshToken: newSession.refreshToken ?? '',
+          );
+          return true;
+        }
+      } catch (_) {}
+
+      // 2. Try backend /auth/refresh endpoint
       final rToken = await getRefreshToken();
       if (rToken == null || rToken.isEmpty) {
-        await clearTokens();
         return false;
       }
 
@@ -519,7 +533,6 @@ class ApiClient {
         }
       }
 
-      await clearTokens();
       return false;
     } catch (_) {
       return false;
