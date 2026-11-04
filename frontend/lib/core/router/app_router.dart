@@ -26,6 +26,9 @@ import '../../features/elections/presentation/screens/elections_dashboard_screen
 import '../../features/chat/presentation/screens/group_chat_screen.dart';
 import '../../features/ikub/presentation/screens/ikub_hub_screen.dart';
 import '../../features/ikub/presentation/screens/create_ikub_screen.dart';
+import '../../features/cooperation/presentation/screens/cooperation_list_screen.dart';
+import '../../features/cooperation/presentation/screens/propose_cooperation_screen.dart';
+import '../../features/cooperation/presentation/screens/cooperation_detail_screen.dart';
 import '../models/app_user.dart';
 import '../providers/pin_provider.dart';
 import '../widgets/access_denied_screen.dart';
@@ -241,6 +244,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'createIkub',
         builder: (_, __) => const CreateIkubScreen(),
       ),
+      GoRoute(
+        path: AppRoutes.cooperation,
+        name: 'cooperation',
+        builder: (_, __) => const CooperationListScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.proposeCooperation,
+        name: 'proposeCooperation',
+        builder: (_, __) => const ProposeCooperationScreen(),
+      ),
+      GoRoute(
+        path: '${AppRoutes.cooperation}/detail/:id',
+        name: 'cooperationDetail',
+        builder: (context, state) => CooperationDetailScreen(
+          agreementId: state.pathParameters['id']!,
+        ),
+      ),
 
       // ── Supabase Email Auth Routes ──────────────────────────────────────
       GoRoute(
@@ -360,4 +380,7 @@ abstract final class AppRoutes {
   static const chat = '/chat';
   static const ikub = '/ikub';
   static const createIkub = '/ikub/create';
+  static const cooperation = '/cooperation';
+  static const proposeCooperation = '/cooperation/propose';
+  static const cooperationDetail = '/cooperation/detail';
 }
