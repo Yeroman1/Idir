@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import { ikubService } from './ikub.service.js';
 import { sendSuccess, sendCreated } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
-import { BadRequestError } from '../../shared/errors/AppError.js';
+import { BadRequestError, ForbiddenError } from '../../shared/errors/AppError.js';
 
 export class IkubController {
   async createGroup(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -62,14 +62,21 @@ export class IkubController {
 
   async requestToJoin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const membershipId = req.body?.membershipId || (req as any).membership?.id;
-      if (!membershipId) {
-        throw new BadRequestError('Membership ID is required to join Ikub');
+      const callerMembershipId = (req as any).membership?.id;
+      if (!callerMembershipId) {
+        throw new ForbiddenError('Active Idir membership is required to join Ikub');
       }
+
+      // Strict Anti-IDOR check: Caller can only enroll their own membership
+      if (req.body?.membershipId && req.body.membershipId !== callerMembershipId) {
+        throw new ForbiddenError('You can only enroll your own membership into the Ikub pool');
+      }
+
       const participant = await ikubService.requestToJoin(
         req.params.idirId,
         req.params.groupId,
-        membershipId,
+        callerMembershipId,
+        req.user!.id,
         req.body?.note
       );
       return sendCreated(res, participant, 'Successfully enrolled in Ikub pool');

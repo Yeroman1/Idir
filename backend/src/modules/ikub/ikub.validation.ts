@@ -1,24 +1,38 @@
 import { z } from 'zod';
 
 export const createIkubGroupSchema = z.object({
-  name: z.string().min(2, 'Ikub group name must be at least 2 characters'),
-  description: z.string().optional(),
-  contributionAmount: z.coerce.number().positive('Contribution amount must be greater than zero'),
+  name: z.string().min(2, 'Ikub group name must be at least 2 characters').max(100),
+  description: z.string().max(500).optional(),
+  contributionAmount: z.coerce
+    .number()
+    .positive('Contribution amount must be greater than zero')
+    .max(10_000_000, 'Contribution amount exceeds maximum threshold (10,000,000 ETB)'),
   frequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).default('WEEKLY'),
   startDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
-  totalRounds: z.coerce.number().int().positive().default(10),
+  totalRounds: z.coerce
+    .number()
+    .int()
+    .min(2, 'Must have at least 2 rounds')
+    .max(104, 'Maximum 104 rounds (2 years weekly)')
+    .default(10),
   payoutRule: z.enum(['LOTTERY', 'FIXED_ORDER', 'NEED_BASED']).default('LOTTERY'),
-  winnersPerRound: z.coerce.number().int().positive().default(1),
+  winnersPerRound: z.coerce
+    .number()
+    .int()
+    .min(1, 'At least 1 winner per round')
+    .max(5, 'Maximum 5 winners per round')
+    .default(1),
   drawMode: z.enum(['DIGITAL_LOTTERY', 'PHYSICAL_RECORDED', 'NEED_BASED']).default('DIGITAL_LOTTERY'),
 });
 
 export const drawLotterySchema = z.object({
   manualWinnerId: z.string().uuid('Valid manual winner participantId is required').optional(),
-  note: z.string().optional(),
+  note: z.string().max(255).optional(),
 });
 
 export const createJoinRequestSchema = z.object({
-  note: z.string().optional(),
+  membershipId: z.string().uuid().optional(),
+  note: z.string().max(255).optional(),
 });
 
 export const respondJoinRequestSchema = z.object({
@@ -39,22 +53,23 @@ export const createRoundSchema = z.object({
 export const recordIkubContributionSchema = z.object({
   roundId: z.string().uuid('Valid roundId is required'),
   participantId: z.string().uuid('Valid participantId is required'),
-  amount: z.coerce.number().positive('Contribution amount must be positive'),
+  amount: z.coerce.number().positive('Contribution amount must be positive').max(10_000_000),
   paymentMethod: z
     .enum(['CASH', 'BANK_TRANSFER', 'TELEBIRR', 'CBE_BIRR', 'OTHER'])
     .default('CASH'),
-  paymentReference: z.string().optional(),
+  paymentReference: z.string().max(100).optional(),
   clientMutationId: z.string().uuid().optional(),
 });
 
 export const recordIkubPayoutSchema = z.object({
   roundId: z.string().uuid('Valid roundId is required'),
   recipientParticipantId: z.string().uuid('Valid recipientParticipantId is required'),
-  amount: z.coerce.number().positive('Payout amount must be positive'),
+  amount: z.coerce.number().positive('Payout amount must be positive').max(50_000_000),
   paymentMethod: z
     .enum(['CASH', 'BANK_TRANSFER', 'TELEBIRR', 'CBE_BIRR', 'OTHER'])
     .default('CASH'),
-  paymentReference: z.string().optional(),
+  paymentReference: z.string().max(100).optional(),
+  clientMutationId: z.string().uuid().optional(),
 });
 
 export const queryIkubGroupsSchema = z.object({
