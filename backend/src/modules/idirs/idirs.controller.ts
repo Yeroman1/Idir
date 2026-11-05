@@ -59,6 +59,15 @@ export class IdirsController {
       next(error);
     }
   }
+
+  async leaveIdir(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await idirsService.leaveIdir(req.params.idirId, req.user!.id);
+      return sendSuccess(res, result, 200, 'Successfully left Idir');
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const idirsController = new IdirsController();

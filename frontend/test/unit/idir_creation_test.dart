@@ -44,6 +44,9 @@ class MockIdirsRepository implements IdirsRepository {
   Future<IdirModel?> getLatestDraft() async {
     return latestCreated;
   }
+
+  @override
+  Future<bool> leaveIdir(String idirId) async => true;
 }
 
 void main() {

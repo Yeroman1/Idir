@@ -10,7 +10,44 @@ import 'package:idir_app/features/auth/presentation/providers/auth_provider.dart
 import 'package:idir_app/features/home/presentation/screens/home_screen.dart';
 import 'package:idir_app/features/settings/presentation/screens/settings_screen.dart';
 import 'package:idir_app/features/settings/presentation/widgets/telegram_idir_switcher.dart';
+import 'package:idir_app/features/idirs/data/idirs_repository.dart';
+import 'package:idir_app/features/idirs/domain/models/idir_model.dart';
 import 'package:idir_app/l10n/app_localizations.dart';
+
+
+class FakeIdirsRepository implements IdirsRepository {
+  @override
+  Future<IdirModel> createDraftIdir({
+    required String name,
+    required String community,
+    required String location,
+    required String purpose,
+    required double contributionAmount,
+    required String contributionFrequency,
+    String? status,
+  }) async {
+    return IdirModel(
+      id: 'mock-1',
+      name: name,
+      community: community,
+      location: location,
+      purpose: purpose,
+      contributionAmount: contributionAmount,
+      contributionFrequency: contributionFrequency,
+      status: 'DRAFT',
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<List<IdirModel>> getUserIdirs() async => [];
+
+  @override
+  Future<IdirModel?> getLatestDraft() async => null;
+
+  @override
+  Future<bool> leaveIdir(String idirId) async => true;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -237,6 +274,73 @@ void main() {
       expect(find.byIcon(Icons.check), findsOneWidget);
     });
 
+    testWidgets('Deduplicates available Idirs so each idirId appears strictly once in the switch menu',
+        (tester) async {
+      final testUser = AppUser(
+        uid: 'u-dup-test',
+        name: 'Abebe Bikila',
+        phone: '+251911998877',
+        role: UserRole.member,
+        memberId: 'MEM-DUP',
+        isActive: true,
+        createdAt: DateTime(2025, 1, 1),
+        memberships: const [
+          UserMembership(
+            id: 'm-1',
+            idirId: 'same-idir-uuid-1',
+            idirName: 'St. George Mutual Aid Association',
+            role: UserRole.member,
+            memberNumber: 'MEM-001',
+            status: 'ACTIVE',
+          ),
+          UserMembership(
+            id: 'm-2',
+            idirId: 'same-idir-uuid-1', // DUPLICATE with same idirId
+            idirName: 'St. George Mutual Aid Association',
+            role: UserRole.chairperson,
+            memberNumber: 'MEM-002',
+            status: 'ACTIVE',
+          ),
+          UserMembership(
+            id: 'm-3',
+            idirId: ' SAME-IDIR-UUID-1 ', // DUPLICATE with whitespace and casing
+            idirName: 'St. George Mutual Aid Association',
+            role: UserRole.treasurer,
+            memberNumber: 'MEM-003',
+            status: 'ACTIVE',
+          ),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWithValue(testUser),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(activeIdirProvider.notifier).seedForTest(testUser.memberships);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: TelegramIdirSwitcherSection(),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Ensure that St. George appears ONLY ONCE
+      expect(find.text('St. George Mutual Aid Association'), findsOneWidget);
+      // Ensure the count badge shows 1 Connected
+      expect(find.text('1 Connected'), findsOneWidget);
+    });
+
     testWidgets('Tapping inactive Idir switches active state', (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -326,6 +430,75 @@ void main() {
       expect(find.text('Tinsae Mutual Aid Association'), findsWidgets);
       expect(find.text('Marta Hailu'), findsOneWidget);
       expect(find.text('MEM-001'), findsWidgets);
+    });
+
+    test('ActiveIdirNotifier.leaveIdir removes idir and switches to next idir even if user is chairperson/creator', () async {
+      final container = ProviderContainer(
+        overrides: [idirsRepositoryProvider.overrideWithValue(FakeIdirsRepository())],
+      );
+      addTearDown(container.dispose);
+      container.read(activeIdirProvider.notifier).seedForTest();
+
+      final notifier = container.read(activeIdirProvider.notifier);
+      expect(container.read(activeIdirProvider).availableIdirs.length, 2);
+      expect(container.read(currentActiveIdirProvider)?.role, UserRole.chairperson);
+
+      final success = await notifier.leaveIdir('idir_tinsae_001');
+      expect(success, isTrue);
+
+      final state = container.read(activeIdirProvider);
+      expect(state.availableIdirs.length, 1);
+      expect(state.activeIdir?.idirId, AppConstants.defaultIdirId);
+    });
+
+    testWidgets('Shows leave confirmation dialog and allows leaving an Idir', (tester) async {
+      final container = ProviderContainer(
+        overrides: [idirsRepositoryProvider.overrideWithValue(FakeIdirsRepository())],
+      );
+      addTearDown(container.dispose);
+      container.read(activeIdirProvider.notifier).seedForTest();
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: TelegramIdirSwitcherSection(),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      final moreButtons = find.byType(PopupMenuButton<String>);
+      expect(moreButtons, findsWidgets);
+
+      await tester.tap(moreButtons.first);
+      await tester.pumpAndSettle();
+
+      final leaveOption = find.text('Leave Idir');
+      expect(leaveOption, findsOneWidget);
+      await tester.tap(leaveOption);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Leave Idir'), findsWidgets);
+      expect(find.textContaining('Even though you created or lead this Idir, you can leave at any time'), findsOneWidget);
+
+      final confirmBtn = find.widgetWithText(FilledButton, 'Leave Idir');
+      expect(confirmBtn, findsOneWidget);
+      await tester.tap(confirmBtn);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.textContaining('Successfully left'), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      // Verify Tinsae was removed from the list and only Bole remains
+      expect(find.text('Tinsae Mutual Aid Association'), findsNothing);
+      expect(find.text('Bole Medhanealem Yebego Adragot Idir'), findsOneWidget);
     });
   });
 }

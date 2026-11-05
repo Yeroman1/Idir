@@ -98,7 +98,7 @@ export class IdirsService {
       ...(params.region && { region: { equals: params.region, mode: 'insensitive' } }),
       ...(params.userId && {
         OR: [
-          { createdById: params.userId },
+          { createdById: params.userId, status: 'DRAFT' },
           { memberships: { some: { userId: params.userId, status: 'ACTIVE' } } },
         ],
       }),
@@ -233,6 +233,118 @@ export class IdirsService {
     }
 
     return updated;
+  }
+
+  async leaveIdir(idirId: string, userId: string) {
+    const idir = await prisma.idir.findUnique({
+      where: { id: idirId },
+      include: {
+        memberships: {
+          where: { status: 'ACTIVE' },
+          orderBy: { joinedAt: 'asc' },
+        },
+      },
+    });
+
+    if (!idir) {
+      throw new NotFoundError('Idir not found');
+    }
+
+    const userMembership = await prisma.membership.findFirst({
+      where: {
+        idirId,
+        userId,
+        status: { in: ['ACTIVE', 'PENDING', 'SUSPENDED'] },
+      },
+    });
+
+    const isCreator = idir.createdById === userId;
+
+    if (!userMembership && !isCreator) {
+      throw new NotFoundError('No active membership found for this user in this Idir');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const otherMembers = idir.memberships.filter((m) => m.userId !== userId);
+      const wasChairperson = userMembership?.role === 'CHAIRPERSON';
+
+      // Leadership and ownership transfer / closing when chairperson or creator leaves
+      if (wasChairperson || isCreator) {
+        if (otherMembers.length > 0) {
+          const officerOrder = ['TREASURER', 'SECRETARY', 'COMMITTEE', 'AUDITOR', 'MEMBER'];
+          const nextLeader = otherMembers.slice().sort((a, b) => {
+            const idxA = officerOrder.indexOf(a.role);
+            const idxB = officerOrder.indexOf(b.role);
+            return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+          })[0];
+
+          if (nextLeader && wasChairperson) {
+            await tx.membership.update({
+              where: { id: nextLeader.id },
+              data: { role: 'CHAIRPERSON' },
+            });
+          }
+
+          if (isCreator) {
+            await tx.idir.update({
+              where: { id: idirId },
+              data: { createdById: nextLeader ? nextLeader.userId : null },
+            });
+          }
+        } else {
+          // No other active members left: safely close the empty Idir
+          await tx.idir.update({
+            where: { id: idirId },
+            data: {
+              status: 'CLOSED',
+              createdById: isCreator ? null : idir.createdById,
+            },
+          });
+        }
+      }
+
+      // Handle user's membership
+      if (userMembership) {
+        const [contributionsCount, ikubCount] = await Promise.all([
+          tx.contribution.count({ where: { membershipId: userMembership.id } }),
+          tx.ikubParticipant.count({ where: { membershipId: userMembership.id } }),
+        ]);
+
+        if (contributionsCount === 0 && ikubCount === 0) {
+          await tx.membership.delete({
+            where: { id: userMembership.id },
+          });
+        } else {
+          await tx.membership.update({
+            where: { id: userMembership.id },
+            data: { status: 'REMOVED' },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          idirId,
+          action: 'LEAVE_IDIR',
+          entityType: 'Membership',
+          entityId: userMembership?.id || idirId,
+          safeMetadata: {
+            userId,
+            wasCreator: isCreator,
+            role: userMembership?.role,
+            remainingMembersCount: otherMembers.length,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        idirId,
+        wasCreator: isCreator,
+        remainingMembersCount: otherMembers.length,
+      };
+    });
   }
 }
 
