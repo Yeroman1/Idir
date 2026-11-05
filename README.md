@@ -529,3 +529,8 @@ Developed by the following software developers team:
 ---
 
 _Idir Connect (እድር ኮኔክት) — Preserving Ethiopian communal heritage through resilient, modern software engineering._
+
+
+
+- **Idir-Connect Documentation:- <a href="https://docs.google.com/presentation/d/16NJ6RlEmlqe_ue8JMzOjx9ILRNClC6Uh/edit?usp=sharing&ouid=109770059071934906386&rtpof=true&sd=true">here</a>**
+
