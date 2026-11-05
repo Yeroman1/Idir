@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../invitations/presentation/providers/invitations_provider.dart';
 import '../../domain/models/app_notification.dart';
@@ -63,11 +65,22 @@ class NotificationsSheet extends ConsumerWidget {
                     ),
                   ],
                 ),
-                TextButton(
-                  onPressed: () {
-                    ref.read(notificationsNotifierProvider.notifier).markAllRead();
-                  },
-                  child: const Text('Mark all as read'),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        context.push(AppRoutes.notifications);
+                      },
+                      child: const Text('View All'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        ref.read(notificationsNotifierProvider.notifier).markAllRead();
+                      },
+                      child: const Text('Mark all read'),
+                    ),
+                  ],
                 ),
               ],
             ),

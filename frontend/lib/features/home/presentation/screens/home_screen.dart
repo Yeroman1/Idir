@@ -126,7 +126,7 @@ class HomeScreen extends ConsumerWidget {
               child: const Icon(Icons.notifications_outlined),
             ),
             tooltip: 'Notifications',
-            onPressed: () => NotificationsSheet.show(context),
+            onPressed: () => context.push(AppRoutes.notifications),
           ),
 
           // On mobile screens (< 600px), group secondary actions into a clean popup menu
