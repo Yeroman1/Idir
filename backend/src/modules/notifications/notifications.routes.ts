@@ -8,6 +8,7 @@ import {
   updatePreferencesSchema,
   registerDeviceTokenSchema,
   unregisterDeviceTokenSchema,
+  dispatchRemindersSchema,
 } from './notifications.validation.js';
 
 // Idir announcements router
@@ -35,6 +36,13 @@ announcementsRouter.get(
   notificationsController.listAnnouncements
 );
 
+announcementsRouter.post(
+  '/dispatch-reminders',
+  requireIdirRole(['CHAIRPERSON', 'TREASURER', 'SECRETARY']),
+  validate({ body: dispatchRemindersSchema }),
+  notificationsController.dispatchReminders
+);
+
 export const announcementRoutes = announcementsRouter;
 
 // User notifications router
@@ -60,6 +68,11 @@ userNotificationsRouter.delete(
   '/device-token',
   validate({ body: unregisterDeviceTokenSchema }),
   notificationsController.unregisterDeviceToken
+);
+userNotificationsRouter.post(
+  '/reminders/dispatch',
+  validate({ body: dispatchRemindersSchema }),
+  notificationsController.dispatchReminders
 );
 
 export const notificationRoutes = userNotificationsRouter;

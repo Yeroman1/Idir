@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { notificationsService } from './notifications.service.js';
 import { notificationPreferencesService } from './preferences.service.js';
 import { deviceTokenService } from './device-token.service.js';
+import { remindersService } from './reminders.service.js';
 import { sendSuccess, sendCreated } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
 
@@ -92,6 +93,35 @@ export class NotificationsController {
       const { token } = req.body;
       await deviceTokenService.unregisterToken(req.user!.id, token);
       return sendSuccess(res, { unregistered: true }, 200, 'Device token unregistered successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async dispatchReminders(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const idirId = req.params.idirId;
+      const { type = 'ALL', leadHours = 24 } = req.body;
+
+      let meetingResult: any = null;
+      let contributionResult: any = null;
+
+      if (type === 'ALL' || type === 'MEETINGS') {
+        meetingResult = await remindersService.dispatchMeetingReminders(idirId, leadHours);
+      }
+      if (type === 'ALL' || type === 'CONTRIBUTIONS') {
+        contributionResult = await remindersService.dispatchContributionReminders(idirId);
+      }
+
+      return sendSuccess(
+        res,
+        {
+          meetingResult,
+          contributionResult,
+        },
+        200,
+        'Reminders processed and dispatched successfully'
+      );
     } catch (error) {
       next(error);
     }
