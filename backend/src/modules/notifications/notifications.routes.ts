@@ -3,7 +3,10 @@ import { notificationsController } from './notifications.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireIdirRole } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
-import { createAnnouncementSchema } from './notifications.validation.js';
+import {
+  createAnnouncementSchema,
+  updatePreferencesSchema,
+} from './notifications.validation.js';
 
 // Idir announcements router
 const announcementsRouter = Router({ mergeParams: true });
@@ -40,5 +43,11 @@ userNotificationsRouter.use(authenticate);
 userNotificationsRouter.get('/', notificationsController.listMyNotifications);
 userNotificationsRouter.patch('/:notificationId/read', notificationsController.markRead);
 userNotificationsRouter.post('/read-all', notificationsController.markAllRead);
+userNotificationsRouter.get('/preferences', notificationsController.getMyPreferences);
+userNotificationsRouter.put(
+  '/preferences',
+  validate({ body: updatePreferencesSchema }),
+  notificationsController.updateMyPreferences
+);
 
 export const notificationRoutes = userNotificationsRouter;

@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { notificationsService } from './notifications.service.js';
+import { notificationPreferencesService } from './preferences.service.js';
 import { sendSuccess, sendCreated } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
 
@@ -49,6 +50,27 @@ export class NotificationsController {
     try {
       await notificationsService.markAllNotificationsRead(req.user!.id);
       return sendSuccess(res, { markedAllRead: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMyPreferences(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const preferences = await notificationPreferencesService.getPreferences(req.user!.id);
+      return sendSuccess(res, preferences);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMyPreferences(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const preferences = await notificationPreferencesService.updatePreferences(
+        req.user!.id,
+        req.body
+      );
+      return sendSuccess(res, preferences, 200, 'Notification preferences updated successfully');
     } catch (error) {
       next(error);
     }
