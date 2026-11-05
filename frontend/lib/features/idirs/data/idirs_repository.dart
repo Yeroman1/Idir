@@ -132,7 +132,7 @@ class RestIdirsRepository implements IdirsRepository {
   @override
   Future<bool> leaveIdir(String idirId) async {
     try {
-      await _api.post('/idirs/' + idirId + '/leave');
+      await _api.post('/idirs/$idirId/leave');
       await _removeCachedDraft(idirId);
       return true;
     } catch (_) {

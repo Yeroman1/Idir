@@ -306,7 +306,7 @@ export class IdirsService {
       // Handle user's membership
       if (userMembership) {
         const [contributionsCount, ikubCount] = await Promise.all([
-          tx.contribution.count({ where: { memberId: userMembership.id } }),
+          tx.contribution.count({ where: { membershipId: userMembership.id } }),
           tx.ikubParticipant.count({ where: { membershipId: userMembership.id } }),
         ]);
 

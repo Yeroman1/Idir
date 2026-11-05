@@ -39,7 +39,7 @@ describe('Idir Leave / Exit Feature Tests', () => {
       isPlatformAdmin: false,
     });
 
-    vi.mocked(prisma.user.findUnique).mockImplementation((args: any) => {
+    vi.mocked(prisma.user.findUnique).mockImplementation(((args: any) => {
       if (args.where.id === creatorUserId) {
         return Promise.resolve({
           id: creatorUserId,
@@ -59,7 +59,7 @@ describe('Idir Leave / Exit Feature Tests', () => {
         } as any);
       }
       return Promise.resolve(null);
-    });
+    }) as any);
   });
 
   it('rejects unauthenticated user with 401', async () => {
