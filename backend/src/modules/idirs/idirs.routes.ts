@@ -32,5 +32,6 @@ router.patch(
   validate({ body: updateSettingsSchema }),
   idirsController.updateSettings
 );
+router.post('/:idirId/leave', idirsController.leaveIdir);
 
 export const idirRoutes = router;

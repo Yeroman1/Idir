@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { membershipsController } from './memberships.controller.js';
+import { idirsController } from '../idirs/idirs.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireIdirRole } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
@@ -59,5 +60,7 @@ router.post(
   requireIdirRole(['CHAIRPERSON']),
   membershipsController.deactivateMember
 );
+
+router.post('/leave', idirsController.leaveIdir);
 
 export const membershipRoutes = router;

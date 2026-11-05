@@ -256,6 +256,102 @@ class TelegramIdirSwitcherSection extends ConsumerWidget {
     );
   }
 
+  void _confirmLeaveIdir(BuildContext context, WidgetRef ref, UserMembership idir) {
+    final isChairpersonOrCreator = idir.role == UserRole.chairperson;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.logout_rounded, color: AppColors.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                "Leave Idir",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to log out / leave "${idir.idirName}"?',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isChairpersonOrCreator
+                  ? "Even though you created or lead this Idir, you can leave at any time. Leadership will be automatically reassigned to another active member, or the Idir will be closed if no other members remain."
+                  : "You will be removed from this Idir and it will be disconnected from your account.",
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(ctx);
+              final success = await ref
+                  .read(activeIdirProvider.notifier)
+                  .leaveIdir(idir.idirId);
+              if (success) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Successfully left "${idir.idirName}".',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } else {
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text("Could not leave Idir. Please try again."),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            child: const Text("Leave Idir"),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -619,6 +715,41 @@ class TelegramIdirSwitcherSection extends ConsumerWidget {
                                   .withValues(alpha: 0.35),
                               size: 22,
                             ),
+                          const SizedBox(width: 4),
+                          PopupMenuButton<String>(
+                            tooltip: "Idir options",
+                            icon: Icon(
+                              Icons.more_vert,
+                              size: 20,
+                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onSelected: (val) {
+                              if (val == "leave") {
+                                _confirmLeaveIdir(context, ref, idir);
+                              }
+                            },
+                            itemBuilder: (ctx) => [
+                              const PopupMenuItem(
+                                value: "leave",
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.logout_rounded, color: AppColors.error, size: 18),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      "Leave Idir",
+                                      style: TextStyle(
+                                        color: AppColors.error,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
