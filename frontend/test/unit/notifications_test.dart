@@ -1,11 +1,17 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:idir_app/core/models/app_user.dart';
 import 'package:idir_app/features/auth/presentation/providers/auth_provider.dart';
+import 'package:idir_app/features/invitations/domain/models/received_invitation.dart';
+import 'package:idir_app/features/invitations/presentation/providers/invitations_provider.dart';
 import 'package:idir_app/features/notifications/data/notifications_repository.dart';
 import 'package:idir_app/features/notifications/domain/models/app_notification.dart';
 import 'package:idir_app/features/notifications/domain/models/notification_preferences.dart';
+import 'package:idir_app/features/notifications/domain/models/notification_filter.dart';
 import 'package:idir_app/features/notifications/presentation/providers/notifications_provider.dart';
+import 'package:idir_app/features/notifications/presentation/screens/notification_center_screen.dart';
+import 'package:idir_app/features/notifications/presentation/screens/notification_preferences_screen.dart';
 
 class MockNotificationsRepository implements NotificationsRepository {
   List<AppNotification> items = [];
@@ -197,6 +203,271 @@ void main() {
       await notifier.markAllRead();
       expect(repo.markAllAsReadCalled, isTrue);
       expect(container.read(unreadNotificationCountProvider), 0);
+    });
+
+    test('AppNotification helpers identify contribution, meeting, ikub, governance, urgent', () {
+      final meetingNotif = AppNotification(
+        id: '1',
+        title: 'Meeting Scheduled',
+        body: 'Details',
+        type: 'MEETING_REMINDER',
+        data: const {'meetingId': 'm-1'},
+        createdAt: DateTime.now(),
+      );
+      expect(meetingNotif.isMeeting, isTrue);
+      expect(meetingNotif.meetingId, 'm-1');
+
+      final contribNotif = AppNotification(
+        id: '2',
+        title: 'Contribution Due',
+        body: 'Pay 100 ETB',
+        type: 'PAYMENT_DUE',
+        data: const {'periodMonth': 11, 'periodYear': 2026},
+        createdAt: DateTime.now(),
+      );
+      expect(contribNotif.isContribution, isTrue);
+
+      final govNotif = AppNotification(
+        id: '3',
+        title: 'Leadership Election',
+        body: 'Voting open',
+        type: 'GOVERNANCE',
+        data: const {'electionId': 'el-1'},
+        createdAt: DateTime.now(),
+      );
+      expect(govNotif.isGovernance, isTrue);
+      expect(govNotif.electionId, 'el-1');
+
+      final urgentNotif = AppNotification(
+        id: '4',
+        title: 'Emergency Alert',
+        body: 'Urgent notice',
+        type: 'URGENT_ALERT',
+        createdAt: DateTime.now(),
+      );
+      expect(urgentNotif.isUrgent, isTrue);
+    });
+
+    test('NotificationPreferences serialization, copyWith, and defaults', () {
+      const defaultPrefs = NotificationPreferences();
+      expect(defaultPrefs.inAppEnabled, isTrue);
+      expect(defaultPrefs.pushEnabled, isTrue);
+      expect(defaultPrefs.quietHoursEnabled, isFalse);
+
+      final map = {
+        'inAppEnabled': false,
+        'pushEnabled': true,
+        'smsEnabled': false,
+        'emailEnabled': true,
+        'reminderMeetings': false,
+        'reminderContributions': true,
+        'notifyAnnouncements': true,
+        'notifyGovernance': false,
+        'notifyAssistance': true,
+        'quietHoursEnabled': true,
+        'quietHoursStart': '23:30',
+        'quietHoursEnd': '06:30',
+      };
+
+      final parsed = NotificationPreferences.fromMap(map);
+      expect(parsed.inAppEnabled, isFalse);
+      expect(parsed.reminderMeetings, isFalse);
+      expect(parsed.quietHoursEnabled, isTrue);
+      expect(parsed.quietHoursStart, '23:30');
+
+      final updated = parsed.copyWith(inAppEnabled: true);
+      expect(updated.inAppEnabled, isTrue);
+      expect(updated.quietHoursStart, '23:30');
+    });
+
+    test('NotificationPreferencesNotifier loads and updates preferences', () async {
+      final repo = MockNotificationsRepository();
+      repo.preferences = const NotificationPreferences(
+        inAppEnabled: true,
+        pushEnabled: false,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWithValue(
+            AppUser(
+              uid: 'user-rec-1',
+              name: 'Receiver User',
+              phone: '+251911999999',
+              role: UserRole.member,
+              memberId: 'M-001',
+              isActive: true,
+              createdAt: DateTime(2026),
+            ),
+          ),
+          notificationsRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+
+      final notifier = container.read(notificationPreferencesNotifierProvider.notifier);
+      await notifier.loadPreferences();
+
+      final state = container.read(notificationPreferencesNotifierProvider);
+      expect(state.value?.pushEnabled, isFalse);
+
+      // Update preferences
+      final newPrefs = state.value!.copyWith(pushEnabled: true);
+      await notifier.updatePreferences(newPrefs);
+
+      final updatedState = container.read(notificationPreferencesNotifierProvider);
+      expect(updatedState.value?.pushEnabled, isTrue);
+      expect(repo.preferences?.pushEnabled, isTrue);
+    });
+
+    test('filteredNotificationsProvider correctly filters by category', () async {
+      final repo = MockNotificationsRepository();
+      repo.items = [
+        AppNotification(
+          id: '1',
+          title: 'Meeting 1',
+          body: 'Details',
+          type: 'MEETING_REMINDER',
+          createdAt: DateTime.now(),
+        ),
+        AppNotification(
+          id: '2',
+          title: 'Contribution 1',
+          body: 'Details',
+          type: 'PAYMENT_DUE',
+          readAt: DateTime.now(),
+          createdAt: DateTime.now(),
+        ),
+        AppNotification(
+          id: '3',
+          title: 'Announcement 1',
+          body: 'Details',
+          type: 'ANNOUNCEMENT',
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWithValue(
+            AppUser(
+              uid: 'user-rec-1',
+              name: 'Receiver User',
+              phone: '+251911999999',
+              role: UserRole.member,
+              memberId: 'M-001',
+              isActive: true,
+              createdAt: DateTime(2026),
+            ),
+          ),
+          notificationsRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+
+      await container.read(notificationsNotifierProvider.notifier).loadNotifications();
+
+      // All
+      expect(container.read(filteredNotificationsProvider).value?.length, 3);
+
+      // Unread only (item 1 and 3)
+      container.read(notificationFilterProvider.notifier).state = NotificationCategoryFilter.unread;
+      expect(container.read(filteredNotificationsProvider).value?.length, 2);
+
+      // Meetings only (item 1)
+      container.read(notificationFilterProvider.notifier).state = NotificationCategoryFilter.meetings;
+      expect(container.read(filteredNotificationsProvider).value?.length, 1);
+      expect(container.read(filteredNotificationsProvider).value?.first.id, '1');
+
+      // Contributions only (item 2)
+      container.read(notificationFilterProvider.notifier).state = NotificationCategoryFilter.contributions;
+      expect(container.read(filteredNotificationsProvider).value?.length, 1);
+      expect(container.read(filteredNotificationsProvider).value?.first.id, '2');
+    });
+
+    testWidgets('NotificationCenterScreen renders notification list and filter chips', (tester) async {
+      final repo = MockNotificationsRepository();
+      repo.items = [
+        AppNotification(
+          id: 'n-1',
+          title: 'Annual Assembly Scheduled',
+          body: 'Join the annual meeting at the community center',
+          type: 'MEETING_REMINDER',
+          createdAt: DateTime.now(),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUserProvider.overrideWithValue(
+              AppUser(
+                uid: 'user-rec-1',
+                name: 'Receiver User',
+                phone: '+251911999999',
+                role: UserRole.member,
+                memberId: 'M-001',
+                isActive: true,
+                createdAt: DateTime(2026),
+              ),
+            ),
+            notificationsRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: const MaterialApp(
+            home: NotificationCenterScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notification Center'), findsOneWidget);
+      expect(find.text('Annual Assembly Scheduled'), findsOneWidget);
+      expect(find.text('Meetings'), findsOneWidget);
+      expect(find.text('Contributions'), findsOneWidget);
+    });
+
+    testWidgets('NotificationPreferencesScreen renders delivery channels and quiet hours', (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final repo = MockNotificationsRepository();
+      repo.preferences = const NotificationPreferences(
+        inAppEnabled: true,
+        pushEnabled: true,
+        quietHoursEnabled: true,
+        quietHoursStart: '22:00',
+        quietHoursEnd: '07:00',
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentUserProvider.overrideWithValue(
+              AppUser(
+                uid: 'user-rec-1',
+                name: 'Receiver User',
+                phone: '+251911999999',
+                role: UserRole.member,
+                memberId: 'M-001',
+                isActive: true,
+                createdAt: DateTime(2026),
+              ),
+            ),
+            notificationsRepositoryProvider.overrideWithValue(repo),
+          ],
+          child: const MaterialApp(
+            home: NotificationPreferencesScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Notification Preferences'), findsOneWidget);
+      expect(find.text('In-App Notifications'), findsOneWidget);
+      expect(find.text('Push Notifications'), findsOneWidget);
+      expect(find.text('Contribution Reminders'), findsOneWidget);
+      expect(find.text('Enable Quiet Hours'), findsOneWidget);
     });
   });
 }

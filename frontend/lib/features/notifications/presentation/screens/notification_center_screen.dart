@@ -355,60 +355,64 @@ class NotificationCenterScreen extends ConsumerWidget {
           color: isUnread ? iconColor.withValues(alpha: 0.25) : theme.dividerColor.withValues(alpha: 0.4),
         ),
       ),
-      child: ListTile(
-        onTap: () {
-          if (!notification.isRead) {
-            ref.read(notificationsNotifierProvider.notifier).markRead(notification.id);
-          }
-          _handleNotificationNavigation(context, notification);
-        },
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: iconColor.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(iconData, color: iconColor, size: 20),
-        ),
-        title: Text(
-          notification.title,
-          style: TextStyle(
-            fontWeight: isUnread ? FontWeight.bold : FontWeight.w500,
-            fontSize: 14,
-          ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 2),
-            Text(
-              notification.body,
-              style: TextStyle(
-                fontSize: 12,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
-              ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: ListTile(
+          onTap: () {
+            if (!notification.isRead) {
+              ref.read(notificationsNotifierProvider.notifier).markRead(notification.id);
+            }
+            _handleNotificationNavigation(context, notification);
+          },
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(height: 4),
-            Text(
-              DateFormat('MMM d, h:mm a').format(notification.createdAt),
-              style: TextStyle(
-                fontSize: 10,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-              ),
+            child: Icon(iconData, color: iconColor, size: 20),
+          ),
+          title: Text(
+            notification.title,
+            style: TextStyle(
+              fontWeight: isUnread ? FontWeight.bold : FontWeight.w500,
+              fontSize: 14,
             ),
-          ],
-        ),
-        trailing: isUnread
-            ? Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: iconColor,
-                  shape: BoxShape.circle,
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 2),
+              Text(
+                notification.body,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
                 ),
-              )
-            : null,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                DateFormat('MMM d, h:mm a').format(notification.createdAt),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+            ],
+          ),
+          trailing: isUnread
+              ? Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: iconColor,
+                    shape: BoxShape.circle,
+                  ),
+                )
+              : null,
+        ),
       ),
     );
   }
