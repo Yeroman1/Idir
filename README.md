@@ -520,11 +520,11 @@ flutter test
 
 ## 👥 Authors & Project Contributors
 
-Developed by the following senior engineering team:
+Developed by the following software developers team:
 
 - **Yeroman Diriba CTC-3457-26**
-- **Ebisa Mitiku CTC-064-26**
-- **Lami Megersa CTC-093-26**
+- **Ebisa Mitiku   CTC-064-26**
+- **Lami Megersa   CTC-093-26**
 
 ---
 
