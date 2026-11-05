@@ -1,5 +1,6 @@
-import { MembershipRole, Prisma } from '@prisma/client';
+import { MembershipRole, Prisma, NotificationType } from '@prisma/client';
 import { prisma } from '../../config/database.js';
+import { reliableNotificationDispatcher } from '../notifications/reliable-dispatcher.service.js';
 import {
   BadRequestError,
   ForbiddenError,
@@ -101,7 +102,7 @@ export class ElectionsService {
     }
 
     // 4. Atomic transaction to create election, committee members, and audit log
-    return prisma.$transaction(async (tx) => {
+    const createdElection = await prisma.$transaction(async (tx) => {
       const election = await tx.election.create({
         data: {
           idirId,
@@ -182,6 +183,30 @@ export class ElectionsService {
 
       return election;
     });
+
+    queueMicrotask(async () => {
+      try {
+        const activeMembers = await prisma.membership.findMany({
+          where: { idirId, status: 'ACTIVE' },
+          select: { userId: true },
+        });
+
+        for (const m of activeMembers) {
+          await reliableNotificationDispatcher.dispatch({
+            userId: m.userId,
+            title: `Election Scheduled: ${createdElection.title}`,
+            body: `A new leadership election "${createdElection.title}" has been scheduled.`,
+            type: NotificationType.GOVERNANCE,
+            data: { idirId, electionId: createdElection.id },
+            idempotencyKey: `election-created-${createdElection.id}-${m.userId}`,
+          });
+        }
+      } catch {
+        // Non-blocking
+      }
+    });
+
+    return createdElection;
   }
 
   /**
