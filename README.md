@@ -522,9 +522,9 @@ flutter test
 
 Developed by the following software developers team:
 
-- **Yeroman Diriba CTC-3457-26**
-- **Ebisa Mitiku   CTC-064-26**
-- **Lami Megersa   CTC-093-26**
+- **Yeroman Diriba CTC-3457-26  Backend developer** 
+- **Ebisa Mitiku   CTC-064-26   Database developer**
+- **Lami Megersa   CTC-093-26   Frontend developer**
 
 ---
 
