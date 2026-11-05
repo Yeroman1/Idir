@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { notificationsService } from './notifications.service.js';
 import { notificationPreferencesService } from './preferences.service.js';
+import { deviceTokenService } from './device-token.service.js';
 import { sendSuccess, sendCreated } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
 
@@ -71,6 +72,26 @@ export class NotificationsController {
         req.body
       );
       return sendSuccess(res, preferences, 200, 'Notification preferences updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async registerDeviceToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { token, platform } = req.body;
+      const record = await deviceTokenService.registerToken(req.user!.id, token, platform);
+      return sendSuccess(res, record, 200, 'Device token registered successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async unregisterDeviceToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { token } = req.body;
+      await deviceTokenService.unregisterToken(req.user!.id, token);
+      return sendSuccess(res, { unregistered: true }, 200, 'Device token unregistered successfully');
     } catch (error) {
       next(error);
     }

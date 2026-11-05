@@ -6,6 +6,8 @@ import { validate } from '../../middleware/validate.js';
 import {
   createAnnouncementSchema,
   updatePreferencesSchema,
+  registerDeviceTokenSchema,
+  unregisterDeviceTokenSchema,
 } from './notifications.validation.js';
 
 // Idir announcements router
@@ -48,6 +50,16 @@ userNotificationsRouter.put(
   '/preferences',
   validate({ body: updatePreferencesSchema }),
   notificationsController.updateMyPreferences
+);
+userNotificationsRouter.post(
+  '/device-token',
+  validate({ body: registerDeviceTokenSchema }),
+  notificationsController.registerDeviceToken
+);
+userNotificationsRouter.delete(
+  '/device-token',
+  validate({ body: unregisterDeviceTokenSchema }),
+  notificationsController.unregisterDeviceToken
 );
 
 export const notificationRoutes = userNotificationsRouter;
