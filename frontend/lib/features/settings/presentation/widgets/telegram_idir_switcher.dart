@@ -262,7 +262,44 @@ class TelegramIdirSwitcherSection extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     final activeIdirState = ref.watch(activeIdirProvider);
     final activeIdir = activeIdirState.activeIdir;
-    final idirs = activeIdirState.availableIdirs;
+
+    // Deduplicate available Idirs strictly by idirId so each Idir ID appears only once in the switch menu
+    final uniqueIdirs = <UserMembership>[];
+    final idirIndexMap = <String, int>{};
+
+    for (final idir in activeIdirState.availableIdirs) {
+      final key = idir.idirId.trim().toLowerCase();
+      if (key.isEmpty || key == '00000000-0000-0000-0000-000000000001') continue;
+
+      if (!idirIndexMap.containsKey(key)) {
+        idirIndexMap[key] = uniqueIdirs.length;
+        if (activeIdir != null && activeIdir.idirId.trim().toLowerCase() == key) {
+          uniqueIdirs.add(activeIdir);
+        } else {
+          uniqueIdirs.add(idir);
+        }
+      } else {
+        // If duplicate idirId is encountered, retain activeIdir if matching, or elevate role
+        final idx = idirIndexMap[key]!;
+        if (activeIdir != null && activeIdir.idirId.trim().toLowerCase() == key) {
+          uniqueIdirs[idx] = activeIdir;
+        } else if (uniqueIdirs[idx].role == UserRole.member && idir.role != UserRole.member) {
+          uniqueIdirs[idx] = idir;
+        }
+      }
+    }
+
+    if (activeIdir != null) {
+      final activeKey = activeIdir.idirId.trim().toLowerCase();
+      if (activeKey.isNotEmpty &&
+          activeKey != '00000000-0000-0000-0000-000000000001' &&
+          !idirIndexMap.containsKey(activeKey)) {
+        idirIndexMap[activeKey] = 0;
+        uniqueIdirs.insert(0, activeIdir);
+      }
+    }
+
+    final idirs = uniqueIdirs;
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,7 +423,7 @@ class TelegramIdirSwitcherSection extends ConsumerWidget {
 
               // Idirs listing
               ...idirs.map((idir) {
-                final isActive = activeIdir?.idirId == idir.idirId;
+                final isActive = activeIdir?.idirId.trim().toLowerCase() == idir.idirId.trim().toLowerCase();
                 final roleColor = _roleColor(idir.role);
                 final avatarColor = _avatarColor(idir.idirName);
 

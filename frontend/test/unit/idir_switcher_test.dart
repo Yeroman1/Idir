@@ -237,6 +237,73 @@ void main() {
       expect(find.byIcon(Icons.check), findsOneWidget);
     });
 
+    testWidgets('Deduplicates available Idirs so each idirId appears strictly once in the switch menu',
+        (tester) async {
+      final testUser = AppUser(
+        uid: 'u-dup-test',
+        name: 'Abebe Bikila',
+        phone: '+251911998877',
+        role: UserRole.member,
+        memberId: 'MEM-DUP',
+        isActive: true,
+        createdAt: DateTime(2025, 1, 1),
+        memberships: const [
+          UserMembership(
+            id: 'm-1',
+            idirId: 'same-idir-uuid-1',
+            idirName: 'St. George Mutual Aid Association',
+            role: UserRole.member,
+            memberNumber: 'MEM-001',
+            status: 'ACTIVE',
+          ),
+          UserMembership(
+            id: 'm-2',
+            idirId: 'same-idir-uuid-1', // DUPLICATE with same idirId
+            idirName: 'St. George Mutual Aid Association',
+            role: UserRole.chairperson,
+            memberNumber: 'MEM-002',
+            status: 'ACTIVE',
+          ),
+          UserMembership(
+            id: 'm-3',
+            idirId: ' SAME-IDIR-UUID-1 ', // DUPLICATE with whitespace and casing
+            idirName: 'St. George Mutual Aid Association',
+            role: UserRole.treasurer,
+            memberNumber: 'MEM-003',
+            status: 'ACTIVE',
+          ),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          currentUserProvider.overrideWithValue(testUser),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(activeIdirProvider.notifier).seedForTest(testUser.memberships);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: TelegramIdirSwitcherSection(),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Ensure that St. George appears ONLY ONCE
+      expect(find.text('St. George Mutual Aid Association'), findsOneWidget);
+      // Ensure the count badge shows 1 Connected
+      expect(find.text('1 Connected'), findsOneWidget);
+    });
+
     testWidgets('Tapping inactive Idir switches active state', (tester) async {
       final container = ProviderContainer();
       addTearDown(container.dispose);
