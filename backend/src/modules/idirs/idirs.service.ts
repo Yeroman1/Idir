@@ -1,7 +1,8 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, NotificationType } from '@prisma/client';
 import { prisma } from '../../config/database.js';
 import { NotFoundError } from '../../shared/errors/AppError.js';
 import { CreateIdirInput, UpdateIdirInput, UpdateSettingsInput } from './idirs.validation.js';
+import { reliableNotificationDispatcher } from '../notifications/reliable-dispatcher.service.js';
 
 export class IdirsService {
   async createIdir(creatorUserId: string, input: CreateIdirInput) {
@@ -184,6 +185,30 @@ export class IdirsService {
           entityId: idirId,
           safeMetadata: input as Prisma.InputJsonValue,
         },
+      });
+    }
+
+    if (input.status && input.status !== existing.status) {
+      queueMicrotask(async () => {
+        try {
+          const members = await prisma.membership.findMany({
+            where: { idirId, status: 'ACTIVE' },
+            select: { userId: true },
+          });
+
+          for (const m of members) {
+            await reliableNotificationDispatcher.dispatch({
+              userId: m.userId,
+              title: `Idir Status: ${updated.name}`,
+              body: `The status of ${updated.name} has been updated to ${updated.status}.`,
+              type: NotificationType.IDIR_STATUS,
+              data: { idirId, status: updated.status },
+              idempotencyKey: `idir-status-${updated.id}-${updated.status}-${m.userId}`,
+            });
+          }
+        } catch {
+          // Non-blocking
+        }
       });
     }
 

@@ -26,6 +26,8 @@ import '../../features/elections/presentation/screens/elections_dashboard_screen
 import '../../features/chat/presentation/screens/group_chat_screen.dart';
 import '../../features/ikub/presentation/screens/ikub_hub_screen.dart';
 import '../../features/ikub/presentation/screens/create_ikub_screen.dart';
+import '../../features/notifications/presentation/screens/notification_center_screen.dart';
+import '../../features/notifications/presentation/screens/notification_preferences_screen.dart';
 import '../models/app_user.dart';
 import '../providers/pin_provider.dart';
 import '../widgets/access_denied_screen.dart';
@@ -242,6 +244,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const CreateIkubScreen(),
       ),
 
+      // ── Notifications Routes ────────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.notifications,
+        name: 'notifications',
+        builder: (_, __) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.notificationPreferences,
+        name: 'notificationPreferences',
+        builder: (_, __) => const NotificationPreferencesScreen(),
+      ),
+
       // ── Supabase Email Auth Routes ──────────────────────────────────────
       GoRoute(
         path: AppRoutes.supabaseRegister,
@@ -360,4 +374,6 @@ abstract final class AppRoutes {
   static const chat = '/chat';
   static const ikub = '/ikub';
   static const createIkub = '/ikub/create';
+  static const notifications = '/notifications';
+  static const notificationPreferences = '/settings/notifications';
 }

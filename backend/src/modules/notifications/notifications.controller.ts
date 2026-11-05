@@ -1,5 +1,8 @@
 import { Response, NextFunction } from 'express';
 import { notificationsService } from './notifications.service.js';
+import { notificationPreferencesService } from './preferences.service.js';
+import { deviceTokenService } from './device-token.service.js';
+import { remindersService } from './reminders.service.js';
 import { sendSuccess, sendCreated } from '../../shared/utils/response.js';
 import { AuthenticatedRequest } from '../../shared/types/index.js';
 
@@ -49,6 +52,76 @@ export class NotificationsController {
     try {
       await notificationsService.markAllNotificationsRead(req.user!.id);
       return sendSuccess(res, { markedAllRead: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMyPreferences(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const preferences = await notificationPreferencesService.getPreferences(req.user!.id);
+      return sendSuccess(res, preferences);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMyPreferences(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const preferences = await notificationPreferencesService.updatePreferences(
+        req.user!.id,
+        req.body
+      );
+      return sendSuccess(res, preferences, 200, 'Notification preferences updated successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async registerDeviceToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { token, platform } = req.body;
+      const record = await deviceTokenService.registerToken(req.user!.id, token, platform);
+      return sendSuccess(res, record, 200, 'Device token registered successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async unregisterDeviceToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { token } = req.body;
+      await deviceTokenService.unregisterToken(req.user!.id, token);
+      return sendSuccess(res, { unregistered: true }, 200, 'Device token unregistered successfully');
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async dispatchReminders(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const idirId = req.params.idirId;
+      const { type = 'ALL', leadHours = 24 } = req.body;
+
+      let meetingResult: any = null;
+      let contributionResult: any = null;
+
+      if (type === 'ALL' || type === 'MEETINGS') {
+        meetingResult = await remindersService.dispatchMeetingReminders(idirId, leadHours);
+      }
+      if (type === 'ALL' || type === 'CONTRIBUTIONS') {
+        contributionResult = await remindersService.dispatchContributionReminders(idirId);
+      }
+
+      return sendSuccess(
+        res,
+        {
+          meetingResult,
+          contributionResult,
+        },
+        200,
+        'Reminders processed and dispatched successfully'
+      );
     } catch (error) {
       next(error);
     }

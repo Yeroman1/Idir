@@ -1,5 +1,7 @@
 import { prisma } from '../../config/database.js';
 import { NotFoundError } from '../../shared/errors/AppError.js';
+import { reliableNotificationDispatcher } from '../notifications/reliable-dispatcher.service.js';
+import { NotificationType } from '@prisma/client';
 import {
   CreateMeetingInput,
   UpdateMeetingInput,
@@ -8,7 +10,7 @@ import {
 
 export class MeetingsService {
   async createMeeting(idirId: string, input: CreateMeetingInput, actorId: string) {
-    return prisma.meeting.create({
+    const meeting = await prisma.meeting.create({
       data: {
         idirId,
         title: input.title,
@@ -22,6 +24,29 @@ export class MeetingsService {
         createdBy: { select: { id: true, fullName: true } },
       },
     });
+
+    // Notify active members of this Idir about the new meeting
+    try {
+      const activeMembers = await prisma.membership.findMany({
+        where: { idirId, status: 'ACTIVE' },
+        select: { userId: true },
+      });
+
+      for (const member of activeMembers) {
+        await reliableNotificationDispatcher.dispatch({
+          userId: member.userId,
+          title: `New Meeting: ${meeting.title}`,
+          body: `A community meeting "${meeting.title}" is scheduled for ${meeting.scheduledAt.toLocaleDateString()}. Location: ${meeting.location || 'Idir Hall'}`,
+          type: NotificationType.MEETING_REMINDER,
+          data: { idirId, meetingId: meeting.id, scheduledAt: meeting.scheduledAt.toISOString() },
+          idempotencyKey: `meeting-created-${meeting.id}-${member.userId}`,
+        });
+      }
+    } catch {
+      // Non-blocking notification dispatch
+    }
+
+    return meeting;
   }
 
   async listMeetings(idirId: string) {
@@ -69,7 +94,7 @@ export class MeetingsService {
       throw new NotFoundError('Meeting not found');
     }
 
-    return prisma.meeting.update({
+    const updated = await prisma.meeting.update({
       where: { id: meetingId },
       data: {
         ...(input.title && { title: input.title }),
@@ -80,6 +105,30 @@ export class MeetingsService {
         ...(input.minutes !== undefined && { minutes: input.minutes }),
       },
     });
+
+    if (input.scheduledAt || input.location || input.status) {
+      try {
+        const activeMembers = await prisma.membership.findMany({
+          where: { idirId, status: 'ACTIVE' },
+          select: { userId: true },
+        });
+
+        for (const member of activeMembers) {
+          await reliableNotificationDispatcher.dispatch({
+            userId: member.userId,
+            title: `Meeting Update: ${updated.title}`,
+            body: `Meeting "${updated.title}" status is now ${updated.status}. Scheduled: ${updated.scheduledAt.toLocaleDateString()}. Location: ${updated.location || 'Idir Hall'}`,
+            type: NotificationType.MEETING_REMINDER,
+            data: { idirId, meetingId: updated.id, status: updated.status },
+            idempotencyKey: `meeting-update-${updated.id}-${updated.updatedAt.getTime()}-${member.userId}`,
+          });
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+
+    return updated;
   }
 
   async recordAttendance(
