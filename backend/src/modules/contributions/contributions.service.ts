@@ -1,6 +1,7 @@
 import crypto from 'crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma, NotificationType } from '@prisma/client';
 import { prisma } from '../../config/database.js';
+import { reliableNotificationDispatcher } from '../notifications/reliable-dispatcher.service.js';
 import {
   NotFoundError,
   BadRequestError,
@@ -164,6 +165,28 @@ export class ContributionsService {
         },
       });
 
+      if (contribution.status === 'CONFIRMED' && contribution.membership?.user?.id) {
+        queueMicrotask(async () => {
+          try {
+            await reliableNotificationDispatcher.dispatch({
+              userId: contribution.membership.user.id,
+              title: 'Contribution Received',
+              body: `Your payment of ${contribution.amount} ${contribution.currency} was verified. Receipt #${receiptNumber}.`,
+              type: NotificationType.PAYMENT_CONFIRMED,
+              data: {
+                idirId,
+                contributionId: contribution.id,
+                amount: contribution.amount.toString(),
+                receiptNumber,
+              },
+              idempotencyKey: `contrib-record-${contribution.id}`,
+            });
+          } catch {
+            // Non-blocking
+          }
+        });
+      }
+
       return contribution;
     });
   }
@@ -205,6 +228,33 @@ export class ContributionsService {
           safeMetadata: { receiptNumber: contribution.receiptNumber },
         },
       });
+
+      const member = await tx.membership.findUnique({
+        where: { id: contribution.membershipId },
+        select: { userId: true },
+      });
+
+      if (member?.userId) {
+        queueMicrotask(async () => {
+          try {
+            await reliableNotificationDispatcher.dispatch({
+              userId: member.userId,
+              title: 'Contribution Confirmed',
+              body: `Payment of ${contribution.amount} ${contribution.currency} was confirmed. Receipt #${contribution.receiptNumber}.`,
+              type: NotificationType.PAYMENT_CONFIRMED,
+              data: {
+                idirId,
+                contributionId: updated.id,
+                amount: contribution.amount.toString(),
+                receiptNumber: contribution.receiptNumber,
+              },
+              idempotencyKey: `contrib-confirm-${updated.id}`,
+            });
+          } catch {
+            // Non-blocking
+          }
+        });
+      }
 
       return updated;
     });
