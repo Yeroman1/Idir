@@ -272,6 +272,15 @@ Idir Connect enforces a strict Role-Based Access Control (RBAC) matrix to guaran
 - **Auditor Verification Console**: Instant cryptographic audit-chain integrity scanner that detects retroactive database tampering.
 - **Export Formats**: Download comprehensive financial balance sheets and member contribution statements in PDF and CSV.
 
+### 11. Reliable Notifications & Contribution Reminders
+
+- **Dedicated Notification Center**: Full Flutter screen and pull-up sheet with unread badges, category filtering (All, Unread, Contributions, Meetings, Announcements, Invitations), and swipe/mark-all actions.
+- **Intelligent Contribution Reminders**: Automatically scans members against actual Idir dues schedules; members who have already paid for the current period are safely excluded from reminders.
+- **Automated Meeting Notices**: Instant alerts on meeting creation, location or schedule changes, and scheduled assembly reminders within configurable lead windows (e.g. 24h/48h).
+- **Multi-Channel Dispatch Engine**: Reliable non-blocking notification pipeline supporting In-App, Push Notifications (with device token registration), and SMS (with retry and idempotency safeguards).
+- **User Notification Preferences & Quiet Hours**: Granular channel and category preferences with overnight quiet hours support (suppressing non-urgent push/SMS while urgent alerts always deliver).
+- **Delivery Audit & Deduplication**: Database delivery logs (`NotificationDelivery`) with status tracking (`SENT`, `FAILED`, `PENDING`), transient failure retries, and unique idempotency keys.
+
 ---
 
 ## 🗄️ Database Architecture & Entity Relationships
