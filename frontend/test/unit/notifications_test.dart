@@ -4,12 +4,14 @@ import 'package:idir_app/core/models/app_user.dart';
 import 'package:idir_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:idir_app/features/notifications/data/notifications_repository.dart';
 import 'package:idir_app/features/notifications/domain/models/app_notification.dart';
+import 'package:idir_app/features/notifications/domain/models/notification_preferences.dart';
 import 'package:idir_app/features/notifications/presentation/providers/notifications_provider.dart';
 
 class MockNotificationsRepository implements NotificationsRepository {
   List<AppNotification> items = [];
   bool markAsReadCalled = false;
   bool markAllAsReadCalled = false;
+  NotificationPreferences? preferences = const NotificationPreferences();
 
   @override
   Future<List<AppNotification>> getNotifications({int limit = 50}) async {
@@ -51,6 +53,27 @@ class MockNotificationsRepository implements NotificationsRepository {
         createdAt: n.createdAt,
       );
     }).toList();
+    return true;
+  }
+
+  @override
+  Future<NotificationPreferences?> getPreferences() async {
+    return preferences;
+  }
+
+  @override
+  Future<bool> updatePreferences(NotificationPreferences prefs) async {
+    preferences = prefs;
+    return true;
+  }
+
+  @override
+  Future<bool> registerDeviceToken(String token, {String platform = 'android'}) async {
+    return true;
+  }
+
+  @override
+  Future<bool> unregisterDeviceToken(String token) async {
     return true;
   }
 }

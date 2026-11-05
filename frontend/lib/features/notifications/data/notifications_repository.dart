@@ -2,11 +2,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/network/api_client.dart';
 import '../domain/models/app_notification.dart';
+import '../domain/models/notification_preferences.dart';
 
 abstract class NotificationsRepository {
   Future<List<AppNotification>> getNotifications({int limit = 50});
   Future<bool> markAsRead(String notificationId);
   Future<bool> markAllAsRead();
+  Future<NotificationPreferences?> getPreferences();
+  Future<bool> updatePreferences(NotificationPreferences preferences);
+  Future<bool> registerDeviceToken(String token, {String platform = 'android'});
+  Future<bool> unregisterDeviceToken(String token);
 }
 
 class RestNotificationsRepository implements NotificationsRepository {
@@ -57,10 +62,61 @@ class RestNotificationsRepository implements NotificationsRepository {
       return false;
     }
   }
+
+  @override
+  Future<NotificationPreferences?> getPreferences() async {
+    try {
+      final res = await _api.get('/notifications/preferences');
+      if (res is Map<String, dynamic>) {
+        final data = res['data'] is Map<String, dynamic> ? res['data'] as Map<String, dynamic> : res;
+        return NotificationPreferences.fromMap(data);
+      }
+    } catch (e) {
+      debugPrint('[NotificationsRepository] getPreferences error: $e');
+    }
+    return null;
+  }
+
+  @override
+  Future<bool> updatePreferences(NotificationPreferences preferences) async {
+    try {
+      await _api.put('/notifications/preferences', body: preferences.toMap());
+      return true;
+    } catch (e) {
+      debugPrint('[NotificationsRepository] updatePreferences error: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> registerDeviceToken(String token, {String platform = 'android'}) async {
+    try {
+      await _api.post('/notifications/device-token', body: {
+        'token': token,
+        'platform': platform,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[NotificationsRepository] registerDeviceToken error: $e');
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> unregisterDeviceToken(String token) async {
+    try {
+      await _api.delete('/notifications/device-token', queryParams: {
+        'token': token,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('[NotificationsRepository] unregisterDeviceToken error: $e');
+      return false;
+    }
+  }
 }
 
 final notificationsRepositoryProvider = Provider<NotificationsRepository>((ref) {
   final apiClient = ref.watch(apiClientProvider);
   return RestNotificationsRepository(apiClient: apiClient);
 });
-
