@@ -533,4 +533,4 @@ _Idir Connect (እድር ኮኔክት) — Preserving Ethiopian communal heritag
 
 
 - **Idir-Connect Documentation:- <a href="https://docs.google.com/presentation/d/16NJ6RlEmlqe_ue8JMzOjx9ILRNClC6Uh/edit?usp=sharing&ouid=109770059071934906386&rtpof=true&sd=true">here</a>**
-- **Idir-Connect Video:- <a href="[https://drive.google.com/file/d/1tlj_OHdaUGDK6JTIshnfQBpvstNBmU3X/preview?usp=sharing](https://drive.google.com/file/d/1tlj_OHdaUGDK6JTIshnfQBpvstNBmU3X/preview?usp=sharing)">here</a>**
+- **Idir-Connect Video:- <a href="https://drive.google.com/file/d/1tlj_OHdaUGDK6JTIshnfQBpvstNBmU3X/preview?usp=sharing">here</a>**
