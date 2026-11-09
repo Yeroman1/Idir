@@ -3,7 +3,13 @@ import { notificationsController } from './notifications.controller.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { requireIdirRole } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
-import { createAnnouncementSchema } from './notifications.validation.js';
+import {
+  createAnnouncementSchema,
+  updatePreferencesSchema,
+  registerDeviceTokenSchema,
+  unregisterDeviceTokenSchema,
+  dispatchRemindersSchema,
+} from './notifications.validation.js';
 
 // Idir announcements router
 const announcementsRouter = Router({ mergeParams: true });
@@ -30,6 +36,13 @@ announcementsRouter.get(
   notificationsController.listAnnouncements
 );
 
+announcementsRouter.post(
+  '/dispatch-reminders',
+  requireIdirRole(['CHAIRPERSON', 'TREASURER', 'SECRETARY']),
+  validate({ body: dispatchRemindersSchema }),
+  notificationsController.dispatchReminders
+);
+
 export const announcementRoutes = announcementsRouter;
 
 // User notifications router
@@ -40,5 +53,26 @@ userNotificationsRouter.use(authenticate);
 userNotificationsRouter.get('/', notificationsController.listMyNotifications);
 userNotificationsRouter.patch('/:notificationId/read', notificationsController.markRead);
 userNotificationsRouter.post('/read-all', notificationsController.markAllRead);
+userNotificationsRouter.get('/preferences', notificationsController.getMyPreferences);
+userNotificationsRouter.put(
+  '/preferences',
+  validate({ body: updatePreferencesSchema }),
+  notificationsController.updateMyPreferences
+);
+userNotificationsRouter.post(
+  '/device-token',
+  validate({ body: registerDeviceTokenSchema }),
+  notificationsController.registerDeviceToken
+);
+userNotificationsRouter.delete(
+  '/device-token',
+  validate({ body: unregisterDeviceTokenSchema }),
+  notificationsController.unregisterDeviceToken
+);
+userNotificationsRouter.post(
+  '/reminders/dispatch',
+  validate({ body: dispatchRemindersSchema }),
+  notificationsController.dispatchReminders
+);
 
 export const notificationRoutes = userNotificationsRouter;

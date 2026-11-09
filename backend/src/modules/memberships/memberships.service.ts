@@ -1,5 +1,6 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, NotificationType } from '@prisma/client';
 import { prisma } from '../../config/database.js';
+import { reliableNotificationDispatcher } from '../notifications/reliable-dispatcher.service.js';
 import {
   NotFoundError,
   ConflictError,
@@ -102,6 +103,19 @@ export class MembershipsService {
           },
         },
       });
+    }
+
+    try {
+      await reliableNotificationDispatcher.dispatch({
+        userId: targetUserId,
+        title: 'Membership Approved',
+        body: `You are now an active member (${membership.memberNumber}) with role ${membership.role}.`,
+        type: NotificationType.MEMBERSHIP_UPDATE,
+        data: { idirId, membershipId: membership.id, role: membership.role },
+        idempotencyKey: `membership-add-${membership.id}`,
+      });
+    } catch {
+      // Non-blocking
     }
 
     return membership;
@@ -266,6 +280,21 @@ export class MembershipsService {
       });
     }
 
+    if (input.status || input.role) {
+      try {
+        await reliableNotificationDispatcher.dispatch({
+          userId: updated.userId,
+          title: 'Membership Status Updated',
+          body: `Your Idir membership status is now ${updated.status} with role ${updated.role}.`,
+          type: NotificationType.MEMBERSHIP_UPDATE,
+          data: { idirId, membershipId: updated.id, status: updated.status, role: updated.role },
+          idempotencyKey: `membership-update-${updated.id}-${updated.updatedAt.getTime()}`,
+        });
+      } catch {
+        // Non-blocking
+      }
+    }
+
     return updated;
   }
 
@@ -294,6 +323,19 @@ export class MembershipsService {
           safeMetadata: { previousStatus: membership.status },
         },
       });
+    }
+
+    try {
+      await reliableNotificationDispatcher.dispatch({
+        userId: membership.userId,
+        title: 'Membership Deactivated',
+        body: 'Your membership in this Idir has been deactivated.',
+        type: NotificationType.MEMBERSHIP_UPDATE,
+        data: { idirId, membershipId: deactivated.id, status: 'DEACTIVATED' },
+        idempotencyKey: `membership-deactivate-${deactivated.id}`,
+      });
+    } catch {
+      // Non-blocking
     }
 
     return deactivated;

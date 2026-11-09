@@ -13,7 +13,9 @@ export const createIdirSchema = z.object({
   currency: z.string().default('ETB'),
 });
 
-export const updateIdirSchema = createIdirSchema.partial();
+export const updateIdirSchema = createIdirSchema.partial().extend({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'ARCHIVED', 'CLOSED', 'DRAFT']).optional(),
+});
 
 export const updateSettingsSchema = z.object({
   regularDuesAmount: z.coerce.number().positive('Regular dues must be greater than zero').optional(),

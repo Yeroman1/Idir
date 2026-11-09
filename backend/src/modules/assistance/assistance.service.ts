@@ -1,6 +1,7 @@
 import crypto from 'crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma, NotificationType } from '@prisma/client';
 import { prisma } from '../../config/database.js';
+import { reliableNotificationDispatcher } from '../notifications/reliable-dispatcher.service.js';
 import {
   NotFoundError,
   BadRequestError,
@@ -281,6 +282,28 @@ export class AssistanceService {
           },
         },
       });
+
+      if (request.submittedById) {
+        queueMicrotask(async () => {
+          try {
+            await reliableNotificationDispatcher.dispatch({
+              userId: request.submittedById,
+              title: `Assistance Request ${newStatus}`,
+              body: `Your assistance request of ${request.requestedAmount} ETB was ${newStatus.toLowerCase()}.`,
+              type: NotificationType.ASSISTANCE_UPDATE,
+              data: {
+                idirId,
+                caseId,
+                requestId,
+                status: newStatus,
+              },
+              idempotencyKey: `assist-review-${requestId}-${newStatus}`,
+            });
+          } catch {
+            // Non-blocking
+          }
+        });
+      }
 
       return updated;
     });
