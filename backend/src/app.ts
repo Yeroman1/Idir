@@ -29,6 +29,7 @@ import {
 } from './modules/invitations/invitations.routes.js';
 import { electionRoutes } from './modules/elections/elections.routes.js';
 import { chatRoutes } from './modules/chat/chat.routes.js';
+import { cooperationRoutes } from './modules/cooperation/cooperation.routes.js';
 
 export const app = express();
 
@@ -83,6 +84,7 @@ api.use('/idirs/:idirId/audit', auditRoutes);
 api.use('/idirs/:idirId/invitations', invitationRoutes);
 api.use('/idirs/:idirId/elections', electionRoutes);
 api.use('/idirs/:idirId/chat', chatRoutes);
+api.use('/idirs/:idirId/cooperation', cooperationRoutes);
 
 app.use(env.API_PREFIX, api);
 

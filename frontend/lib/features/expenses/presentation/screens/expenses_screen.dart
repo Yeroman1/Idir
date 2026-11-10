@@ -525,8 +525,9 @@ class ExpensesScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                      );
-                    },
+                      ),
+                    );
+                  },
                   ),
           ),
         ],

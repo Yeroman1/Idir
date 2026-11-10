@@ -235,6 +235,19 @@ model User {
   revokedInvitations     Invitation[]           @relation("RevokedInvitations")
   createdElections       Election[]             @relation("CreatedElections")
   chatMessages           ChatMessage[]
+  createdCooperations    CooperationAgreement[] @relation("CreatedCooperations")
+  authorizedParticipants CooperationParticipant[] @relation("AuthorizedParticipants")
+  createdInitiatives     JointInitiative[]      @relation("CreatedInitiatives")
+  createdInitiativeUpdates InitiativeUpdate[]   @relation("CreatedInitiativeUpdates")
+  completedInitiativeTasks InitiativeTask[]     @relation("CompletedInitiativeTasks")
+  crossAnnouncements     CrossIdirAnnouncement[] @relation("CreatedCrossAnnouncements")
+  withdrawnAnnouncements CrossIdirAnnouncement[] @relation("WithdrawnCrossAnnouncements")
+  createdEmergencies     CrossIdirEmergency[]   @relation("CreatedEmergencies")
+  closedEmergencies      CrossIdirEmergency[]   @relation("ClosedEmergencies")
+  emergencyResponses     EmergencyResponse[]    @relation("EmergencyResponses")
+  createdCommitments     JointFinancialCommitment[] @relation("CreatedCommitments")
+  authorizedCommitments  JointFinancialCommitment[] @relation("AuthorizedCommitments")
+  confirmedCommitments   JointFinancialCommitment[] @relation("ConfirmedCommitments")
 
   @@index([phoneNumber])
   @@index([email])
@@ -299,6 +312,15 @@ model Idir {
   roleTerms              RoleTerm[]
   noConfidenceVotes      NoConfidenceVote[]
   chatMessages           ChatMessage[]
+  cooperationProposals   CooperationAgreement[] @relation("ProposingIdir")
+  cooperationReceived    CooperationAgreement[] @relation("ReceivingIdir")
+  cooperationParticipations CooperationParticipant[]
+  ownedInitiatives       JointInitiative[]      @relation("OwnedInitiatives")
+  responsibleTasks       InitiativeTask[]       @relation("ResponsibleTasks")
+  publishedCrossAnnouncements CrossIdirAnnouncement[] @relation("PublishedCrossAnnouncements")
+  crossEmergenciesRequested CrossIdirEmergency[] @relation("RequestedCrossEmergencies")
+  crossEmergencyResponses EmergencyResponse[]   @relation("RespondingIdir")
+  financialCommitments   JointFinancialCommitment[] @relation("ContributingIdir")
 
   @@index([name])
   @@index([region])
@@ -432,6 +454,7 @@ model Expense {
   rejectionReason String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  financialCommitment JointFinancialCommitment?
 
   @@index([idirId])
   @@index([status])
@@ -1128,3 +1151,271 @@ model ChatMessage {
   @@index([clientMutationId])
 }
 
+
+// ─── CROSS-IDIR COOPERATION ────────────────────────────────────────────────
+
+enum CooperationStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum JointInitiativeCategory {
+  EMERGENCY_ASSISTANCE
+  COMMUNITY_SUPPORT
+  JOINT_MEETING
+  OTHER
+}
+
+enum JointInitiativeStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum CrossIdirAnnouncementCategory {
+  EMERGENCY
+  JOINT_MEETING
+  COMMUNITY_INITIATIVE
+  GENERAL
+}
+
+enum CrossIdirEmergencyUrgency {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CrossIdirEmergencyStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum JointFinancialCommitmentStatus {
+  PENDING
+  AUTHORIZED
+  CONFIRMED
+  CANCELLED
+}
+
+model CooperationAgreement {
+  id               String            @id @default(uuid())
+  idirAId          String
+  idirA            Idir              @relation("ProposingIdir", fields: [idirAId], references: [id], onDelete: Cascade)
+  idirBId          String
+  idirB            Idir              @relation("ReceivingIdir", fields: [idirBId], references: [id], onDelete: Cascade)
+  purpose          String
+  description      String            @db.Text
+  status           CooperationStatus @default(PENDING)
+  proposedDuration Int?
+  startDate        DateTime?
+  endDate          DateTime?
+  endReason        String?
+  createdById      String
+  createdBy        User              @relation("CreatedCooperations", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  participants     CooperationParticipant[]
+  initiatives      JointInitiative[]
+  announcements    CrossIdirAnnouncement[]
+  emergencies      CrossIdirEmergency[]
+  commitments      JointFinancialCommitment[]
+
+  @@index([idirAId])
+  @@index([idirBId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CooperationParticipant {
+  id                   String               @id @default(uuid())
+  agreementId          String
+  agreement            CooperationAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  idirId               String
+  idir                 Idir                 @relation(fields: [idirId], references: [id], onDelete: Cascade)
+  status               CooperationStatus    @default(PENDING)
+  authorizedById       String?
+  authorizedBy         User?                @relation("AuthorizedParticipants", fields: [authorizedById], references: [id], onDelete: SetNull)
+  authorizedAt         DateTime?
+  rejectionReason      String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  @@unique([agreementId, idirId])
+  @@index([agreementId])
+  @@index([idirId])
+  @@index([status])
+}
+
+model JointInitiative {
+  id          String                  @id @default(uuid())
+  agreementId String
+  agreement   CooperationAgreement    @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  title       String
+  description String                  @db.Text
+  objectives  String                  @db.Text
+  category    JointInitiativeCategory @default(OTHER)
+  status      JointInitiativeStatus   @default(ACTIVE)
+  ownerIdirId String
+  ownerIdir   Idir                    @relation("OwnedInitiatives", fields: [ownerIdirId], references: [id], onDelete: Restrict)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdById String
+  createdBy   User                    @relation("CreatedInitiatives", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  updates     InitiativeUpdate[]
+  tasks       InitiativeTask[]
+  commitments JointFinancialCommitment[]
+
+  @@index([agreementId])
+  @@index([ownerIdirId])
+  @@index([status])
+}
+
+model InitiativeUpdate {
+  id           String          @id @default(uuid())
+  initiativeId String
+  initiative   JointInitiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+  content      String          @db.Text
+  createdById  String
+  createdBy    User            @relation("CreatedInitiativeUpdates", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime        @default(now())
+
+  @@index([initiativeId])
+  @@index([createdAt])
+}
+
+model InitiativeTask {
+  id                String          @id @default(uuid())
+  initiativeId      String
+  initiative        JointInitiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?         @db.Text
+  responsibleIdirId String
+  responsibleIdir   Idir            @relation("ResponsibleTasks", fields: [responsibleIdirId], references: [id], onDelete: Restrict)
+  dueDate           DateTime?
+  isCompleted       Boolean         @default(false)
+  completedAt       DateTime?
+  completedById     String?
+  completedBy       User?           @relation("CompletedInitiativeTasks", fields: [completedById], references: [id], onDelete: SetNull)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([initiativeId])
+  @@index([responsibleIdirId])
+  @@index([isCompleted])
+}
+
+model CrossIdirAnnouncement {
+  id              String                        @id @default(uuid())
+  agreementId     String
+  agreement       CooperationAgreement          @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  publisherIdirId String
+  publisherIdir   Idir                          @relation("PublishedCrossAnnouncements", fields: [publisherIdirId], references: [id], onDelete: Restrict)
+  title           String
+  body            String                        @db.Text
+  category        CrossIdirAnnouncementCategory @default(GENERAL)
+  isWithdrawn     Boolean                       @default(false)
+  withdrawnAt     DateTime?
+  withdrawnById   String?
+  withdrawnBy     User?                         @relation("WithdrawnCrossAnnouncements", fields: [withdrawnById], references: [id], onDelete: SetNull)
+  createdById     String
+  createdBy       User                          @relation("CreatedCrossAnnouncements", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+
+  @@index([agreementId])
+  @@index([publisherIdirId])
+  @@index([isWithdrawn])
+  @@index([createdAt])
+}
+
+model CrossIdirEmergency {
+  id              String                    @id @default(uuid())
+  agreementId     String
+  agreement       CooperationAgreement      @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  requestingIdirId String
+  requestingIdir   Idir                      @relation("RequestedCrossEmergencies", fields: [requestingIdirId], references: [id], onDelete: Restrict)
+  title           String
+  description     String                    @db.Text
+  emergencyType   String
+  urgency         CrossIdirEmergencyUrgency @default(HIGH)
+  status          CrossIdirEmergencyStatus  @default(OPEN)
+  outcomeSummary  String?                   @db.Text
+  closedAt        DateTime?
+  closedById      String?
+  closedBy        User?                     @relation("ClosedEmergencies", fields: [closedById], references: [id], onDelete: SetNull)
+  createdById     String
+  createdBy       User                      @relation("CreatedEmergencies", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  responses       EmergencyResponse[]
+
+  @@index([agreementId])
+  @@index([requestingIdirId])
+  @@index([status])
+  @@index([urgency])
+  @@index([createdAt])
+}
+
+model EmergencyResponse {
+  id                String             @id @default(uuid())
+  emergencyId       String
+  emergency         CrossIdirEmergency @relation(fields: [emergencyId], references: [id], onDelete: Cascade)
+  respondingIdirId  String
+  respondingIdir    Idir               @relation("RespondingIdir", fields: [respondingIdirId], references: [id], onDelete: Restrict)
+  message           String             @db.Text
+  commitmentNote    String?            @db.Text
+  respondedById     String
+  respondedBy       User               @relation("EmergencyResponses", fields: [respondedById], references: [id], onDelete: Restrict)
+  createdAt         DateTime           @default(now())
+
+  @@index([emergencyId])
+  @@index([respondingIdirId])
+  @@index([createdAt])
+}
+
+model JointFinancialCommitment {
+  id                 String                         @id @default(uuid())
+  agreementId        String
+  agreement          CooperationAgreement           @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  initiativeId       String?
+  initiative         JointInitiative?               @relation(fields: [initiativeId], references: [id], onDelete: SetNull)
+  contributingIdirId String
+  contributingIdir   Idir                           @relation("ContributingIdir", fields: [contributingIdirId], references: [id], onDelete: Restrict)
+  amountCommitted    Decimal                        @db.Decimal(14, 2)
+  amountConfirmed    Decimal                        @default(0.00) @db.Decimal(14, 2)
+  currency           String                         @default("ETB")
+  purpose            String
+  status             JointFinancialCommitmentStatus @default(PENDING)
+  authorizedById     String?
+  authorizedBy       User?                          @relation("AuthorizedCommitments", fields: [authorizedById], references: [id], onDelete: SetNull)
+  authorizedAt       DateTime?
+  confirmedById      String?
+  confirmedBy        User?                          @relation("ConfirmedCommitments", fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedAt        DateTime?
+  reconciliationNote String?                        @db.Text
+  expenseId          String?                        @unique
+  expense            Expense?                       @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  createdById        String
+  createdBy          User                           @relation("CreatedCommitments", fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt          DateTime                       @default(now())
+  updatedAt          DateTime                       @updatedAt
+
+  @@index([agreementId])
+  @@index([contributingIdirId])
+  @@index([initiativeId])
+  @@index([status])
+  @@index([createdAt])
+}
