@@ -78,6 +78,7 @@ api.use('/idirs/:idirId/assistance', assistanceRoutes);
 api.use('/idirs/:idirId/ikub', ikubRoutes);
 api.use('/idirs/:idirId/meetings', meetingRoutes);
 api.use('/idirs/:idirId/announcements', announcementRoutes);
+api.use('/idirs/:idirId/notifications', announcementRoutes);
 api.use('/idirs/:idirId/reports', reportRoutes);
 api.use('/idirs/:idirId/audit', auditRoutes);
 api.use('/idirs/:idirId/invitations', invitationRoutes);

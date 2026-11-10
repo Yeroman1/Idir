@@ -232,6 +232,78 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  void _showLeaveCurrentIdirDialog(BuildContext context, UserMembership activeIdir) {
+    final isChairpersonOrCreator = activeIdir.role == UserRole.chairperson;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.logout_rounded, color: AppColors.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                "Leave Idir",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to log out / leave "${activeIdir.idirName}"?',
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isChairpersonOrCreator
+                  ? "Even though you created or lead this Idir, you can leave at any time. Leadership will be automatically reassigned to another active member, or the Idir will be closed if no other members remain."
+                  : "You will be removed from this Idir and it will be disconnected from your account.",
+              style: const TextStyle(fontSize: 13, height: 1.4),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final success = await ref
+                  .read(activeIdirProvider.notifier)
+                  .leaveIdir(activeIdir.idirId);
+              if (mounted) {
+                if (success) {
+                  _showSnack('Successfully left "${activeIdir.idirName}".');
+                } else {
+                  _showSnack("Could not leave Idir. Please try again.", isError: true);
+                }
+              }
+            },
+            child: const Text("Leave Idir"),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showBylawsDialog() {
     showDialog(
       context: context,
@@ -427,6 +499,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: _showBylawsDialog,
               ),
+              if (activeIdir != null) ...[
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: _iconBox(Icons.logout_rounded, AppColors.error),
+                  title: Text(
+                    'Leave "${activeIdir.idirName}"',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.error,
+                    ),
+                  ),
+                  subtitle: Text(
+                    activeIdir.role == UserRole.chairperson
+                        ? "Chairperson / Creator can leave at any time; leadership will be transferred."
+                        : "Disconnect from this Idir and switch active community",
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: AppColors.error),
+                  onTap: () => _showLeaveCurrentIdirDialog(context, activeIdir),
+                ),
+              ],
             ],
           ),
 

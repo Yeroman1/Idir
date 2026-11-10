@@ -174,6 +174,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _repository.updateProfile(updated);
   }
 
+  Future<void> clearActiveIdir() async {
+    final current = state.user;
+    if (current == null) return;
+    final updated = current.copyWith(
+      idirId: null,
+      idirName: null,
+      role: UserRole.member,
+      memberId: null,
+    );
+    state = state.copyWith(user: () => updated);
+    await _repository.updateProfile(updated);
+  }
+
+  void removeMembership(String idirId) {
+    final current = state.user;
+    if (current == null) return;
+    final normalized = idirId.trim().toLowerCase();
+    final updatedMemberships = current.memberships
+        .where((m) => m.idirId.trim().toLowerCase() != normalized)
+        .toList();
+    final updated = current.copyWith(memberships: updatedMemberships);
+    state = state.copyWith(user: () => updated);
+  }
+
   void clearError() {
     state = state.copyWith(errorMessage: () => null);
   }

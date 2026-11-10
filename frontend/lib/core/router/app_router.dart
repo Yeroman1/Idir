@@ -29,6 +29,8 @@ import '../../features/ikub/presentation/screens/create_ikub_screen.dart';
 import '../../features/cooperation/presentation/screens/cooperation_list_screen.dart';
 import '../../features/cooperation/presentation/screens/propose_cooperation_screen.dart';
 import '../../features/cooperation/presentation/screens/cooperation_detail_screen.dart';
+import '../../features/notifications/presentation/screens/notification_center_screen.dart';
+import '../../features/notifications/presentation/screens/notification_preferences_screen.dart';
 import '../models/app_user.dart';
 import '../providers/pin_provider.dart';
 import '../widgets/access_denied_screen.dart';
@@ -67,7 +69,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       final isAuthenticated = auth.isAuthenticated;
 
-      // ── 1. Unauthenticated users must stay on Login ────────────────────
+      // ──── 1. Unauthenticated users must stay on Login ────────────────────────────────────────
       if (!isAuthenticated) {
         if (loc == AppRoutes.login ||
             loc.startsWith(AppRoutes.invitation) ||
@@ -77,7 +79,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return AppRoutes.login;
       }
 
-      // ── 2. Authenticated user attempting to visit Login ────────────────
+      // ──── 2. Authenticated user attempting to visit Login ────────────────────────────────
       if (loc == AppRoutes.login || loc == '/supabase-login') {
         if (pin.isPinEnabled && pin.isSet && !pin.isUnlocked) {
           return AppRoutes.pin;
@@ -85,7 +87,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return AppRoutes.home;
       }
 
-      // ── 3. PIN Lock enforcement (Only if user explicitly enabled PIN in settings) ──
+      // ──── 3. PIN Lock enforcement (Only if user explicitly enabled PIN in settings) ────
       if (pin.isPinEnabled && pin.isSet && !pin.isUnlocked) {
         return loc == AppRoutes.pin ? null : AppRoutes.pin;
       }
@@ -95,7 +97,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return AppRoutes.home;
       }
 
-      // ── 4. Role-Based Role Guards ─────────────────────────────────────
+      // ──── 4. Role-Based Role Guards ──────────────────────────────────────────────────────────────────────────
       final user = auth.user!;
       if (loc == AppRoutes.auditLog && !user.role.canViewAuditLog) {
         return AppRoutes.accessDenied;
@@ -119,7 +121,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      // ── Auth & Security ────────────────────────────────────────────────
+      // ──── Auth & Security ────────────────────────────────────────────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.login,
         name: 'login',
@@ -163,7 +165,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ── Members Detail & Management Subroutes ──────────────────────────
+      // ──── Members Detail & Management Subroutes ────────────────────────────────────────────────────
       GoRoute(
         path: '${AppRoutes.members}/detail/:id',
         name: 'memberDetail',
@@ -184,7 +186,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Feature Subroutes ──────────────────────────────────────────────
+      // ──── Feature Subroutes ────────────────────────────────────────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.announcements,
         name: 'announcements',
@@ -262,7 +264,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
-      // ── Supabase Email Auth Routes ──────────────────────────────────────
+      // ──── Notifications Routes ────────────────────────────────────────────────────────────────────────────────────────
+      GoRoute(
+        path: AppRoutes.notifications,
+        name: 'notifications',
+        builder: (_, __) => const NotificationCenterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.notificationPreferences,
+        name: 'notificationPreferences',
+        builder: (_, __) => const NotificationPreferencesScreen(),
+      ),
+
+      // ──── Supabase Email Auth Routes ────────────────────────────────────────────────────────────────────────────
       GoRoute(
         path: AppRoutes.supabaseRegister,
         name: 'supabaseRegister',
@@ -304,7 +318,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ── Shell (Bottom Navigation Tabs) ──────────────────────────────────
+      // ──── Shell (Bottom Navigation Tabs) ────────────────────────────────────────────────────────────────────
       mainShellRoute,
     ],
     errorBuilder: (context, state) => _ErrorScreen(state.error),
@@ -322,7 +336,7 @@ bool _isAuthRoute(String loc) {
       loc.startsWith(AppRoutes.resetPassword);
 }
 
-// ─── Error screen ─────────────────────────────────────────────────────────────
+// ────── Error screen ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 class _ErrorScreen extends StatelessWidget {
   const _ErrorScreen(this.error);
   final Exception? error;
@@ -383,4 +397,6 @@ abstract final class AppRoutes {
   static const cooperation = '/cooperation';
   static const proposeCooperation = '/cooperation/propose';
   static const cooperationDetail = '/cooperation/detail';
+  static const notifications = '/notifications';
+  static const notificationPreferences = '/settings/notifications';
 }

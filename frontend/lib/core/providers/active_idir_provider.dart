@@ -119,10 +119,11 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
       final seenIds = <String>{};
 
       void addMembership(UserMembership m) {
-        if (m.idirId.isNotEmpty &&
-            m.idirId != '00000000-0000-0000-0000-000000000001' &&
-            !seenIds.contains(m.idirId)) {
-          seenIds.add(m.idirId);
+        final key = m.idirId.trim().toLowerCase();
+        if (key.isNotEmpty &&
+            key != '00000000-0000-0000-0000-000000000001' &&
+            !seenIds.contains(key)) {
+          seenIds.add(key);
           list.add(m);
         }
       }
@@ -226,10 +227,13 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
 
   /// Switches active Idir instantly, updating persistent storage and AppUser.
   Future<bool> switchIdir(String idirId) async {
-    final target = state.availableIdirs.where((m) => m.idirId == idirId).firstOrNull;
+    final normalizedId = idirId.trim().toLowerCase();
+    final target = state.availableIdirs
+        .where((m) => m.idirId.trim().toLowerCase() == normalizedId)
+        .firstOrNull;
     if (target == null) return false;
 
-    if (state.activeIdir?.idirId == idirId) {
+    if (state.activeIdir?.idirId.trim().toLowerCase() == normalizedId) {
       return true; // Already active
     }
 
@@ -263,12 +267,15 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
 
   /// Adds a newly created or joined Idir and activates it immediately.
   Future<void> addAndSwitchIdir(UserMembership membership) async {
-    final updated = List<UserMembership>.from(state.availableIdirs);
-    final existingIndex = updated.indexWhere((m) => m.idirId == membership.idirId);
-    if (existingIndex != -1) {
-      updated[existingIndex] = membership;
-    } else {
-      updated.insert(0, membership);
+    final key = membership.idirId.trim().toLowerCase();
+    final updated = <UserMembership>[membership];
+    final seen = <String>{key};
+    for (final m in state.availableIdirs) {
+      final mKey = m.idirId.trim().toLowerCase();
+      if (mKey.isNotEmpty && !seen.contains(mKey)) {
+        seen.add(mKey);
+        updated.add(m);
+      }
     }
 
     // Persist custom idir locally for this user
@@ -299,9 +306,87 @@ class ActiveIdirNotifier extends StateNotifier<ActiveIdirState> {
     }
   }
 
+  /// Leaves an Idir (even if user created it or is chairperson).
+  /// Removes from available Idirs, updates local cache, and switches to next available Idir.
+  Future<bool> leaveIdir(String idirId) async {
+    final normalizedId = idirId.trim().toLowerCase();
+    bool apiSuccess = false;
+    try {
+      final idirsRepo = _ref.read(idirsRepositoryProvider);
+      apiSuccess = await idirsRepo.leaveIdir(idirId);
+    } catch (_) {}
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _ref.read(currentUserProvider);
+
+      if (user != null) {
+        final userCacheKey = "${_customIdirsCacheKey}_${user.uid}";
+        final customRaw = prefs.getString(userCacheKey);
+        if (customRaw != null && customRaw.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(customRaw) as List<dynamic>;
+            final updatedList = decoded.where((item) {
+              if (item is Map<String, dynamic>) {
+                final id = (item['idirId'] ?? item['id'] ?? '').toString().trim().toLowerCase();
+                return id != normalizedId;
+              }
+              return true;
+            }).toList();
+            await prefs.setString(userCacheKey, jsonEncode(updatedList));
+          } catch (_) {}
+        }
+      }
+
+      final remaining = state.availableIdirs
+          .where((m) => m.idirId.trim().toLowerCase() != normalizedId)
+          .toList();
+
+      final wasActive = state.activeIdir?.idirId.trim().toLowerCase() == normalizedId;
+      UserMembership? nextActive;
+      if (wasActive) {
+        nextActive = remaining.firstOrNull;
+      } else {
+        nextActive = state.activeIdir;
+      }
+
+      final userPrefKey = "${AppConstants.prefActiveIdirId}_${user?.uid ?? "anon"}";
+      if (nextActive != null) {
+        await prefs.setString(userPrefKey, nextActive.idirId);
+        await prefs.setString(AppConstants.prefActiveIdirId, nextActive.idirId);
+      } else {
+        await prefs.remove(userPrefKey);
+        await prefs.remove(AppConstants.prefActiveIdirId);
+      }
+
+      if (!mounted) return true;
+      state = state.copyWith(
+        availableIdirs: remaining,
+        activeIdir: () => nextActive,
+      );
+
+      if (_ref.exists(authNotifierProvider)) {
+        try {
+          final authNotifier = _ref.read(authNotifierProvider.notifier);
+          if (nextActive != null) {
+            await authNotifier.switchActiveIdir(nextActive);
+          } else {
+            await authNotifier.clearActiveIdir();
+          }
+          authNotifier.removeMembership(idirId);
+        } catch (_) {}
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint("[ActiveIdirNotifier] Error leaving Idir: $e");
+      return apiSuccess;
+    }
+  }
+
   /// Isolated test helper strictly for offline unit tests
-  void seedForTest() {
-    const list = [
+  void seedForTest([List<UserMembership>? customList]) {
+    final list = customList ?? const [
       UserMembership(
         id: 'idir_tinsae_001',
         idirId: 'idir_tinsae_001',

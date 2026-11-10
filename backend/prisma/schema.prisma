@@ -162,6 +162,26 @@ enum NotificationType {
   ASSISTANCE_UPDATE
   IKUB_DRAW
   MEETING_REMINDER
+  MEMBERSHIP_UPDATE
+  INVITATION
+  IDIR_STATUS
+  GOVERNANCE
+  FINANCIAL_REPORT
+  URGENT_ALERT
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  SMS
+  EMAIL
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 enum InvitationStatus {
@@ -207,6 +227,8 @@ model User {
   createdMeetings        Meeting[]              @relation("CreatedMeetings")
   announcements          Announcement[]         @relation("CreatedAnnouncements")
   notifications          Notification[]
+  notificationPreference NotificationPreference?
+  deviceTokens           DeviceToken[]
   auditLogs              AuditLog[]
   createdIdirs           Idir[]                 @relation("CreatedIdirs")
   createdInvitations     Invitation[]           @relation("CreatedInvitations")
@@ -714,18 +736,77 @@ model Announcement {
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  body      String
-  type      NotificationType @default(ANNOUNCEMENT)
-  data      Json?
-  readAt    DateTime?
-  createdAt DateTime         @default(now())
+  id             String                 @id @default(uuid())
+  userId         String
+  user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  body           String
+  type           NotificationType       @default(ANNOUNCEMENT)
+  data           Json?
+  readAt         DateTime?
+  idempotencyKey String?                @unique
+  createdAt      DateTime               @default(now())
+  deliveries     NotificationDelivery[]
 
   @@index([userId])
   @@index([readAt])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([idempotencyKey])
+}
+
+model NotificationPreference {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inAppEnabled          Boolean  @default(true)
+  pushEnabled           Boolean  @default(true)
+  smsEnabled            Boolean  @default(true)
+  emailEnabled          Boolean  @default(true)
+  reminderMeetings      Boolean  @default(true)
+  reminderContributions Boolean  @default(true)
+  notifyAnnouncements   Boolean  @default(true)
+  notifyGovernance      Boolean  @default(true)
+  notifyAssistance      Boolean  @default(true)
+  quietHoursEnabled     Boolean  @default(false)
+  quietHoursStart       String?  // e.g. "22:00"
+  quietHoursEnd         String?  // e.g. "07:00"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model DeviceToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   @default("android") // "android" | "ios" | "web"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+}
+
+model NotificationDelivery {
+  id             String              @id @default(uuid())
+  notificationId String
+  notification   Notification        @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  channel        NotificationChannel
+  status         DeliveryStatus      @default(PENDING)
+  recipient      String
+  attempts       Int                 @default(0)
+  lastAttemptAt  DateTime?
+  error          String?
+  idempotencyKey String?             @unique
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([notificationId])
+  @@index([status])
+  @@index([idempotencyKey])
 }
 
 // ─── AUDIT TRAIL ─────────────────────────────────────────────────────────────

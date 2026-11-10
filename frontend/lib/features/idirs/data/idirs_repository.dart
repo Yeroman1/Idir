@@ -19,6 +19,7 @@ abstract class IdirsRepository {
 
   Future<List<IdirModel>> getUserIdirs();
   Future<IdirModel?> getLatestDraft();
+  Future<bool> leaveIdir(String idirId);
 }
 
 class RestIdirsRepository implements IdirsRepository {
@@ -126,6 +127,28 @@ class RestIdirsRepository implements IdirsRepository {
     }
     final cached = await _loadCachedDrafts();
     return cached.isNotEmpty ? cached.first : null;
+  }
+
+  @override
+  Future<bool> leaveIdir(String idirId) async {
+    try {
+      await _api.post('/idirs/$idirId/leave');
+      await _removeCachedDraft(idirId);
+      return true;
+    } catch (_) {
+      await _removeCachedDraft(idirId);
+      return false;
+    }
+  }
+
+  Future<void> _removeCachedDraft(String idirId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final existing = await _loadCachedDrafts();
+      final updated = existing.where((x) => x.id != idirId).toList();
+      final encoded = jsonEncode(updated.map((x) => x.toMap()).toList());
+      await prefs.setString(_userCacheKey, encoded);
+    } catch (_) {}
   }
 
   Future<void> _cacheDraft(IdirModel idir) async {
